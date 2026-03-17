@@ -182,7 +182,7 @@ const ImportReview = () => {
 
       const result = await response.json();
       
-      const destination = listId === 'watchlist' ? '/my-list' : `/my-lists/${listId}`;
+      const destination = listId === 'watchlist' ? '/library' : `/library/lists/${listId}`;
       navigate(destination, { state: { importSuccess: result.moviesAdded, message: result.message } });
     } catch (err) {
       setError(err.message || 'An error occurred while confirming the import.');

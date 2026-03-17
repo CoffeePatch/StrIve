@@ -86,7 +86,22 @@ export const getImdbId = async (tmdbId, mediaType = 'movie') => {
       const data = await response.json();
       
       // Extract the IMDb ID
-      const imdbId = data.imdb_id || null;
+      let imdbId = data.imdb_id || null;
+
+      // Fallback: fetch full details with external_ids appended
+      if (!imdbId) {
+        try {
+          const detailsEndpoint = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?append_to_response=external_ids`;
+          const detailsResponse = await fetch(detailsEndpoint, options);
+
+          if (detailsResponse.ok) {
+            const detailsData = await detailsResponse.json();
+            imdbId = detailsData?.external_ids?.imdb_id || detailsData?.imdb_id || null;
+          }
+        } catch (detailsError) {
+          console.warn(`Fallback details lookup failed for ${mediaType} ${tmdbId}:`, detailsError.message);
+        }
+      }
       
       // Cache the result (only if we found an ID or it's explicitly null)
       const cacheData = {

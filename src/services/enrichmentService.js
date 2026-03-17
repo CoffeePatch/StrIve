@@ -83,7 +83,7 @@ class EnrichmentService {
       const tmdbId = item.tmdbId;
       const imdbId = item.imdbId;
 
-      // 1. Fetch TMDB Data (ratings, genres, cast, crew, overview, backdrop)
+      // 1. Fetch TMDB Data (ratings, overview, backdrop)
       if (tmdbId) {
         console.log(`Fetching TMDB data for ${item.title} (TMDB: ${tmdbId})`);
         
@@ -95,38 +95,13 @@ class EnrichmentService {
         if (tmdbData) {
           hasTmdbData = true;
           
-          // Extract ratings
+          // Extract TMDB ratings
           updates.tmdb_rating = tmdbData.vote_average || null;
           updates.tmdb_vote_count = tmdbData.vote_count || null;
-          updates.vote_average = tmdbData.vote_average || 0;
-          updates.vote_count = tmdbData.vote_count || 0;
           
           // Extract metadata
           updates.overview = tmdbData.overview || null;
           updates.backdrop_path = tmdbData.backdrop_path || null;
-          updates.genres = tmdbData.genres || null;
-          updates.status = tmdbData.status || null;
-          updates.tagline = tmdbData.tagline || null;
-          
-          // Extract cast (top 10)
-          if (tmdbData.credits?.cast) {
-            updates.cast = tmdbData.credits.cast.slice(0, 10).map((c) => ({
-              id: c.id,
-              name: c.name,
-              character: c.character,
-              profile_path: c.profile_path,
-            }));
-          }
-          
-          // Extract crew (top 5)
-          if (tmdbData.credits?.crew) {
-            updates.crew = tmdbData.credits.crew.slice(0, 5).map((c) => ({
-              id: c.id,
-              name: c.name,
-              job: c.job,
-              profile_path: c.profile_path,
-            }));
-          }
           
           console.log(`✓ TMDB data fetched for ${item.title}`);
         }
@@ -145,22 +120,22 @@ class EnrichmentService {
           updates.imdb_rating = enrichedImdb.imdb_rating;
           updates.imdb_vote_count = enrichedImdb.imdb_vote_count;
           
-          // Prioritize IMDb rating for display
-          updates.vote_average = enrichedImdb.imdb_rating;
-          updates.vote_count = enrichedImdb.imdb_vote_count;
-          
           console.log(`✓ IMDb data fetched for ${item.title}`);
         }
       }
 
       // 3. Only mark as enriched if we got data from at least one source
       if (hasTmdbData || hasImdbData) {
+        // Compute display rating (prioritize IMDb over TMDB)
+        updates.vote_average = updates.imdb_rating || updates.tmdb_rating || null;
+        updates.vote_count = updates.imdb_vote_count || updates.tmdb_vote_count || null;
+        
         updates.enrichmentStatus = "enriched";
         updates.lastEnriched = new Date().toISOString();
         
         await updateItemEnrichment(userId, listId, item.id, updates);
         console.log(
-          `✓ Enriched ${item.title} successfully. Rating: ${updates.vote_average}`
+          `✓ Enriched ${item.title} successfully. IMDb: ${updates.imdb_rating || 'N/A'}, TMDB: ${updates.tmdb_rating || 'N/A'}`
         );
       } else {
         // Mark as failed enrichment

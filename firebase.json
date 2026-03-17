@@ -1,6 +1,7 @@
 {
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "hosting": {
     "public": "dist",
@@ -10,14 +11,27 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      { "source": "/lists/*/import/analyze", "function": "analyzeListImport" },
-      { "source": "/lists/*/import/confirm", "function": "confirmListImport" },
-      { "source": "/lists/**", "function": "listsExport" }
+      {
+        "source": "/lists/*/import/analyze",
+        "function": "analyzeListImport"
+      },
+      {
+        "source": "/lists/*/import/confirm",
+        "function": "confirmListImport"
+      },
+      {
+        "source": "/lists/**",
+        "function": "listsExport"
+      }
     ]
   },
   "functions": {
     "source": "functions"
+  },
+  "emulators": {
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5101
+    }
   }
 }
-
-

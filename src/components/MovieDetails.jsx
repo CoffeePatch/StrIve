@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { options } from "../util/constants";
 import { addItem, fetchLists } from "../util/listsSlice";
+import { upsertLibraryItemV2 } from "../util/firestoreService";
 import Header from "./Header";
 import useRequireAuth from "../hooks/useRequireAuth";
 import useImdbTitle from "../hooks/useImdbTitle";
@@ -79,7 +80,7 @@ const MovieDetails = () => {
     setShowPlayer(true);
   };
 
-  const handleSelectList = async (listId) => {
+  const handleSelectList = async (selection) => {
     if (!user) {
       alert("Please log in to add movies to your lists.");
       setShowPopover(false);
@@ -98,12 +99,23 @@ const MovieDetails = () => {
         media_type: "movie",
       };
 
-      await dispatch(addItem({ 
-        userId: user.uid, 
-        listId, 
-        mediaItem 
-      })).unwrap();
-      alert(`${mediaItem.title} added to your list!`);
+      if (selection?.kind === "system") {
+        const status = selection.action === "completed" ? "completed" : "plan_to_watch";
+        await upsertLibraryItemV2(user.uid, mediaItem, { status });
+        alert(
+          selection.action === "completed"
+            ? `${mediaItem.title} marked as completed!`
+            : `${mediaItem.title} added to watchlist!`
+        );
+      } else if (selection?.kind === "custom" && selection?.listId) {
+        await dispatch(addItem({
+          userId: user.uid,
+          listId: selection.listId,
+          mediaItem,
+        })).unwrap();
+        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
+        alert(`${mediaItem.title} added to your list!`);
+      }
       
       setShowPopover(false);
     } catch (error) {

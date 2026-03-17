@@ -1,44 +1,341 @@
 rules_version = '2';
 service cloud.firestore {
-  // Allow all access during development
   match /databases/{database}/documents {
-    // Existing rules can go here
-    // For now, we implement security for custom lists
-    
-    // Custom lists rules
-    match /users/{userId}/custom_lists {
-      // Allow users to list their custom lists
-      allow list: if request.auth != null && request.auth.uid == userId;
-      // Allow users to create custom lists for themselves
-      allow create: if request.auth != null && request.auth.uid == userId;
+    function isSignedIn() {
+      return request.auth != null;
     }
-    
-    match /users/{userId}/custom_lists/{listId} {
-      // Allow users to read their own custom lists
-      allow get: if request.auth != null && request.auth.uid == userId;
-      // Allow users to create custom lists for themselves
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow users to update their own custom lists
-      allow update: if request.auth != null && request.auth.uid == userId;
-      // Allow users to delete their own custom lists
-      allow delete: if request.auth != null && request.auth.uid == userId;
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
-    
-    // Subcollection rules for list items
-    match /users/{userId}/custom_lists/{listId}/items {
-      // Allow users to list items in their lists
-      allow list: if request.auth != null && request.auth.uid == userId;
+
+    function isShortString(v, maxLen) {
+      return v is string && v.size() > 0 && v.size() <= maxLen;
     }
-    
-    match /users/{userId}/custom_lists/{listId}/items/{itemId} {
-      // Allow users to read items in their lists
-      allow get: if request.auth != null && request.auth.uid == userId;
-      // Allow users to add items to their lists
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow users to update items in their lists
-      allow update: if request.auth != null && request.auth.uid == userId;
-      // Allow users to delete items from their lists
-      allow delete: if request.auth != null && request.auth.uid == userId;
+
+    function isNullableString(v, maxLen) {
+      return v == null || (v is string && v.size() <= maxLen);
+    }
+
+    function isTimestampLike(v) {
+      return v is timestamp || (v is string && v.size() <= 40);
+    }
+
+    function isNullableTimestampLike(v) {
+      return v == null || isTimestampLike(v);
+    }
+
+    function isValidMediaType(v) {
+      return v in ['movie', 'tv'];
+    }
+
+    function isValidWatchStatus(v) {
+      return v in ['plan_to_watch', 'watching', 'completed', 'dropped', null];
+    }
+
+    function isValidListKind(v) {
+      return v in ['custom', 'system_watchlist', 'system_watched', 'favorites'];
+    }
+
+    function isValidVisibility(v) {
+      return v in ['private', 'public', 'unlisted'];
+    }
+
+    function isValidTitleKey(v) {
+      return v is string && v.size() <= 64 && v.matches('^tmdb_(movie|tv)_[0-9]+$');
+    }
+
+    function isValidRating(v) {
+      return v == null || (v is number && v >= 0 && v <= 10);
+    }
+
+    function isValidYear(v) {
+      return v == null || (v is int && v >= 1800 && v <= 2500);
+    }
+
+    function isValidPopularity(v) {
+      return v == null || (v is number && v >= 0 && v <= 10000000);
+    }
+
+    function isValidStringArray(arr, maxItems, maxLen) {
+      return arr is list
+        && arr.size() <= maxItems
+        // Firestore Rules cannot deeply iterate lists safely; cap size and enforce
+        // strict doc-level limits to prevent abusive payload growth.
+        && maxLen > 0;
+    }
+
+    function isValidLibrarySort(s) {
+      return s is map
+        && s.keys().hasOnly(['imdbRating', 'tmdbRating', 'popularity', 'year', 'titleLower'])
+        && isValidRating(s.imdbRating)
+        && isValidRating(s.tmdbRating)
+        && isValidPopularity(s.popularity)
+        && isValidYear(s.year)
+        && isShortString(s.titleLower, 200);
+    }
+
+    function isValidLibraryCounters(c) {
+      return c is map
+        && c.keys().hasOnly([
+          'watchedEpisodesCount',
+          'totalEpisodesCount',
+          'airedEpisodesCount',
+          'unAiredEpisodesCount',
+          'completionRatio'
+        ])
+        && c.watchedEpisodesCount is int && c.watchedEpisodesCount >= 0
+        && c.totalEpisodesCount is int && c.totalEpisodesCount >= 0
+        && c.airedEpisodesCount is int && c.airedEpisodesCount >= 0
+        && c.unAiredEpisodesCount is int && c.unAiredEpisodesCount >= 0
+        && c.completionRatio is number && c.completionRatio >= 0 && c.completionRatio <= 1;
+    }
+
+    function isValidListDoc(uid, d) {
+      return d.keys().hasOnly([
+          'name',
+          'description',
+          'kind',
+          'visibility',
+          'isPinned',
+          'itemCount',
+          'createdAt',
+          'updatedAt',
+          'ownerId'
+        ])
+        && d.keys().hasAll(['name', 'kind', 'visibility', 'isPinned', 'itemCount', 'createdAt', 'updatedAt', 'ownerId'])
+        && isShortString(d.name, 100)
+        && isNullableString(d.description, 500)
+        && isValidListKind(d.kind)
+        && isValidVisibility(d.visibility)
+        && d.isPinned is bool
+        && d.itemCount is int && d.itemCount >= 0 && d.itemCount <= 200000
+        && isTimestampLike(d.createdAt)
+        && isTimestampLike(d.updatedAt)
+        && d.ownerId == uid;
+    }
+
+    function isValidListItemSort(s) {
+      return s is map
+        && s.keys().hasOnly(['imdbRating', 'tmdbRating', 'popularity', 'year', 'titleLower'])
+        && isValidRating(s.imdbRating)
+        && isValidRating(s.tmdbRating)
+        && isValidPopularity(s.popularity)
+        && isValidYear(s.year)
+        && isShortString(s.titleLower, 200);
+    }
+
+    function isValidListItemDisplay(d) {
+      return d is map
+        && d.keys().hasOnly(['title', 'posterPath', 'releaseDate'])
+        && d.keys().hasAll(['title', 'releaseDate'])
+        && isShortString(d.title, 200)
+        && isNullableString(d.posterPath, 300)
+        && isNullableTimestampLike(d.releaseDate);
+    }
+
+    function isValidListItemDoc(d) {
+      return d.keys().hasOnly(['titleKey', 'mediaType', 'addedAt', 'position', 'sort', 'display'])
+        && d.keys().hasAll(['titleKey', 'mediaType', 'addedAt', 'position', 'sort', 'display'])
+        && isValidTitleKey(d.titleKey)
+        && isValidMediaType(d.mediaType)
+        && isTimestampLike(d.addedAt)
+        && ((d.position is number && d.position >= 0) || (d.position is string && d.position.size() > 0 && d.position.size() <= 64))
+        && isValidListItemSort(d.sort)
+        && isValidListItemDisplay(d.display);
+    }
+
+    function isValidLibraryCreate(d) {
+      return d.keys().hasOnly([
+          'titleKey',
+          'mediaType',
+          'status',
+          'listIds',
+          'userRating',
+          'addedAt',
+          'updatedAt',
+          'lastWatchedAt'
+        ])
+        && d.keys().hasAll(['titleKey', 'mediaType', 'status', 'listIds', 'addedAt', 'updatedAt'])
+        && isValidTitleKey(d.titleKey)
+        && isValidMediaType(d.mediaType)
+        && isValidWatchStatus(d.status)
+        && isValidStringArray(d.listIds, 100, 80)
+        && isValidRating(d.userRating)
+        && isTimestampLike(d.addedAt)
+        && isTimestampLike(d.updatedAt)
+        && isNullableTimestampLike(d.lastWatchedAt);
+    }
+
+    function isValidLibraryUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'listIds',
+          'userRating',
+          'updatedAt',
+          'lastWatchedAt'
+        ])
+        && request.resource.data.titleKey == resource.data.titleKey
+        && request.resource.data.mediaType == resource.data.mediaType
+        && request.resource.data.addedAt == resource.data.addedAt
+        && isValidWatchStatus(request.resource.data.status)
+        && isValidStringArray(request.resource.data.listIds, 100, 80)
+        && isValidRating(request.resource.data.userRating)
+        && isTimestampLike(request.resource.data.updatedAt)
+        && isNullableTimestampLike(request.resource.data.lastWatchedAt);
+    }
+
+    function isValidLegacyListItem(d) {
+      return d.keys().size() <= 40
+        && (!('id' in d) || d.id is string || d.id is int)
+        && (!('title' in d) || isShortString(d.title, 250))
+        && (!('name' in d) || isShortString(d.name, 250))
+        && (!('media_type' in d) || d.media_type in ['movie', 'tv', 'episode'])
+        && (!('poster_path' in d) || isNullableString(d.poster_path, 300))
+        && (!('backdrop_path' in d) || isNullableString(d.backdrop_path, 300));
+    }
+
+    function isValidLegacyCustomList(uid, d) {
+      return d.keys().size() <= 12
+        && d.ownerId == uid
+        && (!('name' in d) || isShortString(d.name, 100))
+        && (!('description' in d) || isNullableString(d.description, 500));
+    }
+
+    /* -----------------------
+       Global Catalog (new)
+       ----------------------- */
+    match /catalog_titles/{titleKey} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /catalog_titles/{titleKey}/seasons/{seasonNumber} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /catalog_titles/{titleKey}/episodes/{episodeKey} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    /* -----------------------
+       User root
+       ----------------------- */
+    match /users/{uid} {
+      allow read, create, update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    /* -----------------------
+       New schema paths
+       ----------------------- */
+    match /users/{uid}/library_items/{itemKey} {
+      allow read: if isOwner(uid);
+
+      // Client can only create safe fields. Materialized fields are server-only.
+      allow create: if isOwner(uid)
+        && isValidLibraryCreate(request.resource.data);
+
+      // Client can only edit user-controlled fields.
+      allow update: if isOwner(uid)
+        && isValidLibraryUpdate();
+
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/episode_states/{episodeStateKey} {
+      allow read: if isOwner(uid);
+      // Write only from Admin SDK / service account via backend.
+      allow write: if false;
+    }
+
+    match /users/{uid}/series_progress/{titleKey} {
+      allow read: if isOwner(uid);
+      // Materialized progress is read-only for clients.
+      allow write: if false;
+    }
+
+    match /users/{uid}/lists/{listId} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && isValidListDoc(uid, request.resource.data);
+
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'description',
+          'kind',
+          'visibility',
+          'isPinned',
+          'itemCount',
+          'updatedAt'
+        ])
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidListDoc(uid, request.resource.data);
+
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/lists/{listId}/items/{itemKey} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && isValidListItemDoc(request.resource.data);
+
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'position',
+          'sort',
+          'display'
+        ])
+        && request.resource.data.titleKey == resource.data.titleKey
+        && request.resource.data.mediaType == resource.data.mediaType
+        && request.resource.data.addedAt == resource.data.addedAt
+        && isValidListItemDoc(request.resource.data);
+
+      allow delete: if isOwner(uid);
+    }
+
+    /* -----------------------
+       Compat mode legacy paths
+       ----------------------- */
+    match /users/{uid}/custom_lists/{listId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && isValidLegacyCustomList(uid, request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/custom_lists/{listId}/items/{itemId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && isValidLegacyListItem(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/library/{itemId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && isValidLegacyListItem(request.resource.data)
+        && request.resource.data.keys().size() <= 30;
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/{legacyCollection}/{itemId} {
+      allow read: if isOwner(uid) && legacyCollection in ['watchlist', 'watched'];
+      allow create, update: if isOwner(uid)
+        && legacyCollection in ['watchlist', 'watched']
+        && isValidLegacyListItem(request.resource.data);
+      allow delete: if isOwner(uid) && legacyCollection in ['watchlist', 'watched'];
+    }
+
+    // Deny all other access by default.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

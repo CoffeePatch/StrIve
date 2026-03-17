@@ -6,6 +6,7 @@ import { fetchActiveList, removeItem } from "../util/listsSlice";
 import MovieCard from "./MovieCard";
 import Header from "./Header";
 import { exportListCsv } from "../util/exportDownload";
+import manualEnrichmentService from "../services/manualEnrichmentService";
 
 const ListDetailsPage = () => {
   const dispatch = useDispatch();
@@ -19,6 +20,11 @@ const ListDetailsPage = () => {
   const [filterType, setFilterType] = useState("all");
   const [sortType, setSortType] = useState("dateAddedDesc");
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Enrichment state
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 });
+  const [enrichedItems, setEnrichedItems] = useState(new Map());
 
   useEffect(() => {
     if (user && listId) {
@@ -59,6 +65,52 @@ const ListDetailsPage = () => {
       setExporting(false);
     }
   }, [user, listId, details]);
+
+  // Handle manual enrichment
+  const handleEnrichList = useCallback(async () => {
+    if (!user || !listId || !items || items.length === 0) return;
+    
+    setIsEnriching(true);
+    setEnrichProgress({ current: 0, total: items.length });
+    setEnrichedItems(new Map());
+
+    await manualEnrichmentService.enrichList(
+      user.uid,
+      listId,
+      items,
+      // onProgress callback
+      (currentIndex, total, item, updates) => {
+        setEnrichProgress({ current: currentIndex + 1, total });
+        
+        if (updates.status === 'success') {
+          // Store the enriched data for live updates
+          setEnrichedItems(prev => {
+            const newMap = new Map(prev);
+            newMap.set(item.id, {
+              imdb_rating: updates.imdb_rating,
+              tmdb_rating: updates.tmdb_rating,
+              vote_average: updates.vote_average,
+            });
+            return newMap;
+          });
+        }
+      },
+      // onComplete callback
+      (successCount, failCount) => {
+        setIsEnriching(false);
+        setSuccessMessage(
+          `Enrichment complete! ${successCount} succeeded, ${failCount} failed.`
+        );
+        
+        // Refresh the list to show updated data
+        setTimeout(() => {
+          dispatch(fetchActiveList({ userId: user.uid, listId }));
+        }, 1000);
+        
+        setTimeout(() => setSuccessMessage(null), 5000);
+      }
+    );
+  }, [user, listId, items, dispatch]);
 
   const filteredAndSortedItems = useMemo(() => {
     if (!items) return [];
@@ -229,8 +281,49 @@ const ListDetailsPage = () => {
                     </span>
                     <span className="text-white">Export</span>
                   </button>
+
+                  {/* Enrich Button */}
+                  <button
+                    onClick={handleEnrichList}
+                    disabled={isEnriching || !items || items.length === 0}
+                    className={`px-4 py-2 bg-blue-600 border border-blue-600 rounded-full text-sm flex items-center gap-2 transition-all ${
+                      isEnriching || !items || items.length === 0
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-blue-700"
+                    }`}
+                    title="Fetch ratings and metadata for all items"
+                  >
+                    <span className={`material-symbols-outlined text-lg ${isEnriching ? 'animate-spin' : ''}`}>
+                      {isEnriching ? "sync" : "cloud_sync"}
+                    </span>
+                    <span className="text-white">
+                      {isEnriching ? "Enriching..." : "Enrich Data"}
+                    </span>
+                  </button>
                 </div>
               </div>
+
+              {/* Enrichment Progress Bar */}
+              {isEnriching && (
+                <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-blue-400 text-sm font-medium">
+                      Enriching items... {enrichProgress.current} / {enrichProgress.total}
+                    </span>
+                    <span className="text-blue-400 text-sm">
+                      {Math.round((enrichProgress.current / enrichProgress.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${(enrichProgress.current / enrichProgress.total) * 100}%`,
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              )}
 
               {successMessage && (
                 <div className="mt-3 p-2.5 bg-green-900/30 border border-green-700 rounded-lg text-green-400 text-center text-sm">
@@ -245,14 +338,22 @@ const ListDetailsPage = () => {
             <div className="max-w-full mx-auto px-10 py-8">
               {filteredAndSortedItems.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
-                  {filteredAndSortedItems.map((item, index) => (
-                    <MovieCard
-                      key={`${item.id}-${index}`}
-                      movie={item}
-                      onRemove={() => handleRemoveItem(item)}
-                      vaultMode={true}
-                    />
-                  ))}
+                  {filteredAndSortedItems.map((item, index) => {
+                    // Merge live enrichment data with item data
+                    const enrichedData = enrichedItems.get(item.id);
+                    const displayItem = enrichedData 
+                      ? { ...item, ...enrichedData }
+                      : item;
+                    
+                    return (
+                      <MovieCard
+                        key={`${item.id}-${index}`}
+                        movie={displayItem}
+                        onRemove={() => handleRemoveItem(item)}
+                        vaultMode={true}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bg-gray-900 rounded-lg p-16 text-center border border-gray-800 mt-20">

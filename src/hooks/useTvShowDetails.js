@@ -48,7 +48,6 @@ const useTvShowDetails = (tvId) => {
         status: tmdbData.status,
         numberOfSeasons: tmdbData.number_of_seasons,
         numberOfEpisodes: tmdbData.number_of_episodes,
-        genres: tmdbData.genres || [],
         networks: tmdbData.networks?.map(n => ({ id: n.id, name: n.name, logoPath: n.logo_path })) || [],
         voteAverage: tmdbData.vote_average,
         voteCount: tmdbData.vote_count,

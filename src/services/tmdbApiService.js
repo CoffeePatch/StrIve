@@ -88,26 +88,11 @@ class TmdbApiService {
       overview: tmdbData.overview,
       vote_average: tmdbData.vote_average,
       vote_count: tmdbData.vote_count,
-      genres: tmdbData.genres,
       runtime:
         tmdbData.runtime ||
         (tmdbData.episode_run_time ? tmdbData.episode_run_time[0] : null),
       status: tmdbData.status,
       tagline: tmdbData.tagline,
-      cast:
-        tmdbData.credits?.cast?.slice(0, 10).map((c) => ({
-          id: c.id,
-          name: c.name,
-          character: c.character,
-          profile_path: c.profile_path,
-        })) || [],
-      crew:
-        tmdbData.credits?.crew?.slice(0, 5).map((c) => ({
-          id: c.id,
-          name: c.name,
-          job: c.job,
-          profile_path: c.profile_path,
-        })) || [],
     };
   }
 

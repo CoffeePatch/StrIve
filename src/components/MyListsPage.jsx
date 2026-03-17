@@ -18,8 +18,10 @@ const MyListsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [listToDelete, setListToDelete] = useState(null);
   const [exportingListId, setExportingListId] = useState(null);
-  const [viewMode, setViewMode] = useState("bookshelf"); // 'grid' or 'bookshelf'
+  const [viewMode, setViewMode] = useState("bookshelf");
   const [hasCheckedDefaultList, setHasCheckedDefaultList] = useState(false);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectedLists, setSelectedLists] = useState([]);
 
   useEffect(() => {
     if (user) {
@@ -75,6 +77,28 @@ const MyListsPage = () => {
     }
   };
 
+  const handleToggleSelect = (listId) => {
+    setSelectedLists(prev => 
+      prev.includes(listId) ? prev.filter(id => id !== listId) : [...prev, listId]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (!user || selectedLists.length === 0) return;
+    if (!confirm(`Delete ${selectedLists.length} lists?`)) return;
+    
+    try {
+      for (const listId of selectedLists) {
+        await dispatch(deleteList({ userId: user.uid, listId })).unwrap();
+      }
+      setSelectedLists([]);
+      setBulkDeleteMode(false);
+      alert(`Deleted ${selectedLists.length} lists!`);
+    } catch (err) {
+      alert("Failed to delete some lists");
+    }
+  };
+
   const loading = customLists.status === "loading";
   const error = customLists.error;
 
@@ -103,6 +127,51 @@ const MyListsPage = () => {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {/* Bulk Delete Button */}
+              {!bulkDeleteMode && (
+                <button
+                  onClick={() => setBulkDeleteMode(true)}
+                  className="btn-secondary flex items-center gap-2 bg-red-600/20 hover:bg-red-600/30 text-red-400"
+                >
+                  <span className="material-symbols-outlined">delete_sweep</span>
+                  <span>Bulk Delete</span>
+                </button>
+              )}
+              
+              {bulkDeleteMode && (
+                <>
+                  <button
+                    onClick={() => {
+                      if (selectedLists.length === customLists.lists.length) {
+                        setSelectedLists([]);
+                      } else {
+                        setSelectedLists(customLists.lists.map(l => l.id));
+                      }
+                    }}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined">
+                      {selectedLists.length === customLists.lists.length ? 'deselect' : 'select_all'}
+                    </span>
+                    <span>{selectedLists.length === customLists.lists.length ? 'Unselect All' : 'Select All'}</span>
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={selectedLists.length === 0}
+                    className="btn-primary flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                    <span>Delete ({selectedLists.length})</span>
+                  </button>
+                  <button
+                    onClick={() => { setBulkDeleteMode(false); setSelectedLists([]); }}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <span>Cancel</span>
+                  </button>
+                </>
+              )}
+              
               {/* View Mode Toggle */}
               <div className="glass-effect rounded-xl p-1 flex gap-1">
                 <button
@@ -205,23 +274,35 @@ const MyListsPage = () => {
                   {/* All Lists (pinned appear first due to sorting in Redux) */}
                   {customLists.lists.map((list) =>
                     viewMode === "grid" ? (
-                      <ShelfCard
-                        key={list.id}
-                        list={list}
-                        onDelete={setListToDelete}
-                        onExport={handleExportList}
-                        onTogglePin={handleTogglePin}
-                        isExporting={exportingListId === list.id}
-                      />
+                      <div 
+                        key={list.id} 
+                        className={`relative transition-all ${selectedLists.includes(list.id) ? 'ring-4 ring-red-500 rounded-lg' : ''}`}
+                      >
+                        <ShelfCard
+                          list={list}
+                          onDelete={setListToDelete}
+                          onExport={handleExportList}
+                          onTogglePin={handleTogglePin}
+                          isExporting={exportingListId === list.id}
+                          bulkDeleteMode={bulkDeleteMode}
+                          onSelect={() => handleToggleSelect(list.id)}
+                        />
+                      </div>
                     ) : (
-                      <BookshelfListCard
-                        key={list.id}
-                        list={list}
-                        onDelete={setListToDelete}
-                        onExport={handleExportList}
-                        onTogglePin={handleTogglePin}
-                        isExporting={exportingListId === list.id}
-                      />
+                      <div 
+                        key={list.id} 
+                        className={`relative transition-all ${selectedLists.includes(list.id) ? 'ring-4 ring-red-500 rounded-lg' : ''}`}
+                      >
+                        <BookshelfListCard
+                          list={list}
+                          onDelete={setListToDelete}
+                          onExport={handleExportList}
+                          onTogglePin={handleTogglePin}
+                          isExporting={exportingListId === list.id}
+                          bulkDeleteMode={bulkDeleteMode}
+                          onSelect={() => handleToggleSelect(list.id)}
+                        />
+                      </div>
                     )
                   )}
                 </div>

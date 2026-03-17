@@ -44,9 +44,9 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="/my-lists" className="hover:text-white transition-colors flex items-center gap-2">
+                <a href="/library" className="hover:text-white transition-colors flex items-center gap-2">
                   <span className="material-symbols-outlined text-base">playlist_play</span>
-                  My Lists
+                  Library
                 </a>
               </li>
             </ul>

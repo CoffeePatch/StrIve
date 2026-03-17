@@ -9,10 +9,12 @@ import TVShowDetails from "./TVShowDetails";
 import TVShowDetailsPage from "./TVShowDetailsPage";
 import SearchPage from "./SearchPage";
 import ProtectedRoute from "./ProtectedRoute";
-import MyListsPage from "./MyListsPage"; // Import MyListsPage
-import ListDetailsPage from "./ListDetailsPage"; // Import ListDetailsPage
-import ImportPage from "./ImportPage"; // Import ImportPage
-import ImportReviewPage from "./ImportReviewPage"; // Import ImportReviewPage
+import MyListsPage from "./MyListsPage";
+import ListDetailsPage from "./ListDetailsPage";
+import ImportPage from "./ImportPage";
+import ImportReviewPage from "./ImportReviewPage";
+import LibraryMasterPage from "./LibraryMasterPage";
+import SettingsPage from "./SettingsPage";
 import { SimklPage, SimklCallback } from "./Simkl";
 import { useSimklBackgroundSync } from "../hooks/useSimkl";
 import { RouterProvider } from "react-router-dom";
@@ -55,18 +57,34 @@ const Body = () => {
       ),
     },
     {
-      path: "/my-lists", // User's collections page
+      path: "/library",
       element: (
         <ProtectedRoute>
-          <MyListsPage />
+          <LibraryMasterPage />
         </ProtectedRoute>
       ),
     },
     {
-      path: "/my-lists/:listId", // Individual list details
+      path: "/my-lists",
+      element: <Navigate to="/library" replace />,
+    },
+    {
+      path: "/my-lists/:listId",
+      element: <Navigate to="/library" replace />,
+    },
+    {
+      path: "/library/lists/:listId",
       element: (
         <ProtectedRoute>
           <ListDetailsPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/settings",
+      element: (
+        <ProtectedRoute>
+          <SettingsPage />
         </ProtectedRoute>
       ),
     },
@@ -130,3 +148,4 @@ const Body = () => {
 };
 
 export default Body;
+

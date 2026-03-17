@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const ShelfCard = ({ list, onDelete, onExport, onTogglePin, isExporting }) => {
+const ShelfCard = ({ list, onDelete, onExport, onTogglePin, isExporting, bulkDeleteMode, onSelect }) => {
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
 
   const handleCardClick = () => {
-    navigate(`/my-lists/${list.id}`);
+    if (bulkDeleteMode) {
+      onSelect();
+    } else {
+      navigate(`/library/lists/${list.id}`);
+    }
   };
 
   const handleMenuToggle = (e) => {

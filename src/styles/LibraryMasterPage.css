@@ -1,0 +1,49 @@
+/* Library Master Page - Minimal Styles */
+/* Most styling is handled by Tailwind CSS and the premium-page/glass-effect classes */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.min-h-screen {
+  animation: fadeIn 0.3s ease;
+}
+
+select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.5rem;
+  appearance: none;
+}
+
+@media (max-width: 768px) {
+  .min-h-screen.premium-page {
+    padding: 1rem;
+  }
+
+  .pt-24 {
+    padding-top: 5rem;
+  }
+}

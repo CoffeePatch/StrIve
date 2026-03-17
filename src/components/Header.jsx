@@ -107,13 +107,13 @@ const Header = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => navigate("/my-lists")}
+                    onClick={() => navigate("/library")}
                     className="text-white/90 hover:text-white font-medium text-base transition-colors flex items-center gap-2 group"
                   >
                     <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">
                       playlist_play
                     </span>
-                    <span>My Lists</span>
+                    <span>Library</span>
                   </button>
                 </li>
               </ul>
@@ -150,7 +150,7 @@ const Header = () => {
                   </div>
                   <button
                     role="menuitem"
-                    onClick={() => {}}
+                    onClick={() => navigate("/settings")}
                     className="w-full text-left px-4 py-3 text-sm text-white/90 hover:bg-white/10 transition-colors flex items-center gap-3 font-secondary"
                   >
                     <span className="material-symbols-outlined text-xl">

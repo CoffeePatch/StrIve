@@ -27,6 +27,26 @@ const AddToListPopover = ({ onSelectList, onCreateNew, isOpen }) => {
       onMouseEnter={(e) => e.stopPropagation()}
     >
       <div className="py-2 max-h-96 overflow-y-auto">
+        {/* System Library Actions */}
+        <div className="px-4 py-2 text-xs text-white/40 font-secondary uppercase tracking-wider">
+          Library Actions
+        </div>
+        <button
+          onClick={() => onSelectList({ kind: 'system', action: 'watchlist' })}
+          className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all"
+        >
+          <span className="font-secondary truncate flex-1 text-left">Add to Watchlist</span>
+          <span className="material-symbols-outlined text-base text-white/50">bookmark</span>
+        </button>
+        <button
+          onClick={() => onSelectList({ kind: 'system', action: 'completed' })}
+          className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all"
+        >
+          <span className="font-secondary truncate flex-1 text-left">Mark as Completed</span>
+          <span className="material-symbols-outlined text-base text-white/50">check_circle</span>
+        </button>
+        <div className="border-t border-white/10 my-2"></div>
+
         {/* Pinned Lists Section */}
         {pinnedLists.length > 0 && (
           <>
@@ -36,7 +56,7 @@ const AddToListPopover = ({ onSelectList, onCreateNew, isOpen }) => {
             {pinnedLists.map((list) => (
               <button
                 key={list.id}
-                onClick={() => onSelectList(list.id)}
+                onClick={() => onSelectList({ kind: 'custom', listId: list.id })}
                 className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all"
               >
                 <span className="font-secondary truncate flex-1 text-left">{list.name}</span>
@@ -66,7 +86,7 @@ const AddToListPopover = ({ onSelectList, onCreateNew, isOpen }) => {
             {unpinnedLists.map((list) => (
               <button
                 key={list.id}
-                onClick={() => onSelectList(list.id)}
+                onClick={() => onSelectList({ kind: 'custom', listId: list.id })}
                 className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all"
               >
                 <span className="font-secondary truncate flex-1 text-left">{list.name}</span>

@@ -8,6 +8,7 @@ import {
   setSelectedSeason,
 } from "../util/tvShowsSlice";
 import { addToList } from "../util/firestoreService";
+import { upsertLibraryItemV2 } from "../util/firestoreService";
 import { addItem } from "../util/listsSlice";
 import TVShowPlayer from "./TVShowPlayer";
 import Header from "./Header";
@@ -131,7 +132,7 @@ const TVShowDetails = () => {
     }
   };
 
-  const handleSelectList = async (listId, listType) => {
+  const handleSelectList = async (selection) => {
     if (!user) {
       alert("Please log in to add shows to your lists.");
       setShowPopover(false);
@@ -149,15 +150,21 @@ const TVShowDetails = () => {
         type: "tv",
       };
 
-      if (listType === 'watchlist') {
-        await addToList(user.uid, "watchlist", mediaItem);
-        alert(`${mediaItem.title} added to your watchlist!`);
-      } else {
+      if (selection?.kind === 'system') {
+        const status = selection.action === 'completed' ? 'completed' : 'plan_to_watch';
+        await upsertLibraryItemV2(user.uid, mediaItem, { status });
+        alert(
+          selection.action === 'completed'
+            ? `${mediaItem.title} marked as completed!`
+            : `${mediaItem.title} added to watchlist!`
+        );
+      } else if (selection?.kind === 'custom' && selection?.listId) {
         await dispatch(addItem({ 
           userId: user.uid, 
-          listId, 
+          listId: selection.listId,
           mediaItem 
         })).unwrap();
+        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
         alert(`${mediaItem.title} added to your list!`);
       }
       

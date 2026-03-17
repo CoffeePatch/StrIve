@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 const ListCard = ({ list }) => {
   return (
     <Link 
-      to={`/my-lists/${list.id}`}
+      to={`/library/lists/${list.id}`}
       className="block bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow duration-200"
     >
       <h3 className="text-xl font-medium mb-2">{list.name}</h3>

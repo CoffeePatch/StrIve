@@ -5,15 +5,48 @@
  */
 class IMDbService {
   constructor() {
-    const baseUrl = import.meta.env.VITE_IMDB_BASE_URL;
-    
-    if (!baseUrl) {
-      const errorMsg = 'Missing VITE_IMDB_BASE_URL environment variable. IMDb features are disabled.';
-      console.error(`❌ ${errorMsg}`);
-      throw new Error(errorMsg);
+    const configuredBaseUrl = import.meta.env.VITE_IMDB_BASE_URL?.trim();
+    const fallbackBaseUrl = 'https://api.imdbapi.dev';
+    const isPlaceholder = configuredBaseUrl && configuredBaseUrl.startsWith('your_');
+
+    if (!configuredBaseUrl || isPlaceholder) {
+      console.warn('VITE_IMDB_BASE_URL not set. Falling back to https://api.imdbapi.dev.');
     }
-    
-    this.baseUrl = baseUrl;
+
+    const selectedBaseUrl = (!configuredBaseUrl || isPlaceholder)
+      ? fallbackBaseUrl
+      : configuredBaseUrl;
+
+    this.baseUrl = selectedBaseUrl.replace(/\/$/, '');
+    this.fallbackBaseUrl = fallbackBaseUrl;
+  }
+
+  async requestJson(path) {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const candidateBaseUrls = [this.baseUrl];
+
+    if (this.fallbackBaseUrl && this.fallbackBaseUrl !== this.baseUrl) {
+      candidateBaseUrls.push(this.fallbackBaseUrl);
+    }
+
+    let lastError;
+
+    for (const baseUrl of candidateBaseUrls) {
+      try {
+        const response = await fetch(`${baseUrl}${normalizedPath}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        console.error(`IMDb request failed for ${baseUrl}${normalizedPath}:`, error);
+      }
+    }
+
+    throw lastError || new Error('IMDb request failed');
   }
 
   /**
@@ -23,15 +56,7 @@ class IMDbService {
    */
   async getTitleById(imdbId) {
     try {
-      const url = `${this.baseUrl}/titles/${imdbId}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return await this.requestJson(`/titles/${imdbId}`);
     } catch (error) {
       console.error(`Error fetching data for IMDb ID ${imdbId}:`, error);
       throw error;
@@ -46,14 +71,7 @@ class IMDbService {
   async searchTitles(query, limit = 50) {
     try {
       const encodedQuery = encodeURIComponent(query);
-      const url = `${this.baseUrl}/search/titles?query=${encodedQuery}&limit=${limit}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await this.requestJson(`/search/titles?query=${encodedQuery}&limit=${limit}`);
       return data.titles || [];
     } catch (error) {
       console.error(`Error searching for titles with query "${query}":`, error);

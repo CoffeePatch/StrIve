@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import MovieCard from './MovieCard';
 import useSearch from '../hooks/useSearch';
+import { triggerGlobalRefetch } from '../hooks/useImdbRating';
 
 const SearchPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isRefetching, setIsRefetching] = useState(false);
 
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -26,6 +28,13 @@ const SearchPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+  };
+
+  const handleRefetchImdbRatings = () => {
+    setIsRefetching(true);
+    triggerGlobalRefetch();
+    // Reset the refetching state after a short delay
+    setTimeout(() => setIsRefetching(false), 2000);
   };
 
   return (
@@ -78,10 +87,27 @@ const SearchPage = () => {
               <h3 className="text-2xl lg:text-3xl font-bold text-white font-secondary">
                 Results for <span className="gradient-accent">"{searchTerm}"</span>
               </h3>
-              <div className="glass-effect px-4 py-2 rounded-full">
-                <p className="text-white/80 font-secondary text-sm">
-                  <span className="font-bold text-red-400">{results.length}</span> {results.length === 1 ? 'result' : 'results'} found
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="glass-effect px-4 py-2 rounded-full">
+                  <p className="text-white/80 font-secondary text-sm">
+                    <span className="font-bold text-red-400">{results.length}</span> {results.length === 1 ? 'result' : 'results'} found
+                  </p>
+                </div>
+                {results.length > 0 && (
+                  <button
+                    onClick={handleRefetchImdbRatings}
+                    disabled={isRefetching}
+                    className="glass-effect hover:bg-white/10 text-white px-4 py-2 rounded-full transition-all flex items-center gap-2 disabled:opacity-50 border border-yellow-500/30 hover:border-yellow-500/50"
+                    title="Reload missing IMDb ratings"
+                  >
+                    <span className={`material-symbols-outlined text-yellow-400 ${isRefetching ? 'animate-spin' : ''}`}>
+                      {isRefetching ? 'progress_activity' : 'refresh'}
+                    </span>
+                    <span className="text-sm font-secondary font-medium">
+                      {isRefetching ? 'Reloading...' : 'Reload IMDb'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 

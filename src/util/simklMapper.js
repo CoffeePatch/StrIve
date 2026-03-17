@@ -43,15 +43,9 @@ export const mapSimklMovieToStrive = (simklMovie) => {
     watchedAt: simklMovie.last_watched_at || null,
     addedToWatchlistAt: simklMovie.added_to_watchlist_at || null,
     user_rating: simklMovie.user_rating || null,
-    watchedEpisodesCount: simklMovie.watched_episodes_count || 0,
     
     // === Placeholders (NOT from SIMKL - filled by enrichment) ===
-    vote_average: 0,
-    vote_count: 0,
     overview: null,
-    genres: null,
-    cast: null,
-    crew: null,
     backdrop_path: null,
     tmdb_rating: null,
     tmdb_vote_count: null,
@@ -105,19 +99,9 @@ export const mapSimklShowToStrive = (simklShow) => {
     watchedAt: simklShow.last_watched_at || null,
     addedToWatchlistAt: simklShow.added_to_watchlist_at || null,
     user_rating: simklShow.user_rating || null,
-    watchedEpisodesCount: simklShow.watched_episodes_count || 0,
-    totalEpisodesCount: simklShow.total_episodes_count || 0,
-    notAiredEpisodesCount: simklShow.not_aired_episodes_count || 0,
-    nextToWatch: simklShow.next_to_watch || null,
-    lastWatched: simklShow.last_watched || null,
     
     // === Placeholders (NOT from SIMKL - filled by enrichment) ===
-    vote_average: 0,
-    vote_count: 0,
     overview: null,
-    genres: null,
-    cast: null,
-    crew: null,
     backdrop_path: null,
     tmdb_rating: null,
     tmdb_vote_count: null,
@@ -150,9 +134,6 @@ export const mapSimklAnimeToStrive = (simklAnime) => {
     tmdbId: parseInt(simklAnime.show?.ids?.tmdb) || null,
     simklId: simklAnime.show?.ids?.simkl || null,
     imdbId: simklAnime.show?.ids?.imdb || null,
-    malId: simklAnime.show?.ids?.mal || null,
-    anilistId: simklAnime.show?.ids?.anilist || null,
-    anidbId: simklAnime.show?.ids?.anidb || null,
     
     // === Basic Info ===
     title: simklAnime.show?.title || "",
@@ -173,18 +154,9 @@ export const mapSimklAnimeToStrive = (simklAnime) => {
     watchedAt: simklAnime.last_watched_at || null,
     addedToWatchlistAt: simklAnime.added_to_watchlist_at || null,
     user_rating: simklAnime.user_rating || null,
-    watchedEpisodesCount: simklAnime.watched_episodes_count || 0,
-    totalEpisodesCount: simklAnime.total_episodes_count || 0,
-    nextToWatch: simklAnime.next_to_watch || null,
-    animeType: simklAnime.anime_type || null,  // "movie" or "special"
     
     // === Placeholders (NOT from SIMKL - filled by enrichment) ===
-    vote_average: 0,
-    vote_count: 0,
     overview: null,
-    genres: null,
-    cast: null,
-    crew: null,
     backdrop_path: null,
     tmdb_rating: null,
     tmdb_vote_count: null,

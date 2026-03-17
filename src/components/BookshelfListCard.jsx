@@ -1,11 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-const BookshelfListCard = ({ list, onDelete, onExport, onTogglePin, isExporting }) => {
+const BookshelfListCard = ({ list, onDelete, onExport, onTogglePin, isExporting, bulkDeleteMode, onSelect }) => {
   const navigate = useNavigate();
 
   const handleCardClick = () => {
-    navigate(`/my-lists/${list.id}`);
+    if (bulkDeleteMode) {
+      onSelect();
+    } else {
+      navigate(`/library/lists/${list.id}`);
+    }
   };
 
   const handlePinToggle = (e) => {

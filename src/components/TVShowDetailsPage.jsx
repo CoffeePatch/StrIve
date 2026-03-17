@@ -9,6 +9,7 @@ import useTvVideos from "../hooks/useTvVideos";
 import useRequireAuth from "../hooks/useRequireAuth";
 import useImdbTitle from "../hooks/useImdbTitle";
 import { addItem, fetchLists } from "../util/listsSlice";
+import { upsertLibraryItemV2 } from "../util/firestoreService";
 import { options } from "../util/constants";
 import EpisodeOverlay from "./EpisodeOverlay";
 import SeasonTabs from "./SeasonTabs";
@@ -52,10 +53,15 @@ const TVShowDetailsPage = () => {
     selectedSeason
   );
 
-  // Determine initial selected season
+  // Determine initial selected season and preload all seasons
   useEffect(() => {
     if (showDetails && showDetails.numberOfSeasons) {
       setSelectedSeason(1);
+      
+      // Preload all seasons data for smart "mark previous" dialog
+      if (!allSeasonsData) {
+        fetchAllSeasonDetails();
+      }
     }
   }, [showDetails]);
 
@@ -105,9 +111,41 @@ const TVShowDetailsPage = () => {
     setShowEpisodeOverlay(true);
   };
 
-  const handleEpisodeClick = (episode) => {
+  const handleEpisodeClick = async (episode) => {
     setSelectedEpisode(episode);
+    
+    // Fetch all seasons if not already loaded (for smart "mark previous" dialog)
+    if (!allSeasonsData && showDetails) {
+      console.log("Fetching all seasons before opening overlay...");
+      await fetchAllSeasonDetails();
+    }
+    
     setShowEpisodeOverlay(true);
+  };
+
+  // Combine all episodes from all seasons for the overlay
+  const getAllEpisodes = () => {
+    if (allSeasonsData && allSeasonsData.length > 0) {
+      // If we have all seasons data, extract all episodes
+      console.log("Using allSeasonsData:", allSeasonsData.length, "seasons");
+      const allEps = allSeasonsData.flatMap(season => 
+        season.episodes?.map(ep => ({
+          ...ep,
+          seasonNumber: season.season_number,
+        })) || []
+      );
+      console.log("Total episodes from all seasons:", allEps.length);
+      return allEps;
+    }
+    
+    // Fallback: Add seasonNumber to current season episodes
+    console.log("Using current season only (allSeasonsData not ready)");
+    const currentSeasonEps = seasonData?.episodes?.map(ep => ({
+      ...ep,
+      seasonNumber: selectedSeason,
+    })) || [];
+    console.log("Current season episodes:", currentSeasonEps.length);
+    return currentSeasonEps;
   };
 
   // Fetch user's lists on mount
@@ -135,7 +173,7 @@ const TVShowDetailsPage = () => {
     };
   }, [hoverTimeout]);
 
-  const handleAddToList = async (listId) => {
+  const handleAddToList = async (selection) => {
     if (!user || !showDetails) return;
 
     try {
@@ -150,8 +188,19 @@ const TVShowDetailsPage = () => {
         media_type: "tv",
       };
 
-      await dispatch(addItem({ userId: user.uid, listId, mediaItem })).unwrap();
-      alert(`${mediaItem.title} added to your list!`);
+      if (selection?.kind === "system") {
+        const status = selection.action === "completed" ? "completed" : "plan_to_watch";
+        await upsertLibraryItemV2(user.uid, mediaItem, { status });
+        alert(
+          selection.action === "completed"
+            ? `${mediaItem.title} marked as completed!`
+            : `${mediaItem.title} added to watchlist!`
+        );
+      } else if (selection?.kind === "custom" && selection?.listId) {
+        await dispatch(addItem({ userId: user.uid, listId: selection.listId, mediaItem })).unwrap();
+        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
+        alert(`${mediaItem.title} added to your list!`);
+      }
 
       setShowPopover(false);
     } catch (error) {
@@ -577,7 +626,7 @@ const TVShowDetailsPage = () => {
         <EpisodeOverlay
           episode={selectedEpisode}
           showDetails={showDetails}
-          onClose={() => {
+          allEpisodes={getAllEpisodes()} onClose={() => {
             setShowEpisodeOverlay(false);
             setSelectedEpisode(null);
           }}
@@ -595,3 +644,5 @@ const TVShowDetailsPage = () => {
 };
 
 export default TVShowDetailsPage;
+
+
