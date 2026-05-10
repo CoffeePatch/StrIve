@@ -8,6 +8,8 @@ const moviesSlice = createSlice({
     topRatedMovies: null,
     upcomingMovies: null,
     trailer: null, // <-- This was missing
+    // store genre-specific lists keyed by genre id
+    genreMovies: {},
   },
   reducers: {
     addNowPlayingMovies: (state, action) => {
@@ -26,6 +28,11 @@ const moviesSlice = createSlice({
     addtrailer: (state, action) => {
       state.trailer = action.payload;
     },
+    addGenreMovies: (state, action) => {
+      const { genreId, results } = action.payload;
+      if (!state.genreMovies) state.genreMovies = {};
+      state.genreMovies[genreId] = results;
+    },
   },
 });
 
@@ -36,6 +43,7 @@ export const {
   addTopRatedMovies,
   addUpcomingMovies,
   addtrailer, // <-- This was missing
+  addGenreMovies,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

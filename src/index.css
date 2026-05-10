@@ -86,6 +86,16 @@ body {
   display: none;
 }
 
+/* More aggressive horizontal-scrollbar hiding utility (for overlay/OS scrollbars) */
+.hide-horizontal-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-horizontal-scrollbar::-webkit-scrollbar {
+  height: 0 !important;
+  display: none !important;
+}
+
 /* Smooth scrolling */
 .scrollbar-hide {
   scroll-behavior: smooth;

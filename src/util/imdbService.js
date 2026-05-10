@@ -36,7 +36,9 @@ class IMDbService {
         const response = await fetch(`${baseUrl}${normalizedPath}`);
 
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          const httpError = new Error(`HTTP error! Status: ${response.status}`);
+          httpError.status = response.status;
+          throw httpError;
         }
 
         return await response.json();

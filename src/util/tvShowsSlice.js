@@ -9,6 +9,8 @@ const tvShowsSlice = createSlice({
     tvShowDetails: null,
     tvShowSeasons: null,
     selectedSeason: 1,
+    // store genre-specific tv show lists keyed by genre id
+    genreTVShows: {},
   },
   reducers: {
     addPopularTVShows: (state, action) => {
@@ -29,6 +31,11 @@ const tvShowsSlice = createSlice({
     setSelectedSeason: (state, action) => {
       state.selectedSeason = action.payload;
     },
+    addGenreTVShows: (state, action) => {
+      const { genreId, results } = action.payload;
+      if (!state.genreTVShows) state.genreTVShows = {};
+      state.genreTVShows[genreId] = results;
+    },
   },
 });
 
@@ -39,6 +46,7 @@ export const {
   setTVShowDetails,
   setTVShowSeasons,
   setSelectedSeason,
+  addGenreTVShows,
 } = tvShowsSlice.actions;
 
 export default tvShowsSlice.reducer;

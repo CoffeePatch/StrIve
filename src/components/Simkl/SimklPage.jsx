@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useSimkl, useSimklBackgroundSync } from "../../hooks/useSimkl";
+import { useSimkl, useSimklBackgroundSync } from "../../hooks/simkl/useSimkl";
 import { fetchLists, addItemsBatch } from "../../util/listsSlice";
-import Header from "../Header";
-import Footer from "../Footer";
+import Header from "../layout/Header";
+import Footer from "../layout/Footer";
 import { toast } from "react-toastify";
-import CreateListModal from "../CreateListModal";
-import enrichmentService from "../../services/enrichmentService";
+import CreateListModal from "../lists/CreateListModal";
+import enrichmentService from "../../services/enrichment/enrichmentService";
 import {
   mapSimklMovieToStrive,
   mapSimklShowToStrive,
@@ -37,18 +37,19 @@ const SimklPage = () => {
       enrichmentService.startEnrichment(user.uid);
 
       // Simple polling for progress (since we don't have a real subscription yet)
-      const interval = setInterval(() => {
-        if (enrichmentService.isProcessing) {
-          // We could expose a progress getter in the service, but for now just show "Enriching..."
-          setEnrichmentProgress((prev) => (prev >= 100 ? 0 : prev + 5));
-        } else {
-          setEnrichmentProgress(0);
-        }
-      }, 1000);
+      // DISABLED: Detaching this feature for now to reduce background processing
+      // const interval = setInterval(() => {
+      //   if (enrichmentService.isProcessing) {
+      //     // We could expose a progress getter in the service, but for now just show "Enriching..."
+      //     setEnrichmentProgress((prev) => (prev >= 100 ? 0 : prev + 5));
+      //   } else {
+      //     setEnrichmentProgress(0);
+      //   }
+      // }, 1000);
 
       return () => {
         enrichmentService.stop();
-        clearInterval(interval);
+        // clearInterval(interval); // Disabled
       };
     }
   }, [dispatch, user]);

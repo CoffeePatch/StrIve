@@ -4,7 +4,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react';
 import MyListsPage from './MyListsPage';
 
 // Mock the required dependencies
-jest.mock('../hooks/useRequireAuth', () => () => ({ uid: 'test-user-id' }));
+jest.mock('../hooks/common/useRequireAuth', () => () => ({ uid: 'test-user-id' }));
 jest.mock('../util/listsSlice', () => ({
   fetchLists: jest.fn(),
   fetchWatchlist: jest.fn(),

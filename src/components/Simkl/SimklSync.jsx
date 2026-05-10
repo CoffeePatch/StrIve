@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { useSimkl, useSimklBackgroundSync } from '../../hooks/useSimkl';
+import { useSimkl, useSimklBackgroundSync } from '../../hooks/simkl/useSimkl';
 import { toast } from 'react-toastify';
 import './SimklSync.css';
 

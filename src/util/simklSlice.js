@@ -4,8 +4,8 @@
  */
 
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import simklAuthService from "../services/simklAuthService";
-import simklApiService from "../services/simklApiService";
+import simklAuthService from "../services/simkl/simklAuthService";
+import simklApiService from "../services/simkl/simklApiService";
 
 // Initial state
 const initialState = {

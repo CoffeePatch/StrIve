@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { useSimklCallback } from "../../hooks/useSimkl";
+import { useSimklCallback } from "../../hooks/simkl/useSimkl";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import "./SimklCallback.css";
