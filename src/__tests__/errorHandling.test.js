@@ -1,5 +1,5 @@
 // Error Handling & User Feedback Test
-import { mapListsToCsv, generateCsvBlob } from '../util/exportToCsv';
+import { mapListsToCsv, generateCsvBlob } from '../util/export/exportToCsv';
 
 // Mock global alert function
 global.alert = jest.fn();

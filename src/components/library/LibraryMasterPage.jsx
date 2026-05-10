@@ -5,7 +5,7 @@ import {
   getLibraryByStatus,
   getLibraryByListId,
   fetchUserLists,
-} from '../../util/firestoreService';
+} from '../../util/firebase/firestoreService';
 import MovieCard from '../movie/Cards/MovieCard';
 import TVShowCard from '../tv/TVShowCard';
 import Header from '../layout/Header';

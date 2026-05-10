@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
-import { auth } from "../../util/firebase";
+import { auth } from "../../util/firebase/firebase";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 

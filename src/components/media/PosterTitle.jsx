@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { addToList } from "../../util/firestoreService";
+import { addToList } from "../../util/firebase/firestoreService";
 import MoviePlayer from "../movie/Player/MoviePlayer";
 import { Play, Plus } from "lucide-react";
 

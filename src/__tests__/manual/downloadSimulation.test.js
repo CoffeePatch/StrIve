@@ -28,7 +28,7 @@ global.document = {
 };
 
 // Import the export utility
-import { generateCsvBlob } from '../../util/exportToCsv';
+import { generateCsvBlob } from '../../util/export/exportToCsv';
 
 // Sample test data
 const sampleLists = [

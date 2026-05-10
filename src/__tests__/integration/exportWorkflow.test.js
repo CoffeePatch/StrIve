@@ -1,5 +1,5 @@
 // Integration test for the complete export workflow
-import { mapListsToCsv } from '../../util/exportToCsv';
+import { mapListsToCsv } from '../../util/export/exportToCsv';
 
 describe('Export Workflow Integration Test', () => {
   test('complete export workflow from Redux state to CSV file', () => {

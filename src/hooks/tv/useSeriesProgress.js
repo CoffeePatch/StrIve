@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../util/firebase";
+import { db } from "../../util/firebase/firebase";
 
 /**
  * Reads a single denormalized progress doc for a TV series.

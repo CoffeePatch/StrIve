@@ -5,12 +5,12 @@ import MyListsPage from './MyListsPage';
 
 // Mock the required dependencies
 jest.mock('../hooks/common/useRequireAuth', () => () => ({ uid: 'test-user-id' }));
-jest.mock('../util/listsSlice', () => ({
+jest.mock('../util/store/listsSlice', () => ({
   fetchLists: jest.fn(),
   fetchWatchlist: jest.fn(),
   deleteList: jest.fn(),
 }));
-jest.mock('../util/exportToCsv', () => ({
+jest.mock('../util/export/exportToCsv', () => ({
   generateCsvBlob: jest.fn(() => new Blob(['test,csv,data\n1,2,3'], { type: 'text/csv' }))
 }));
 
@@ -64,7 +64,7 @@ describe('MyListsPage Export Functionality', () => {
     const expectedFilename = `my-lists-export-${today}.csv`;
     
     // The test verifies that the export function is called correctly
-    expect(require('../util/exportToCsv').generateCsvBlob).toHaveBeenCalledWith(
+    expect(require('../util/export/exportToCsv').generateCsvBlob).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'list1',

@@ -1,5 +1,5 @@
 // UI Integration Test
-import { mapListsToCsv } from '../util/exportToCsv';
+import { mapListsToCsv } from '../util/export/exportToCsv';
 
 // Mock browser APIs for testing
 global.URL = {

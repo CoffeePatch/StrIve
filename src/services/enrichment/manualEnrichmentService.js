@@ -1,4 +1,4 @@
-import { updateItemEnrichment } from "../../util/firestoreService";
+import { updateItemEnrichment } from "../../util/firebase/firestoreService";
 import tmdbApiService from "../tmdb/tmdbApiService";
 import imdbApiService from "../imdb/imdbApiService";
 

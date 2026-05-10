@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { options, IMG_CDN_URL } from "../../util/constants";
+import { options, IMG_CDN_URL } from "../../util/core/constants";
 import {
   setTVShowDetails,
   setTVShowSeasons,
   setSelectedSeason,
-} from "../../util/tvShowsSlice";
-import { addToList } from "../../util/firestoreService";
-import { upsertLibraryItemV2 } from "../../util/firestoreService";
-import { addItem } from "../../util/listsSlice";
+} from "../../util/store/tvShowsSlice";
+import { addToList } from "../../util/firebase/firestoreService";
+import { upsertLibraryItemV2 } from "../../util/firebase/firestoreService";
+import { addItem } from "../../util/store/listsSlice";
 import TVShowPlayer from "./TVShowPlayer";
 import Header from "../layout/Header";
 import { ArrowLeft, Play, Plus, Star } from "lucide-react";

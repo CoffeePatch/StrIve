@@ -1,5 +1,5 @@
 import { getAuth } from 'firebase/auth';
-import { notifyInfo, notifyError } from './notify';
+import { notifyInfo, notifyError } from '../core/notify';
 import { exportListClientSide } from './clientSideExport';
 
 function parseFilenameFromContentDisposition(header) {

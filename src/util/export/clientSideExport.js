@@ -4,9 +4,9 @@
  */
 
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from './firebase';
-import IMDbService from './imdbService';
-import { getImdbId } from './imdbResolver';
+import { db } from '../firebase/firebase';
+import IMDbService from '../imdb/imdbService';
+import { getImdbId } from '../imdb/imdbResolver';
 
 // Helper to fetch IMDb rating and votes
 async function fetchImdbRatingData(imdbId) {

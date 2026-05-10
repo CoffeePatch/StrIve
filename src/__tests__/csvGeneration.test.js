@@ -1,5 +1,5 @@
 // CSV Generation Utility Test
-import { mapListsToCsv, mapSingleListToCsv } from '../util/exportToCsv';
+import { mapListsToCsv, mapSingleListToCsv } from '../util/export/exportToCsv';
 
 describe('CSV Generation Utility', () => {
   // Test data that matches the actual Redux state structure

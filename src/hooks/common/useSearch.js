@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { options } from '../../util/constants';
+import { options } from '../../util/core/constants';
 
 const useSearch = (searchTerm) => {
   const [results, setResults] = useState([]);

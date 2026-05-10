@@ -1,15 +1,15 @@
 import {useRef, useState } from "react";
 import Header from "../layout/Header";
-import { checkvaliddata } from "../../util/validate";
+import { checkvaliddata } from "../../util/core/validate";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
-import { auth } from "../../util/firebase";
+import { auth } from "../../util/firebase/firebase";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { login } from "../../util/userSlice";
+import { login } from "../../util/store/userSlice";
 
 const Login = () => {
   const [IsSignin, setIsSignin] = useState(true);

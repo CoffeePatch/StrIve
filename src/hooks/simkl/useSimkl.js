@@ -19,7 +19,7 @@ import {
   selectUserProfile,
   selectUserStats,
   selectScrobbling,
-} from "../../util/simklSlice";
+} from "../../util/store/simklSlice";
 import simklAuthService from "../../services/simkl/simklAuthService";
 
 /**

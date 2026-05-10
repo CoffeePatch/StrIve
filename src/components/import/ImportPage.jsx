@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import useRequireAuth from '../../hooks/common/useRequireAuth';
-import { fetchLists } from '../../util/listsSlice';
+import { fetchLists } from '../../util/store/listsSlice';
 import Header from '../layout/Header';
 import { getAuth } from 'firebase/auth';
-import { downloadTemplateCsv, getExpectedHeaders } from '../../util/csvTemplate';
+import { downloadTemplateCsv, getExpectedHeaders } from '../../util/export/csvTemplate';
 import { Download, Upload, FileText } from 'lucide-react';
 
 const EXPECTED_HEADERS = getExpectedHeaders();

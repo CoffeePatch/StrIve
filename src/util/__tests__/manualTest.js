@@ -1,5 +1,5 @@
 // Test the CSV export functionality
-import { mapListsToCsv } from './exportToCsv';
+import { mapListsToCsv } from '../export/exportToCsv';
 
 // Sample test data
 const testData = [

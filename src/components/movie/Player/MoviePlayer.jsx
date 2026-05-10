@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { addToList } from "../../../util/firestoreService";
-import { options } from "../../../util/constants";
+import { addToList } from "../../../util/firebase/firestoreService";
+import { options } from "../../../util/core/constants";
 import {
   Star,
   X,

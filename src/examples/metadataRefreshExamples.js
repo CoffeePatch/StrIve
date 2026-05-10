@@ -10,7 +10,7 @@ import {
   refreshCustomListMetadata,
   getItemsWithMissingMetadata,
   getMetadataStatistics,
-} from '../util/firestoreService';
+} from '../util/firebase/firestoreService';
 
 // =============================================================================
 // EXAMPLE 1: Basic Metadata Refresh (Settings Page)

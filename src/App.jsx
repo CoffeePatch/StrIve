@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./util/firebase";
-import { login, logout } from "./util/userSlice";
+import { auth } from "./util/firebase/firebase";
+import { login, logout } from "./util/store/userSlice";
 import Body from "./components/layout/Body";
 
 import { ToastContainer } from "react-toastify";

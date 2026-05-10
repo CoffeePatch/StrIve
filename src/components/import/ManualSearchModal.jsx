@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { tmdbOptions } from '../../util/constants';
+import { tmdbOptions } from '../../util/core/constants';
 
 const ManualSearchModal = ({ 
   isOpen, 

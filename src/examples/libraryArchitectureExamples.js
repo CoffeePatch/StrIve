@@ -8,7 +8,7 @@ import {
   getLibraryItem,
   getLibraryByStatus,
   getLibraryByListId,
-} from '../util/firestoreService';
+} from '../util/firebase/firestoreService';
 
 // ============================================================================
 // Example 1: Adding to Watchlist

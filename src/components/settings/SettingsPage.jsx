@@ -6,12 +6,12 @@ import {
   refreshLibraryMetadata,
   getMetadataStatistics,
   getLibraryByStatus,
-} from "../../util/firestoreService";
+} from "../../util/firebase/firestoreService";
 import {
   migrateUserData,
   checkMigrationNeeded,
-} from "../../util/migrationService";
-import { downloadTemplateCsv } from "../../util/csvTemplate";
+} from "../../util/firebase/migrationService";
+import { downloadTemplateCsv } from "../../util/export/csvTemplate";
 import Header from "../layout/Header";
 import LibraryHealthPanel from "../library/LibraryHealthPanel";
 

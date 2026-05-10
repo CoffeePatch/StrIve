@@ -1,5 +1,5 @@
 // End-to-end test for CSV export functionality
-import { mapListsToCsv } from '../../util/exportToCsv';
+import { mapListsToCsv } from '../../util/export/exportToCsv';
 
 describe('End-to-End CSV Export Test', () => {
   test('generates correctly formatted CSV file', () => {

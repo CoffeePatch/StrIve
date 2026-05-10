@@ -1,4 +1,4 @@
-// src/util/riveService.js
+// src/util/core/riveService.js
 export class RiveStreamingService {
   static BASE_URL = "https://rivestream.org/embed";
 

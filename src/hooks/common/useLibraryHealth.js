@@ -9,7 +9,7 @@ import {
   query,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "../../util/firebase";
+import { db } from "../../util/firebase/firebase";
 
 const CALLABLE_NAME = "markEpisodeWatched";
 

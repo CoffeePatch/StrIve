@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { options } from "../../../util/constants";
-import { addItem, fetchLists } from "../../../util/listsSlice";
-import { upsertLibraryItemV2 } from "../../../util/firestoreService";
+import { options } from "../../../util/core/constants";
+import { addItem, fetchLists } from "../../../util/store/listsSlice";
+import { upsertLibraryItemV2 } from "../../../util/firebase/firestoreService";
 import Header from "../../layout/Header";
 import useRequireAuth from "../../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../../hooks/media/useImdbTitle";

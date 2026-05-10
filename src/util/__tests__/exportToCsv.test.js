@@ -6,7 +6,7 @@ jest.mock('papaparse', () => ({
   })
 }));
 
-import { mapListsToCsv, mapSingleListToCsv } from '../exportToCsv';
+import { mapListsToCsv, mapSingleListToCsv } from '../export/exportToCsv';
 
 describe('exportToCsv', () => {
   // Test data

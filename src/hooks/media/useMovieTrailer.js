@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
-import { addtrailer } from "../../util/moviesSlice";
+import { addtrailer } from "../../util/store/moviesSlice";
 import { useDispatch } from "react-redux";
-import { options } from "../../util/constants";
+import { options } from "../../util/core/constants";
 
 const useMovieTrailer = (movieID) => {
   const dispatch = useDispatch();

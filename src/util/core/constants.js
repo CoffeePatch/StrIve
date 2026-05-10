@@ -1,4 +1,4 @@
-// src/util/constants.js
+// src/util/core/constants.js
 
 // TMDB API Configuration
 export const tmdbOptions = {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { IMG_CDN_URL } from '../../../util/constants';
+import { IMG_CDN_URL } from '../../../util/core/constants';
 
 const ImportMovieItem = ({ movie, type }) => {
   const { title, release_date, poster_path } = movie;

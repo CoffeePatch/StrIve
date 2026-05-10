@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../util/firebase";
+import { functions } from "../../util/firebase/firebase";
 
 const MARK_EPISODE_WATCHED_FN = "markEpisodeWatched";
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { IMG_CDN_URL } from "../../util/constants";
+import { IMG_CDN_URL } from "../../util/core/constants";
 import { useImdbRating } from "../../hooks/media/useImdbRating";
 
 const TVShowCard = ({

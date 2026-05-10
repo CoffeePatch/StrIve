@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useSimkl, useSimklBackgroundSync } from "../../hooks/simkl/useSimkl";
-import { fetchLists, addItemsBatch } from "../../util/listsSlice";
+import { fetchLists, addItemsBatch } from "../../util/store/listsSlice";
 import Header from "../layout/Header";
 import Footer from "../layout/Footer";
 import { toast } from "react-toastify";
@@ -11,7 +11,7 @@ import {
   mapSimklMovieToStrive,
   mapSimklShowToStrive,
   mapSimklAnimeToStrive,
-} from "../../util/simklMapper";
+} from "../../util/simkl/simklMapper";
 
 const SimklPage = () => {
   const dispatch = useDispatch();

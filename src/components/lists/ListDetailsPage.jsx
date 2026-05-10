@@ -2,10 +2,10 @@ import React, { useEffect, useCallback, useState, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useParams, useLocation } from "react-router-dom";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
-import { fetchActiveList, removeItem } from "../../util/listsSlice";
+import { fetchActiveList, removeItem } from "../../util/store/listsSlice";
 import MovieCard from "../movie/Cards/MovieCard";
 import Header from "../layout/Header";
-import { exportListCsv } from "../../util/exportDownload";
+import { exportListCsv } from "../../util/export/exportDownload";
 import manualEnrichmentService from "../../services/enrichment/manualEnrichmentService";
 
 const ListDetailsPage = () => {

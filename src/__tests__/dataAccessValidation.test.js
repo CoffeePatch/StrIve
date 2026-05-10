@@ -1,5 +1,5 @@
 // Data Access & Validation Test
-import { mapListsToCsv, mapSingleListToCsv } from '../util/exportToCsv';
+import { mapListsToCsv, mapSingleListToCsv } from '../util/export/exportToCsv';
 
 describe('Data Access & Validation', () => {
   // Test data that matches the actual Redux state structure

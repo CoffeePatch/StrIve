@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { createList } from '../../util/listsSlice';
+import { createList } from '../../util/store/listsSlice';
 
 const CreateListModal = ({ isOpen, onClose, userId }) => {
   const [listName, setListName] = useState('');

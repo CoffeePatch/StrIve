@@ -4,7 +4,7 @@
  * Uses existing options pattern from constants.js
  */
 
-import { options } from './constants';
+import { options } from '../core/constants';
 
 // Constants
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';

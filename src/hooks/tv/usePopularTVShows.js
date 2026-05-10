@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
-import { options } from "../../util/constants";
-import { addPopularTVShows } from "../../util/tvShowsSlice";
+import { options } from "../../util/core/constants";
+import { addPopularTVShows } from "../../util/store/tvShowsSlice";
 import { useEffect, useCallback } from "react";
 
 const usePopularTVShows = () => {

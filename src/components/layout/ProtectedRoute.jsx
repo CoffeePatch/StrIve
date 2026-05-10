@@ -2,7 +2,7 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../util/firebase";
+import { auth } from "../../util/firebase/firebase";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useSelector((store) => store.user);

@@ -16,8 +16,8 @@ import {
   documentId,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { getImdbId } from "./imdbResolver";
-import IMDbService from "./imdbService";
+import { getImdbId } from "../imdb/imdbResolver";
+import IMDbService from "../imdb/imdbService";
 
 const toNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;

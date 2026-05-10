@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import IMDbService from '../../util/imdbService';
-import { getImdbId } from '../../util/imdbResolver';
+import IMDbService from '../../util/imdb/imdbService';
+import { getImdbId } from '../../util/imdb/imdbResolver';
 
 /**
  * Custom hook to fetch IMDb title information by TMDB ID

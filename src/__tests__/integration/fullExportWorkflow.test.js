@@ -1,5 +1,5 @@
 // Integration Test for Full Export Workflow
-import { mapListsToCsv, generateCsvBlob } from '../../util/exportToCsv';
+import { mapListsToCsv, generateCsvBlob } from '../../util/export/exportToCsv';
 
 describe('Full Export Workflow Integration', () => {
   // Sample Redux state data structure

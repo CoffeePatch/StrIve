@@ -13,7 +13,7 @@ import {
   unpinList as unpinListService,
   createDefaultWatchLaterList,
   addItemsToCustomListBatch,
-} from "./firestoreService";
+} from "../firebase/firestoreService";
 
 // Async thunks for custom lists
 export const fetchLists = createAsyncThunk(

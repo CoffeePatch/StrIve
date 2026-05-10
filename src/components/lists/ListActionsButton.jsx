@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Check, Plus, Download } from 'lucide-react';
-import { fetchItemStatus, addItemToList, removeItemFromList } from '../../util/listsSlice';
+import { fetchItemStatus, addItemToList, removeItemFromList } from '../../util/store/listsSlice';
 import useRequireAuth from '../../hooks/common/useRequireAuth';
 import { getAuth } from 'firebase/auth';
 
@@ -40,7 +40,7 @@ const ListActionsButton = ({ mediaItem, listId, listDetails }) => {
   // Export functionality for list (when listId is provided)
   const handleExport = useCallback(async () => {
     if (!user || !listId) return;
-    const { exportListCsv } = await import('../util/exportDownload');
+    const { exportListCsv } = await import('../util/export/exportDownload');
     await exportListCsv(listId, listDetails?.name);
   }, [user, listId, listDetails]);
 

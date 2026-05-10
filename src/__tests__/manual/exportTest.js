@@ -2,7 +2,7 @@
 // This script can be run in the browser console to test the export utility
 
 // Import the export utility
-import { mapListsToCsv } from '../util/exportToCsv';
+import { mapListsToCsv } from '../util/export/exportToCsv';
 
 // Sample test data that mimics real Redux state
 const sampleTestData = [

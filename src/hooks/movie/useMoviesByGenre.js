@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
-import { options } from "../../util/constants";
-import { addGenreMovies } from "../../util/moviesSlice";
+import { options } from "../../util/core/constants";
+import { addGenreMovies } from "../../util/store/moviesSlice";
 import { useEffect, useCallback } from "react";
 
 const useMoviesByGenre = (genreId) => {

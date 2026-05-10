@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getImdbId } from '../../util/imdbResolver';
-import IMDbService from '../../util/imdbService';
+import { getImdbId } from '../../util/imdb/imdbResolver';
+import IMDbService from '../../util/imdb/imdbService';
 
 // Simple memory cache to prevent re-fetching
 const cache = new Map();
