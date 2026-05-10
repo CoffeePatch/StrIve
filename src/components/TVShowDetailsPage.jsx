@@ -185,6 +185,9 @@ const TVShowDetailsPage = () => {
         first_air_date: showDetails.firstAirDate,
         vote_average: showDetails.voteAverage,
         vote_count: showDetails.voteCount,
+        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
+        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+        imdbId: imdbData?.id || null,
         media_type: "tv",
       };
 

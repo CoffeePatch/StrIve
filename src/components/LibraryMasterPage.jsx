@@ -23,25 +23,38 @@ const LibraryMasterPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating-desc');
   const [message, setMessage] = useState(null);
-  const [viewMode, setViewMode] = useState('bookshelf');
+  const [viewMode, setViewMode] = useState('grid');
 
   // Load custom lists on mount
   useEffect(() => {
-    if (user?.uid) {
-      loadCustomLists();
-    }
+    if (!user?.uid) return;
+
+    const signal = { cancelled: false };
+    loadCustomLists(signal);
+
+    return () => {
+      signal.cancelled = true;
+    };
   }, [user?.uid]);
 
   // Load items when tab or filters change
   useEffect(() => {
-    if (user?.uid) {
-      loadItems();
-    }
+    if (!user?.uid) return;
+
+    const signal = { cancelled: false };
+    loadItems(signal);
+
+    return () => {
+      signal.cancelled = true;
+    };
   }, [user?.uid, activeTab, selectedListId, sortBy]);
 
-  const loadCustomLists = async () => {
+  const loadCustomLists = async (signal) => {
     try {
       const lists = await fetchUserLists(user.uid);
+
+      if (signal?.cancelled) return;
+
       setCustomLists(lists || []);
       if (lists && lists.length > 0 && !selectedListId) {
         setSelectedListId(lists[0].id);
@@ -51,7 +64,7 @@ const LibraryMasterPage = () => {
     }
   };
 
-  const loadItems = async () => {
+  const loadItems = async (signal) => {
     if (!user?.uid) return;
 
     try {
@@ -59,22 +72,120 @@ const LibraryMasterPage = () => {
       let fetchedItems = [];
 
       if (activeTab === 'watchlist') {
-        fetchedItems = await getLibraryByStatus(user.uid, 'plan_to_watch');
+        fetchedItems = await fetchAllByStatus(user.uid, 'plan_to_watch', signal);
       } else if (activeTab === 'watched') {
-        fetchedItems = await getLibraryByStatus(user.uid, 'completed');
+        fetchedItems = await fetchAllByStatus(user.uid, 'completed', signal);
       } else if (activeTab === 'custom' && selectedListId) {
-        fetchedItems = await getLibraryByListId(user.uid, selectedListId);
+        fetchedItems = await fetchAllByListId(user.uid, selectedListId, signal);
       }
+
+      if (signal?.cancelled) return;
 
       // Apply sorting
       const sorted = sortItems(fetchedItems, sortBy);
       setItems(sorted);
     } catch (error) {
       console.error('Error loading items:', error);
-      setMessage({ type: 'error', text: 'Failed to load library items' });
+      if (!signal?.cancelled) {
+        setMessage({ type: 'error', text: 'Failed to load library items' });
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.cancelled) {
+        setLoading(false);
+      }
     }
+  };
+
+  const fetchAllByStatus = async (userId, status, signal) => {
+    const allItems = [];
+    let cursor = null;
+    let hasMore = true;
+    const maxPages = 200;
+    let pageCount = 0;
+
+    while (hasMore && pageCount < maxPages) {
+      if (signal?.cancelled) break;
+
+      const page = await getLibraryByStatus(userId, status, {
+        pageSize: 100,
+        cursor,
+        includePageInfo: true,
+        hydrate: false,
+        allowLegacyFallback: false,
+      });
+
+      if (signal?.cancelled) break;
+
+      allItems.push(...(page.items || []));
+
+      const nextCursor = page.nextCursor || null;
+
+      if (!!page.hasMore && !nextCursor) {
+        console.warn('Library pagination halted: hasMore=true but nextCursor was null');
+        break;
+      }
+
+      if (nextCursor && cursor && nextCursor.id === cursor.id) {
+        console.warn('Library pagination halted: cursor did not advance');
+        break;
+      }
+
+      hasMore = !!page.hasMore;
+      cursor = nextCursor;
+      pageCount += 1;
+
+      if (pageCount % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    return allItems;
+  };
+
+  const fetchAllByListId = async (userId, listId, signal) => {
+    const allItems = [];
+    let cursor = null;
+    let hasMore = true;
+    const maxPages = 200;
+    let pageCount = 0;
+
+    while (hasMore && pageCount < maxPages) {
+      if (signal?.cancelled) break;
+
+      const page = await getLibraryByListId(userId, listId, {
+        pageSize: 100,
+        cursor,
+        includePageInfo: true,
+        hydrate: false,
+        allowLegacyFallback: false,
+      });
+
+      if (signal?.cancelled) break;
+
+      allItems.push(...(page.items || []));
+
+      const nextCursor = page.nextCursor || null;
+
+      if (!!page.hasMore && !nextCursor) {
+        console.warn('Library pagination halted: hasMore=true but nextCursor was null');
+        break;
+      }
+
+      if (nextCursor && cursor && nextCursor.id === cursor.id) {
+        console.warn('Library pagination halted: cursor did not advance');
+        break;
+      }
+
+      hasMore = !!page.hasMore;
+      cursor = nextCursor;
+      pageCount += 1;
+
+      if (pageCount % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    return allItems;
   };
 
   const sortItems = (itemsToSort, sortOption) => {

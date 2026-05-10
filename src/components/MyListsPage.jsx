@@ -18,7 +18,7 @@ const MyListsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [listToDelete, setListToDelete] = useState(null);
   const [exportingListId, setExportingListId] = useState(null);
-  const [viewMode, setViewMode] = useState("bookshelf");
+  const [viewMode, setViewMode] = useState("grid");
   const [hasCheckedDefaultList, setHasCheckedDefaultList] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedLists, setSelectedLists] = useState([]);

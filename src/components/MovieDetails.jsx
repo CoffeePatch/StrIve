@@ -96,6 +96,9 @@ const MovieDetails = () => {
         release_date: movieDetails.release_date,
         vote_average: movieDetails.vote_average,
         vote_count: movieDetails.vote_count,
+        imdbId: currentId && currentId.startsWith('tt') ? currentId : (imdbData?.id || null),
+        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
+        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         media_type: "movie",
       };
 
@@ -151,7 +154,7 @@ const MovieDetails = () => {
           </span>
           <div className="text-white text-2xl font-display mb-6">Movie not found</div>
           <button
-            onClick={() => window.history.back()}
+            onClick={() => navigate(-1)}
             className="btn-primary"
           >
             <span className="material-symbols-outlined">arrow_back</span>

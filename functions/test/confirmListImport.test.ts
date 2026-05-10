@@ -332,21 +332,32 @@ describe('Confirm List Import Function', () => {
     };
     
     mockFirestore.mockReturnValue(mockDb);
+    (admin.firestore as any).FieldValue = {
+      serverTimestamp: jest.fn(() => ({ __type: 'serverTimestamp' })),
+    };
 
-    // Mock the movie lookup function
-    jest.mock('./index', () => {
-      return {
-        ...jest.requireActual('./index'),
-        findMovieByTmdbId: jest.fn().mockResolvedValue({
-          id: 789,
-          title: 'New Movie',
-          release_date: '2023-01-01',
-          tmdbId: 789
-        })
-      };
+    const originalFetch = (globalThis as any).fetch;
+    process.env.TMDB_API_KEY = 'test-key';
+    (globalThis as any).fetch = jest.fn(async (url: string) => {
+      if (url.includes('/movie/789')) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 789,
+            title: 'New Movie',
+            release_date: '2023-01-01',
+            poster_path: '/new-movie.jpg',
+            vote_average: 7.7,
+          }),
+        };
+      }
+      return { ok: false, json: async () => ({}) };
     });
 
     await confirmListImport(req as any, res as any);
+
+    (globalThis as any).fetch = originalFetch;
+    delete process.env.TMDB_API_KEY;
 
     expect(res.status).toHaveBeenCalledWith(201);
     // Only 1 movie should be added since '123' already exists

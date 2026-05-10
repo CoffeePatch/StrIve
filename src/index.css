@@ -127,6 +127,19 @@ body {
   border-radius: 8px;
 }
 
+/* Cursor for clickable elements */
+button,
+[role="button"],
+a {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+a[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Premium Page Wrapper */
 .premium-page {
   background-color: var(--color-bg-primary);
@@ -209,7 +222,6 @@ body {
 /* Material Icons Styling */
 .material-icons,
 .material-symbols-outlined {
-  font-family: 'Material Icons', 'Material Symbols Outlined';
   font-weight: normal;
   font-style: normal;
   font-size: 24px;
@@ -224,6 +236,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'liga';
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
 /* Animation Keyframes */

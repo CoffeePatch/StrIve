@@ -1,25 +1,76 @@
 /**
  * Migration Service
  * 
- * One-time migration from old data structure to new "One Doc, Many Tags" library format.
+ * One-time migration from old data structures to unified "library_items" format.
  * 
  * Old Structure:
  *   users/{uid}/watchlist/{tmdbId}
  *   users/{uid}/watched/{tmdbId}
+ *   users/{uid}/custom_lists/{listId}/items/{tmdbId}
  * 
  * New Structure:
- *   users/{uid}/library/{tmdbId} with status field
+ *   users/{uid}/library_items/{titleKey}
  */
 
 import { db } from './firebase';
 import {
   collection,
   getDocs,
-  writeBatch,
   doc,
   query,
+  setDoc,
 } from 'firebase/firestore';
-import { updateLibraryItem } from './firestoreService';
+import { upsertLibraryItemV2 } from './firestoreService';
+
+const normalizeStatus = (status, fallback = null) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'plan_to_watch' || normalized === 'watchlist') return 'plan_to_watch';
+  if (normalized === 'completed' || normalized === 'watched') return 'completed';
+  if (normalized === 'watching') return 'watching';
+  if (normalized === 'dropped') return 'dropped';
+  return fallback;
+};
+
+const toNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildMediaItem = (itemData = {}, tmdbId, forcedMediaType = null) => {
+  const numericId = toNumber(itemData.id ?? itemData.tmdbId ?? tmdbId);
+  const mediaType =
+    forcedMediaType ||
+    itemData.media_type ||
+    itemData.mediaType ||
+    (itemData.first_air_date ? 'tv' : 'movie');
+
+  return {
+    id: numericId,
+    tmdbId: numericId,
+    title: itemData.title || itemData.name || '',
+    name: itemData.name || itemData.title || '',
+    poster_path: itemData.poster_path || '',
+    overview: itemData.overview || '',
+    release_date: itemData.release_date || itemData.first_air_date || '',
+    first_air_date: itemData.first_air_date || itemData.release_date || '',
+    vote_average: toNumber(itemData.vote_average ?? itemData.tmdb_rating) || 0,
+    vote_count: toNumber(itemData.vote_count ?? itemData.tmdb_vote_count) || 0,
+    media_type: mediaType === 'tv' ? 'tv' : 'movie',
+    imdbId: itemData.imdbId || itemData.imdb_id || null,
+    imdbRating: toNumber(itemData.imdbRating ?? itemData.imdb_rating),
+    imdbVotes: toNumber(itemData.imdbVotes ?? itemData.imdb_vote_count),
+    progress:
+      itemData.progress ||
+      {
+        watchedEpisodesCount: toNumber(itemData.watchedEpisodesCount) || 0,
+        totalEpisodesCount: toNumber(itemData.totalEpisodesCount) || 0,
+        notAiredEpisodesCount: toNumber(itemData.notAiredEpisodesCount) || 0,
+        nextToWatch: itemData.nextToWatch || null,
+        lastWatched: itemData.lastWatched || null,
+      },
+  };
+};
 
 /**
  * Migrate all old watchlist and watched data to new library collection
@@ -33,6 +84,8 @@ export const migrateUserData = async (userId) => {
   const summary = {
     watchlistMigrated: 0,
     watchedMigrated: 0,
+    customListItemsMigrated: 0,
+    libraryItemsTouched: 0,
     errors: [],
     startTime: new Date(),
   };
@@ -40,7 +93,7 @@ export const migrateUserData = async (userId) => {
   try {
     // 1. Migrate watchlist items
     console.log('🔄 Migrating watchlist items...');
-    summary.watchlistMigrated = await migrateCollectionToLibrary(
+    summary.watchlistMigrated = await migrateCollectionToLibraryItems(
       userId,
       'watchlist',
       'plan_to_watch'
@@ -48,11 +101,18 @@ export const migrateUserData = async (userId) => {
 
     // 2. Migrate watched items
     console.log('🔄 Migrating watched items...');
-    summary.watchedMigrated = await migrateCollectionToLibrary(
+    summary.watchedMigrated = await migrateCollectionToLibraryItems(
       userId,
       'watched',
       'completed'
     );
+
+    // 3. Migrate custom list items (attach listIds to unified docs)
+    console.log('🔄 Migrating custom list items...');
+    summary.customListItemsMigrated = await migrateCustomListsToLibraryItems(userId);
+
+    summary.libraryItemsTouched =
+      summary.watchlistMigrated + summary.watchedMigrated + summary.customListItemsMigrated;
 
     summary.endTime = new Date();
     summary.durationMs = summary.endTime - summary.startTime;
@@ -67,65 +127,31 @@ export const migrateUserData = async (userId) => {
 };
 
 /**
- * Migrate a single collection (watchlist/watched) to library
+ * Migrate a single legacy collection (watchlist/watched) to library_items
  * 
  * @param {string} userId - User ID
  * @param {string} collectionName - Old collection name (watchlist/watched)
  * @param {string} status - New status value (plan_to_watch/completed)
  * @returns {Promise<number>} Count of migrated items
  */
-const migrateCollectionToLibrary = async (userId, collectionName, status) => {
+const migrateCollectionToLibraryItems = async (userId, collectionName, status) => {
   try {
     const oldCollectionRef = collection(db, 'users', userId, collectionName);
     const querySnapshot = await getDocs(oldCollectionRef);
 
     let migratedCount = 0;
-    const batch = writeBatch(db);
-
-    // For each item in old collection
     for (const docSnapshot of querySnapshot.docs) {
-      if (migratedCount >= 25) {
-        // Commit batch every 25 items to avoid hitting limits
-        await batch.commit();
-        migratedCount = 0;
-        batch.reset?.();
-      }
-
       try {
         const itemData = docSnapshot.data();
         const tmdbId = docSnapshot.id;
+        const mediaItem = buildMediaItem(itemData, tmdbId);
 
-        // Move to new library collection with status
-        const libraryDocRef = doc(
-          db,
-          'users',
-          userId,
-          'library',
-          tmdbId
-        );
+        if (!mediaItem.id) continue;
 
-        // Ensure required fields exist
-        const libraryItem = {
-          id: itemData.id || tmdbId,
-          title: itemData.title || itemData.name,
-          name: itemData.name,
-          media_type: itemData.media_type || 'movie',
-          poster_path: itemData.poster_path,
-          overview: itemData.overview,
-          release_date: itemData.release_date,
-          first_air_date: itemData.first_air_date,
-          vote_average: itemData.vote_average,
-          // IMDb data if available
-          imdbRating: itemData.imdbRating || null,
-          imdbVotes: itemData.imdbVotes || null,
-          // New fields
-          status: status,
-          dateAdded: itemData.dateAdded || new Date(),
-          dateMigrated: new Date(),
-          listIds: [],
-        };
+        await upsertLibraryItemV2(userId, mediaItem, {
+          status: normalizeStatus(itemData.status, status),
+        });
 
-        batch.set(libraryDocRef, libraryItem, { merge: true });
         migratedCount++;
 
         console.log(
@@ -136,11 +162,6 @@ const migrateCollectionToLibrary = async (userId, collectionName, status) => {
       }
     }
 
-    // Commit final batch
-    if (migratedCount > 0) {
-      await batch.commit();
-    }
-
     return migratedCount;
   } catch (error) {
     console.error(
@@ -149,6 +170,75 @@ const migrateCollectionToLibrary = async (userId, collectionName, status) => {
     );
     throw error;
   }
+};
+
+const migrateCustomListsToLibraryItems = async (userId) => {
+  const listsRef = collection(db, 'users', userId, 'custom_lists');
+  const listsSnapshot = await getDocs(listsRef);
+  const libraryItemsRef = collection(db, 'users', userId, 'library_items');
+  const libraryItemsSnapshot = await getDocs(libraryItemsRef);
+
+  const libraryIndex = new Map();
+  for (const itemDoc of libraryItemsSnapshot.docs) {
+    const data = itemDoc.data();
+    libraryIndex.set(itemDoc.id, {
+      status: data?.status || null,
+      listIds: Array.isArray(data?.listIds) ? data.listIds : [],
+    });
+  }
+
+  let migratedCount = 0;
+
+  for (const listDoc of listsSnapshot.docs) {
+    const listId = listDoc.id;
+    const itemsRef = collection(db, 'users', userId, 'custom_lists', listId, 'items');
+    const itemsSnapshot = await getDocs(itemsRef);
+
+    for (const itemDoc of itemsSnapshot.docs) {
+      try {
+        const itemData = itemDoc.data();
+        const mediaItem = buildMediaItem(itemData, itemDoc.id);
+        if (!mediaItem.id) continue;
+
+        const mediaType = mediaItem.media_type === 'tv' ? 'tv' : 'movie';
+        const titleKey = `tmdb_${mediaType}_${mediaItem.id}`;
+        const existing = libraryIndex.get(titleKey);
+        const resolvedStatus = normalizeStatus(
+          itemData.status,
+          normalizeStatus(existing?.status, 'plan_to_watch')
+        );
+
+        await upsertLibraryItemV2(userId, mediaItem, {
+          listId,
+          status: resolvedStatus,
+        });
+
+        libraryIndex.set(titleKey, {
+          status: resolvedStatus,
+          listIds: Array.from(new Set([...(existing?.listIds || []), listId])),
+        });
+
+        const itemRef = doc(db, 'users', userId, 'custom_lists', listId, 'items', itemDoc.id);
+        await setMigrationMark(itemRef);
+
+        migratedCount++;
+      } catch (error) {
+        console.warn(`  ⚠️ Failed custom list item migration for ${listId}/${itemDoc.id}:`, error.message);
+      }
+    }
+  }
+
+  return migratedCount;
+};
+
+const setMigrationMark = async (itemRef) => {
+  await setDoc(
+    itemRef,
+    {
+      migratedToLibraryItemsAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
 };
 
 /**
@@ -163,20 +253,71 @@ export const checkMigrationNeeded = async (userId) => {
   try {
     const watchlistRef = collection(db, 'users', userId, 'watchlist');
     const watchedRef = collection(db, 'users', userId, 'watched');
+    const customListsRef = collection(db, 'users', userId, 'custom_lists');
+    const libraryItemsRef = collection(db, 'users', userId, 'library_items');
 
     const watchlistSnap = await getDocs(query(watchlistRef));
     const watchedSnap = await getDocs(query(watchedRef));
+    const customListsSnap = await getDocs(query(customListsRef));
+    const libraryItemsSnap = await getDocs(query(libraryItemsRef));
+
+    const libraryIndex = new Map();
+    for (const itemDoc of libraryItemsSnap.docs) {
+      const data = itemDoc.data();
+      libraryIndex.set(itemDoc.id, {
+        listIds: Array.isArray(data?.listIds) ? data.listIds : [],
+        status: data?.status || null,
+      });
+    }
 
     const hasWatchlist = watchlistSnap.docs.length > 0;
     const hasWatched = watchedSnap.docs.length > 0;
+    let customListItemsCount = 0;
+    let customListItemsNeedingMigration = 0;
+
+    for (const listDoc of customListsSnap.docs) {
+      const listId = listDoc.id;
+      const itemsRef = collection(db, 'users', userId, 'custom_lists', listId, 'items');
+      const itemsSnap = await getDocs(itemsRef);
+      customListItemsCount += itemsSnap.docs.length;
+
+      for (const itemDoc of itemsSnap.docs) {
+        const itemData = itemDoc.data();
+        const mediaItem = buildMediaItem(itemData, itemDoc.id);
+        if (!mediaItem.id) continue;
+
+        const mediaType = mediaItem.media_type === 'tv' ? 'tv' : 'movie';
+        const titleKey = `tmdb_${mediaType}_${mediaItem.id}`;
+        const libraryItem = libraryIndex.get(titleKey);
+
+        if (!libraryItem) {
+          customListItemsNeedingMigration++;
+          continue;
+        }
+
+        if (!libraryItem.listIds.includes(listId)) {
+          customListItemsNeedingMigration++;
+        }
+
+        if (!normalizeStatus(libraryItem.status, null)) {
+          customListItemsNeedingMigration++;
+        }
+      }
+    }
 
     return {
-      needed: hasWatchlist || hasWatched,
+      needed: hasWatchlist || hasWatched || customListItemsNeedingMigration > 0,
       hasWatchlist,
       hasWatched,
+      hasCustomListItems: customListItemsCount > 0,
       watchlistCount: watchlistSnap.docs.length,
       watchedCount: watchedSnap.docs.length,
-      totalToBeMigrated: watchlistSnap.docs.length + watchedSnap.docs.length,
+      customListItemsCount,
+      customListItemsNeedingMigration,
+      totalToBeMigrated:
+        watchlistSnap.docs.length +
+        watchedSnap.docs.length +
+        customListItemsNeedingMigration,
     };
   } catch (error) {
     console.error('Error checking migration status:', error);

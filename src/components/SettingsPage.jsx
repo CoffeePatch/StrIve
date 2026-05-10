@@ -80,7 +80,7 @@ const SettingsPage = () => {
 
       setMessage({
         type: "success",
-        text: `✅ Refresh complete! Updated ${summary.refreshed} items in ${(summary.duration / 1000).toFixed(1)}s. ${summary.failed > 0 ? `(${summary.failed} failed)` : ""}`,
+        text: `✅ Backfill complete! Updated ${summary.refreshed} items in ${(summary.duration / 1000).toFixed(1)}s (Library: ${summary.bySource?.library_items || 0}, Legacy: ${summary.bySource?.library || 0}, Custom Lists: ${summary.bySource?.custom_list_items || 0}). ${summary.failed > 0 ? `(${summary.failed} failed)` : ""}`,
       });
     } catch (error) {
       console.error("Error refreshing metadata:", error);
@@ -137,8 +137,14 @@ const SettingsPage = () => {
       setMessage(null);
 
       // Fetch all items from library
-      const watchlist = await getLibraryByStatus(user.uid, "plan_to_watch");
-      const watched = await getLibraryByStatus(user.uid, "completed");
+      const watchlist = await getLibraryByStatus(user.uid, "plan_to_watch", {
+        hydrate: false,
+        allowLegacyFallback: false,
+      });
+      const watched = await getLibraryByStatus(user.uid, "completed", {
+        hydrate: false,
+        allowLegacyFallback: false,
+      });
 
       // Combine into export format
       const exportData = {
@@ -211,12 +217,15 @@ const SettingsPage = () => {
   };
 
   const handleMigrateData = async () => {
-    if (!user?.uid || !migrationStatus?.needed) return;
+    if (!user?.uid) return;
+
+    const pendingCount = migrationStatus?.totalToBeMigrated || 0;
+    const confirmMessage = pendingCount > 0
+      ? `Migrate ${pendingCount} items to the unified library format?\n\nThis includes watchlist, watched, and custom list entries.`
+      : `No pending migration was detected.\n\nRun reconciliation anyway to ensure custom lists and library items are fully synchronized?`;
 
     if (
-      !window.confirm(
-        `Migrate ${migrationStatus.totalToBeMigrated} items from old collections to new library format?\n\nThis is a one-time operation.`
-      )
+      !window.confirm(confirmMessage)
     ) {
       return;
     }
@@ -234,12 +243,12 @@ const SettingsPage = () => {
       if (summary.errors.length === 0) {
         setMessage({
           type: "success",
-          text: `✅ Migration complete! Moved ${summary.watchlistMigrated} watchlist + ${summary.watchedMigrated} watched items to new library in ${(summary.durationMs / 1000).toFixed(1)}s.`,
+          text: `✅ Migration complete! Moved ${summary.watchlistMigrated} watchlist + ${summary.watchedMigrated} watched + ${summary.customListItemsMigrated} custom-list items into unified library in ${(summary.durationMs / 1000).toFixed(1)}s.`,
         });
       } else {
         setMessage({
           type: "warning",
-          text: `⚠️ Migration completed with errors. Check console for details. Migrated ${summary.watchlistMigrated + summary.watchedMigrated} items.`,
+          text: `⚠️ Migration completed with errors. Check console for details. Migrated ${summary.libraryItemsTouched} items.`,
         });
       }
     } catch (error) {
@@ -385,55 +394,76 @@ const SettingsPage = () => {
 
               <p className="help-text">
                 <strong>Refresh Missing Metadata:</strong> Updates items that don't
-                have IMDb ratings. Quick and safe Operation.
+                have IMDb ratings/votes or TMDB vote counts across your Library and
+                Custom Lists. Quick and safe operation.
                 <br />
                 <strong>Force Refresh All:</strong> Re-fetches IMDb data for your
-                entire library. Use this to update old ratings or fix corrupted
+                entire library and custom list records. Use this to update old ratings or fix corrupted
                 data.
               </p>
             </section>
 
-            {/* Data Migration Section - Only show if migration is needed */}
-            {migrationStatus?.needed && (
-              <section className="settings-section migration-warning glass-effect">
-                <h2>⚠️ Data Migration Required</h2>
+            {/* Data Migration Section */}
+            <section className={`settings-section glass-effect ${migrationStatus?.needed ? 'migration-warning' : ''}`}>
+              <h2>{migrationStatus?.needed ? '⚠️ Data Migration Required' : '📦 Data Migration & Reconciliation'}</h2>
+
+              {migrationStatus?.error ? (
+                <p className="text-red-400">
+                  Migration scan failed: {migrationStatus.error}
+                </p>
+              ) : migrationStatus?.needed ? (
                 <p>
-                  We detected old library data in your account that hasn't been
-                  migrated to the new format yet.
+                  We detected library entries that still need migration into the unified format.
                 </p>
-                <div className="migration-details">
-                  <div className="detail-item">
-                    <span>Watchlist items to migrate:</span>
-                    <strong>{migrationStatus.watchlistCount}</strong>
-                  </div>
-                  <div className="detail-item">
-                    <span>Watched items to migrate:</span>
-                    <strong>{migrationStatus.watchedCount}</strong>
-                  </div>
+              ) : (
+                <p>
+                  No pending migration detected. You can still run reconciliation to ensure all custom list
+                  items are linked to unified library records.
+                </p>
+              )}
+
+              <div className="migration-details">
+                <div className="detail-item">
+                  <span>Watchlist items to migrate:</span>
+                  <strong>{migrationStatus?.watchlistCount || 0}</strong>
                 </div>
-                <p className="help-text">
-                  This migration will move your data to our improved library system.
-                  It's a one-time operation and is completely safe.
-                </p>
-                <button
-                  className="btn btn-primary btn-migrate"
-                  onClick={handleMigrateData}
-                  disabled={isMigrating}
-                >
-                  {isMigrating ? (
-                    <>
-                      <span className="spinner" />
-                      Migrating...
-                    </>
-                  ) : (
-                    <>
-                      <span className="icon">📦</span>
-                      Migrate Data Now
-                    </>
-                  )}
-                </button>
-              </section>
-            )}
+                <div className="detail-item">
+                  <span>Watched items to migrate:</span>
+                  <strong>{migrationStatus?.watchedCount || 0}</strong>
+                </div>
+                <div className="detail-item">
+                  <span>Custom list items to migrate:</span>
+                  <strong>{migrationStatus?.customListItemsNeedingMigration || 0}</strong>
+                </div>
+                <div className="detail-item">
+                  <span>Total pending:</span>
+                  <strong>{migrationStatus?.totalToBeMigrated || 0}</strong>
+                </div>
+              </div>
+
+              <p className="help-text">
+                This operation is idempotent and safe to re-run. It merges legacy watchlist/watched/custom-list
+                records into unified library items and preserves existing metadata.
+              </p>
+
+              <button
+                className="btn btn-primary btn-migrate"
+                onClick={handleMigrateData}
+                disabled={isMigrating || !user?.uid}
+              >
+                {isMigrating ? (
+                  <>
+                    <span className="spinner" />
+                    Migrating...
+                  </>
+                ) : (
+                  <>
+                    <span className="icon">📦</span>
+                    {migrationStatus?.needed ? 'Migrate Data Now' : 'Run Reconciliation'}
+                  </>
+                )}
+              </button>
+            </section>
 
             {/* Dev Diagnostics */}
             {isDev && <LibraryHealthPanel userId={user?.uid} />}

@@ -8,9 +8,22 @@ const TVShowCard = ({ tvShow, show, onRemove, vaultMode = false }) => {
   
   // Support both tvShow and show prop names for compatibility
   const data = show || tvShow;
+
+  const preloadedImdb = {
+    imdbRating: data?.imdbRating ?? data?.imdb_rating,
+    imdbVotes: data?.imdbVotes ?? data?.imdb_vote_count,
+    imdbId: data?.imdbId ?? data?.imdb_id,
+  };
+  const hasPreloadedImdb = !!preloadedImdb.imdbRating;
   
   // Fetch IMDb rating for "just-in-time" enrichment
-  const { rating, loading } = useImdbRating(data.id, 'tv');
+  const { rating, loading } = useImdbRating(data.id, 'tv', preloadedImdb);
+  const displayRating = rating || (hasPreloadedImdb
+    ? {
+        score: Number(preloadedImdb.imdbRating),
+        votes: Number(preloadedImdb.imdbVotes || 0),
+      }
+    : null);
 
   const formatVotes = (votes) => {
     if (votes >= 1000000) return `${(votes / 1000000).toFixed(1)}M`;
@@ -53,21 +66,21 @@ const TVShowCard = ({ tvShow, show, onRemove, vaultMode = false }) => {
           />
 
           {/* IMDb Rating Badge Skeleton (Loading State) */}
-          {loading && !rating && (
+          {loading && !displayRating && (
             <div className="absolute top-2 right-2 bg-black/90 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5 border border-yellow-500/20 shadow-lg z-10">
               <div className="skeleton-badge"></div>
             </div>
           )}
 
           {/* IMDb Rating Badge */}
-          {rating && rating.score && (
+          {displayRating && displayRating.score && (
             <div className="absolute top-2 right-2 bg-black/90 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5 border border-yellow-500/50 shadow-lg z-10 animate-in">
               <span className="text-yellow-400 text-xs font-bold">IMDb</span>
-              <span className="text-white text-xs font-bold">{rating.score.toFixed(1)}</span>
-              {rating.votes > 0 && (
+              <span className="text-white text-xs font-bold">{displayRating.score.toFixed(1)}</span>
+              {displayRating.votes > 0 && (
                 <>
                   <span className="text-white/40 text-xs">•</span>
-                  <span className="text-white/70 text-[10px]">{formatVotes(rating.votes)}</span>
+                  <span className="text-white/70 text-[10px]">{formatVotes(displayRating.votes)}</span>
                 </>
               )}
             </div>
@@ -139,7 +152,7 @@ const TVShowCard = ({ tvShow, show, onRemove, vaultMode = false }) => {
         />
 
         {/* IMDb Rating Badge Skeleton (Loading State) */}
-        {loading && !rating && (
+        {loading && !displayRating && (
           <div className="absolute top-3 left-3 z-20">
             <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-yellow-500/20 shadow-lg">
               <div className="skeleton-badge-lg"></div>
@@ -148,15 +161,15 @@ const TVShowCard = ({ tvShow, show, onRemove, vaultMode = false }) => {
         )}
 
         {/* IMDb Rating Badge - Top Left, Always Visible */}
-        {rating && rating.score && (
+        {displayRating && displayRating.score && (
           <div className="absolute top-3 left-3 z-20 animate-in">
             <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-yellow-500/50 shadow-lg">
               <span className="text-yellow-400 text-xs font-bold">IMDb</span>
-              <span className="text-white text-sm font-bold">{rating.score.toFixed(1)}</span>
-              {rating.votes > 0 && (
+              <span className="text-white text-sm font-bold">{displayRating.score.toFixed(1)}</span>
+              {displayRating.votes > 0 && (
                 <>
                   <span className="text-white/40 text-xs">•</span>
-                  <span className="text-white/70 text-[11px]">{formatVotes(rating.votes)}</span>
+                  <span className="text-white/70 text-[11px]">{formatVotes(displayRating.votes)}</span>
                 </>
               )}
             </div>

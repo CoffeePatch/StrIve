@@ -4,6 +4,8 @@ import IMDbService from '../util/imdbService';
 
 // Simple memory cache to prevent re-fetching
 const cache = new Map();
+const inFlight = new Map();
+const NO_RATING = { unavailable: true };
 
 // Global refetch trigger counter
 let globalRefetchTrigger = 0;
@@ -39,6 +41,27 @@ const extractRatingData = (data) => {
     score,
     votes
   };
+};
+
+const extractPrefetchedRating = (prefetched) => {
+  if (!prefetched) return null;
+
+  const score =
+    toNumber(prefetched?.imdbRating) ??
+    toNumber(prefetched?.imdb_rating) ??
+    toNumber(prefetched?.rating?.aggregateRating) ??
+    toNumber(prefetched?.rating?.ratingValue);
+
+  if (!score) return null;
+
+  const votes =
+    toNumber(prefetched?.imdbVotes) ??
+    toNumber(prefetched?.imdb_vote_count) ??
+    toNumber(prefetched?.rating?.voteCount) ??
+    toNumber(prefetched?.rating?.ratingCount) ??
+    0;
+
+  return { score, votes };
 };
 
 // Process the request queue
@@ -88,28 +111,52 @@ export const triggerGlobalRefetch = () => {
  * Optimized for "just-in-time" enrichment on search results
  * @param {string|number} tmdbId - The TMDB ID
  * @param {string} mediaType - The media type ('movie' or 'tv')
+ * @param {Object|null} prefetched - Optional preloaded IMDb data from DB
  * @returns {Object} Object containing rating and loading state
  */
-export const useImdbRating = (tmdbId, mediaType = 'movie') => {
+export const useImdbRating = (tmdbId, mediaType = 'movie', prefetched = null) => {
   const [rating, setRating] = useState(null);
   const [loading, setLoading] = useState(false);
   const normalizedMediaType = mediaType === 'tv' ? 'tv' : 'movie';
+  const prefetchedRating = extractPrefetchedRating(prefetched);
 
   const fetchRating = useCallback(async (forceRefresh = false) => {
     if (!tmdbId) return;
 
-    // 1. Check Cache (skip if force refresh)
+    // 1. Prefer already persisted IMDb values from DB when present
+    if (prefetchedRating && !forceRefresh) {
+      setRating(prefetchedRating);
+      cache.set(`${normalizedMediaType}_${tmdbId}`, prefetchedRating);
+      return;
+    }
+
+    // 2. Check cache (skip if force refresh)
     const cacheKey = `${normalizedMediaType}_${tmdbId}`;
     if (!forceRefresh && cache.has(cacheKey)) {
-      setRating(cache.get(cacheKey));
+      const cached = cache.get(cacheKey);
+      setRating(cached === NO_RATING ? null : cached);
+      return;
+    }
+
+    // 3. Reuse an in-flight request for the same title
+    if (!forceRefresh && inFlight.has(cacheKey)) {
+      setLoading(true);
+      try {
+        await inFlight.get(cacheKey);
+        const cached = cache.get(cacheKey);
+        setRating(cached === NO_RATING ? null : cached || null);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
     setLoading(true);
-    
+
+    let queuedRequest;
     try {
       // Use the request queue to prevent overwhelming the API
-      await queueRequest(async () => {
+      queuedRequest = queueRequest(async () => {
         // 2. Check if IMDb service is configured
         let imdbService;
         try {
@@ -143,6 +190,10 @@ export const useImdbRating = (tmdbId, mediaType = 'movie') => {
                 setRating(ratingData);
                 return; // Success, exit retry loop
               }
+
+              // Negative cache to avoid repeatedly calling APIs for titles without rating data
+              cache.set(cacheKey, NO_RATING);
+              setRating(null);
               break; // No rating available, exit retry loop
             } catch (err) {
               lastError = err;
@@ -157,15 +208,26 @@ export const useImdbRating = (tmdbId, mediaType = 'movie') => {
           if (lastError) {
             console.debug('Failed to load IMDb rating for', tmdbId, 'after retries:', lastError.message);
           }
+
+          cache.set(cacheKey, NO_RATING);
+          setRating(null);
+          return;
         }
+
+        cache.set(cacheKey, NO_RATING);
+        setRating(null);
       });
+
+      inFlight.set(cacheKey, queuedRequest);
+      await queuedRequest;
     } catch (err) {
       // Fail silently - the badge just won't appear
       console.debug('Failed to load IMDb rating for', tmdbId, ':', err.message);
     } finally {
+      inFlight.delete(`${normalizedMediaType}_${tmdbId}`);
       setLoading(false);
     }
-  }, [tmdbId, normalizedMediaType]);
+  }, [tmdbId, normalizedMediaType, prefetchedRating]);
 
   useEffect(() => {
     fetchRating();

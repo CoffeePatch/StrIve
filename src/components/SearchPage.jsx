@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MovieCard from './MovieCard';
 import useSearch from '../hooks/useSearch';
 import { triggerGlobalRefetch } from '../hooks/useImdbRating';
 
 const SearchPage = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefetching, setIsRefetching] = useState(false);
 
@@ -23,7 +25,7 @@ const SearchPage = () => {
 
   const handleClearSearch = () => {
     setSearchTerm('');
-    window.history.replaceState({}, '', '/search');
+    navigate('/search', { replace: true });
   };
 
   const handleSubmit = (e) => {
@@ -37,9 +39,29 @@ const SearchPage = () => {
     setTimeout(() => setIsRefetching(false), 2000);
   };
 
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/library');
+  };
+
   return (
     <div className="min-h-screen premium-page pt-24">
       <div className="premium-container py-8">
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="glass-effect hover:bg-white/10 text-white px-4 py-2 rounded-full transition-all flex items-center gap-2"
+            aria-label="Go back"
+          >
+            <span className="material-symbols-outlined text-lg">arrow_back</span>
+            <span className="font-secondary text-sm">Back</span>
+          </button>
+        </div>
+
         <div className="mb-12 text-center">
           <div className="flex justify-center mb-4">
             <span className="material-symbols-outlined text-7xl gradient-accent">

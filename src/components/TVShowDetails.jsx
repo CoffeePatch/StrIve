@@ -121,6 +121,11 @@ const TVShowDetails = () => {
         overview: tvShowDetails?.overview,
         first_air_date: tvShowDetails?.first_air_date,
         vote_average: tvShowDetails?.vote_average,
+        vote_count: tvShowDetails?.vote_count,
+        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
+        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+        imdbId: imdbData?.id || null,
+        media_type: "tv",
         type: "tv",
       };
 
@@ -147,6 +152,11 @@ const TVShowDetails = () => {
         overview: tvShowDetails?.overview,
         first_air_date: tvShowDetails?.first_air_date,
         vote_average: tvShowDetails?.vote_average,
+        vote_count: tvShowDetails?.vote_count,
+        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
+        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+        imdbId: imdbData?.id || null,
+        media_type: "tv",
         type: "tv",
       };
 

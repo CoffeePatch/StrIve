@@ -119,11 +119,19 @@ describe('listsExport unified CSV export', () => {
     mockAuth.mockReturnValue({ verifyIdToken: jest.fn().mockResolvedValue({ uid: mockUserId }) });
     const mockItemsGet = jest.fn().mockResolvedValue({ empty: false, docs: mockItemsMixed.map(it => ({ data: () => it })) });
     const mockListGet = jest.fn().mockResolvedValue({ exists: true, data: () => ({ ownerId: mockUserId, name: 'Favorites' }) });
-    const mockListDoc = jest.fn().mockReturnValue({ get: mockListGet, collection: jest.fn().mockReturnValue({ get: mockItemsGet }) });
-    const mockCustomLists = jest.fn().mockReturnValue(mockListDoc);
-    const mockUsers = jest.fn().mockReturnValue((uid: string) => (uid === mockUserId ? jest.fn().mockReturnValue((sub: string) => (sub === 'custom_lists' ? mockCustomLists : jest.fn())) : jest.fn()));
-    const mockCollection = jest.fn((name: string) => (name === 'users' ? mockUsers : jest.fn()));
-    mockFirestore.mockReturnValue({ collection: mockCollection });
+    const db = {
+      collection: (name: string) => name === 'users' ? ({
+        doc: (uid: string) => ({
+          collection: (sub: string) => sub === 'custom_lists' ? ({
+            doc: (listId: string) => ({
+              get: mockListGet,
+              collection: (sub2: string) => sub2 === 'items' ? ({ get: mockItemsGet }) : ({})
+            })
+          }) : ({})
+        })
+      }) : ({})
+    };
+    mockFirestore.mockReturnValue(db as any);
 
     delete process.env.TMDB_API_KEY; // avoid external calls
     await listsExport(req, res);
@@ -143,10 +151,14 @@ describe('listsExport unified CSV export', () => {
     const res = makeRes();
     mockAuth.mockReturnValue({ verifyIdToken: jest.fn().mockResolvedValue({ uid: mockUserId }) });
     const mockItemsGet = jest.fn().mockResolvedValue({ empty: false, docs: mockItemsMixed.map(it => ({ data: () => it })) });
-    const mockWatchlist = jest.fn().mockReturnValue({ get: mockItemsGet });
-    const mockUsers = jest.fn().mockReturnValue((uid: string) => (uid === mockUserId ? jest.fn().mockReturnValue((sub: string) => (sub === 'watchlist' ? mockWatchlist : jest.fn())) : jest.fn()));
-    const mockCollection = jest.fn((name: string) => (name === 'users' ? mockUsers : jest.fn()));
-    mockFirestore.mockReturnValue({ collection: mockCollection });
+    const db = {
+      collection: (name: string) => name === 'users' ? ({
+        doc: (uid: string) => ({
+          collection: (sub: string) => sub === 'watchlist' ? ({ get: mockItemsGet }) : ({})
+        })
+      }) : ({})
+    };
+    mockFirestore.mockReturnValue(db as any);
 
     delete process.env.TMDB_API_KEY; // avoid external calls
     await listsExport(req, res);

@@ -12,12 +12,27 @@ import {
   addDoc,
   limit,
   writeBatch,
-  arrayUnion,
   Timestamp,
+  documentId,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { getImdbId } from "./imdbResolver";
 import IMDbService from "./imdbService";
+
+const toNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed =
+    typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const firstNumber = (...values) => {
+  for (const value of values) {
+    const numeric = toNumber(value);
+    if (numeric !== null) return numeric;
+  }
+  return null;
+};
 
 /**
  * Fetches IMDB rating and votes for a media item
@@ -40,8 +55,12 @@ const fetchImdbData = async (tmdbId, mediaType) => {
     const titleData = await imdbService.getTitleById(imdbId);
 
     // Extract and validate rating
-    const rawRating = titleData?.rating?.aggregateRating;
-    const imdbRating = rawRating ? parseFloat(rawRating) : null;
+    const imdbRating = firstNumber(
+      titleData?.rating?.aggregateRating,
+      titleData?.rating?.ratingValue,
+      titleData?.aggregateRating,
+      titleData?.imdbRating
+    );
     
     // Ensure rating is a valid number (not NaN or 0)
     const validRating = (imdbRating && !isNaN(imdbRating) && imdbRating > 0) 
@@ -49,8 +68,12 @@ const fetchImdbData = async (tmdbId, mediaType) => {
       : null;
 
     // Extract and validate votes
-    const rawVotes = titleData?.rating?.voteCount;
-    const imdbVotes = rawVotes ? parseInt(rawVotes, 10) : null;
+    const imdbVotes = firstNumber(
+      titleData?.rating?.voteCount,
+      titleData?.rating?.ratingCount,
+      titleData?.voteCount,
+      titleData?.imdbVotes
+    );
     
     // Ensure votes is a valid number (not NaN or 0)
     const validVotes = (imdbVotes && !isNaN(imdbVotes) && imdbVotes > 0) 
@@ -86,31 +109,106 @@ export const upsertLibraryItemV2 = async (
   }
 
   const titleKey = mediaType === "tv" ? `tmdb_tv_${tmdbId}` : `tmdb_movie_${tmdbId}`;
+  const ref = doc(db, "users", userId, "library_items", titleKey);
+  const existingSnap = await getDoc(ref);
+  const existingData = existingSnap.exists() ? existingSnap.data() : {};
   const now = Timestamp.now();
+
+  const inputImdbRating = firstNumber(
+    mediaItem.imdbRating,
+    mediaItem.imdb_rating,
+    mediaItem?.rating?.aggregateRating,
+    mediaItem?.rating?.ratingValue
+  );
+  const inputImdbVotes = firstNumber(
+    mediaItem.imdbVotes,
+    mediaItem.imdb_vote_count,
+    mediaItem.imdbVotesCount,
+    mediaItem?.rating?.voteCount,
+    mediaItem?.rating?.ratingCount
+  );
+
+  let imdbId = mediaItem.imdbId || mediaItem.imdb_id || existingData.imdbId || null;
+  let imdbRating = firstNumber(inputImdbRating, existingData.imdbRating, existingData.imdb_rating);
+  let imdbVotes = firstNumber(inputImdbVotes, existingData.imdbVotes, existingData.imdb_vote_count);
+
+  if (!imdbRating || !imdbVotes) {
+    const fetchedImdb = await fetchImdbData(String(tmdbId), mediaType);
+    imdbId = imdbId || fetchedImdb.imdbId || null;
+    imdbRating = imdbRating || fetchedImdb.imdbRating || null;
+    imdbVotes = imdbVotes || fetchedImdb.imdbVotes || null;
+  }
+
+  const mergedListIds = Array.isArray(existingData.listIds)
+    ? [...existingData.listIds]
+    : [];
+
+  if (listId && !mergedListIds.includes(listId)) {
+    mergedListIds.push(listId);
+  }
+
+  const voteAverage = firstNumber(
+    mediaItem.vote_average,
+    mediaItem.tmdb_rating,
+    existingData.vote_average,
+    existingData.tmdb_rating,
+    existingData?.sort?.tmdbRating
+  );
+
+  const voteCount = firstNumber(
+    mediaItem.vote_count,
+    mediaItem.tmdb_vote_count,
+    existingData.vote_count,
+    existingData.tmdb_vote_count,
+    existingData?.sort?.tmdbVotes
+  );
+
+  const resolvedStatus = status ?? existingData.status ?? null;
   const payload = {
     titleKey,
     mediaType,
-    status,
-    listIds: listId ? [listId] : [],
+    id: String(tmdbId),
+    media_type: mediaType,
+    title: mediaItem.title || mediaItem.name || existingData.title || existingData.name || "",
+    name: mediaItem.name || mediaItem.title || existingData.name || existingData.title || "",
+    poster_path: mediaItem.poster_path || existingData.poster_path || "",
+    release_date:
+      mediaItem.release_date ||
+      mediaItem.first_air_date ||
+      existingData.release_date ||
+      existingData.first_air_date ||
+      "",
+    first_air_date:
+      mediaItem.first_air_date ||
+      mediaItem.release_date ||
+      existingData.first_air_date ||
+      existingData.release_date ||
+      "",
+    overview: mediaItem.overview || existingData.overview || "",
+    vote_average: voteAverage ?? 0,
+    vote_count: voteCount ?? 0,
+    imdbId,
+    imdbRating,
+    imdbVotes,
+    sort: {
+      tmdbRating: voteAverage ?? 0,
+      tmdbVotes: voteCount ?? 0,
+      imdbRating: imdbRating ?? null,
+      imdbVotes: imdbVotes ?? null,
+      year:
+        Number((mediaItem.release_date || mediaItem.first_air_date || "").slice(0, 4)) ||
+        existingData?.sort?.year ||
+        null,
+    },
+    status: resolvedStatus,
+    listIds: mergedListIds,
     userRating: null,
     updatedAt: now,
-    addedAt: now,
+    addedAt: existingData.addedAt || now,
     lastWatchedAt: null,
   };
 
-  const ref = doc(db, "users", userId, "library_items", titleKey);
   await setDoc(ref, payload, { merge: true });
-
-  if (listId) {
-    await setDoc(
-      ref,
-      {
-        listIds: arrayUnion(listId),
-        updatedAt: now,
-      },
-      { merge: true }
-    );
-  }
 
   return titleKey;
 };
@@ -140,11 +238,28 @@ const normalizeLibraryItem = (docId, data = {}) => {
     vote_average:
       typeof data.vote_average === "number"
         ? data.vote_average
-        : (typeof data.sort?.tmdbRating === "number" ? data.sort.tmdbRating : 0),
+        : (typeof data.tmdb_rating === "number"
+            ? data.tmdb_rating
+            : (typeof data.sort?.tmdbRating === "number" ? data.sort.tmdbRating : 0)),
+    vote_count:
+      typeof data.vote_count === "number"
+        ? data.vote_count
+        : (typeof data.tmdb_vote_count === "number"
+            ? data.tmdb_vote_count
+            : (typeof data.sort?.tmdbVotes === "number" ? data.sort.tmdbVotes : 0)),
     imdbRating:
       typeof data.imdbRating === "number"
         ? data.imdbRating
-        : (typeof data.sort?.imdbRating === "number" ? data.sort.imdbRating : null),
+        : (typeof data.imdb_rating === "number"
+            ? data.imdb_rating
+            : (typeof data.sort?.imdbRating === "number" ? data.sort.imdbRating : null)),
+    imdbVotes:
+      typeof data.imdbVotes === "number"
+        ? data.imdbVotes
+        : (typeof data.imdb_vote_count === "number"
+            ? data.imdb_vote_count
+            : (typeof data.sort?.imdbVotes === "number" ? data.sort.imdbVotes : null)),
+    imdbId: data.imdbId || data.imdb_id || null,
     dateAdded: data.dateAdded || data.addedAt || data.updatedAt || null,
   };
 };
@@ -449,6 +564,8 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
       sortBy = "updatedAt",
       sortDirection = "desc",
       includePageInfo = false,
+      hydrate = true,
+      allowLegacyFallback = true,
     } = options;
 
     const allowedSortFields = new Set([
@@ -484,10 +601,23 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
       }
 
       // Index-safe fallback: keep server-side status filtering but drop custom ordering.
+      const fallbackConstraints = [
+        where("status", "==", status),
+        orderBy(documentId()),
+      ];
+
+      // Important: preserve cursor-based pagination even in fallback mode.
+      // Without this, callers that page until hasMore=false can repeatedly fetch the
+      // first page and appear to "freeze" (especially on the Library screen).
+      if (cursor) {
+        fallbackConstraints.push(startAfter(cursor));
+      }
+
+      fallbackConstraints.push(limit(normalizedPageSize + 1));
+
       const fallbackQuery = query(
         collection(db, "users", userId, "library_items"),
-        where("status", "==", status),
-        limit(normalizedPageSize + 1)
+        ...fallbackConstraints
       );
       querySnapshot = await getDocs(fallbackQuery);
     }
@@ -500,8 +630,15 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
     const items = pageDocs.map((d) => normalizeLibraryItem(d.id, d.data()));
     const nextCursor = hasMore ? pageDocs[pageDocs.length - 1] : null;
 
-    const catalogHydrated = await hydrateItemsFromCatalog(items);
-    const hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
+    let hydratedItems = items;
+    if (hydrate) {
+      try {
+        const catalogHydrated = await hydrateItemsFromCatalog(items);
+        hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
+      } catch (hydrateError) {
+        console.warn("Hydration skipped for getLibraryByStatus:", hydrateError?.message || hydrateError);
+      }
+    }
 
     if (includePageInfo) {
       return { items: hydratedItems, hasMore, nextCursor };
@@ -510,6 +647,9 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
     return hydratedItems;
   } catch (error) {
     console.error("Error getting library by status:", error);
+    if (!options.allowLegacyFallback) {
+      throw error;
+    }
     // Legacy fallback for transition period
     try {
       const legacyQuery = query(
@@ -542,6 +682,8 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
       sortBy = "addedAt",
       sortDirection = "desc",
       includePageInfo = false,
+      hydrate = true,
+      allowLegacyFallback = true,
     } = options;
 
     const allowedSortFields = new Set([
@@ -558,6 +700,7 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     const normalizedPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
 
     const constraints = [
+      where("listIds", "array-contains", listId),
       orderBy(normalizedSortBy, normalizedSortDirection),
       limit(normalizedPageSize + 1),
     ];
@@ -569,7 +712,7 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     let querySnapshot;
     try {
       const listItemsQuery = query(
-        collection(db, "users", userId, "lists", listId, "items"),
+        collection(db, "users", userId, "library_items"),
         ...constraints
       );
       querySnapshot = await getDocs(listItemsQuery);
@@ -578,9 +721,21 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
         throw primaryError;
       }
 
+      const fallbackConstraints = [
+        where("listIds", "array-contains", listId),
+        orderBy(documentId()),
+      ];
+
+      // Preserve cursor-based pagination in fallback mode.
+      if (cursor) {
+        fallbackConstraints.push(startAfter(cursor));
+      }
+
+      fallbackConstraints.push(limit(normalizedPageSize + 1));
+
       const fallbackQuery = query(
-        collection(db, "users", userId, "lists", listId, "items"),
-        limit(normalizedPageSize + 1)
+        collection(db, "users", userId, "library_items"),
+        ...fallbackConstraints
       );
       querySnapshot = await getDocs(fallbackQuery);
     }
@@ -593,8 +748,15 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     const items = pageDocs.map((d) => normalizeLibraryItem(d.id, d.data()));
     const nextCursor = hasMore ? pageDocs[pageDocs.length - 1] : null;
 
-    const catalogHydrated = await hydrateItemsFromCatalog(items);
-    const hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
+    let hydratedItems = items;
+    if (hydrate) {
+      try {
+        const catalogHydrated = await hydrateItemsFromCatalog(items);
+        hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
+      } catch (hydrateError) {
+        console.warn("Hydration skipped for getLibraryByListId:", hydrateError?.message || hydrateError);
+      }
+    }
 
     if (includePageInfo) {
       return { items: hydratedItems, hasMore, nextCursor };
@@ -603,6 +765,9 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     return hydratedItems;
   } catch (error) {
     console.error("Error getting library by list ID:", error);
+    if (!options.allowLegacyFallback) {
+      throw error;
+    }
     // Legacy fallback for transition period
     try {
       const legacyItemsQuery = query(
@@ -635,8 +800,31 @@ export const addToList = async (userId, listName, mediaItem) => {
     const mediaType =
       mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
 
-    // Fetch IMDB data
-    const imdbData = await fetchImdbData(mediaItem.id, mediaType);
+    // Reuse existing IMDb data first, fetch only if missing
+    let imdbData = {
+      imdbId: mediaItem.imdbId || mediaItem.imdb_id || null,
+      imdbRating: firstNumber(
+        mediaItem.imdbRating,
+        mediaItem.imdb_rating,
+        mediaItem?.rating?.aggregateRating,
+        mediaItem?.rating?.ratingValue
+      ),
+      imdbVotes: firstNumber(
+        mediaItem.imdbVotes,
+        mediaItem.imdb_vote_count,
+        mediaItem?.rating?.voteCount,
+        mediaItem?.rating?.ratingCount
+      ),
+    };
+
+    if (!imdbData.imdbRating || !imdbData.imdbVotes) {
+      const fetchedImdb = await fetchImdbData(mediaItem.id, mediaType);
+      imdbData = {
+        imdbId: imdbData.imdbId || fetchedImdb.imdbId,
+        imdbRating: imdbData.imdbRating || fetchedImdb.imdbRating,
+        imdbVotes: imdbData.imdbVotes || fetchedImdb.imdbVotes,
+      };
+    }
 
     const itemToSave = {
       id: mediaItem.id,
@@ -770,10 +958,33 @@ export const addItemToCustomList = async (userId, listId, mediaItem) => {
     const mediaType =
       mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
 
-    // Fetch IMDB data only for movies/shows, not episodes
+    // Reuse existing IMDb data first, fetch only when missing
     let imdbData = { imdbId: null, imdbRating: null, imdbVotes: null };
     if (mediaType !== "episode") {
-      imdbData = await fetchImdbData(mediaItem.id, mediaType);
+      imdbData = {
+        imdbId: mediaItem.imdbId || mediaItem.imdb_id || null,
+        imdbRating: firstNumber(
+          mediaItem.imdbRating,
+          mediaItem.imdb_rating,
+          mediaItem?.rating?.aggregateRating,
+          mediaItem?.rating?.ratingValue
+        ),
+        imdbVotes: firstNumber(
+          mediaItem.imdbVotes,
+          mediaItem.imdb_vote_count,
+          mediaItem?.rating?.voteCount,
+          mediaItem?.rating?.ratingCount
+        ),
+      };
+
+      if (!imdbData.imdbRating || !imdbData.imdbVotes) {
+        const fetchedImdb = await fetchImdbData(mediaItem.id, mediaType);
+        imdbData = {
+          imdbId: imdbData.imdbId || fetchedImdb.imdbId,
+          imdbRating: imdbData.imdbRating || fetchedImdb.imdbRating,
+          imdbVotes: imdbData.imdbVotes || fetchedImdb.imdbVotes,
+        };
+      }
     }
 
     const itemToSave = {
@@ -1222,6 +1433,142 @@ export const getPendingItemsInList = async (userId, listId, limitCount = 5) => {
 // PHASE 2: ENRICHMENT BRIDGE - Refresh Metadata Utilities
 // ============================================================================
 
+const hasPositiveNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const deriveTmdbContext = (item = {}, docId = "") => {
+  let mediaType = item.media_type || item.mediaType || null;
+  let tmdbId = firstNumber(item.id, item.tmdbId);
+
+  const keyMatch = String(item.titleKey || docId).match(/^tmdb_(movie|tv)_(\d+)$/);
+  if (keyMatch) {
+    mediaType = mediaType || keyMatch[1];
+    tmdbId = tmdbId || Number(keyMatch[2]);
+  }
+
+  if (!tmdbId && /^\d+$/.test(String(docId))) {
+    tmdbId = Number(docId);
+  }
+
+  if (!tmdbId || !Number.isFinite(tmdbId)) {
+    return { tmdbId: null, mediaType: mediaType === "tv" ? "tv" : "movie" };
+  }
+
+  return {
+    tmdbId: String(Math.trunc(tmdbId)),
+    mediaType: mediaType === "tv" ? "tv" : "movie",
+  };
+};
+
+const needsMetadataRefresh = (item = {}, forceRefresh = false) => {
+  if (forceRefresh) return true;
+
+  const imdbRating = firstNumber(item.imdbRating, item.imdb_rating);
+  const imdbVotes = firstNumber(item.imdbVotes, item.imdb_vote_count);
+  const voteCount = firstNumber(item.vote_count, item.tmdb_vote_count, item?.sort?.tmdbVotes);
+
+  return !hasPositiveNumber(imdbRating) || !hasPositiveNumber(imdbVotes) || !hasPositiveNumber(voteCount) || !(item.imdbId || item.imdb_id);
+};
+
+const fetchTmdbMetadata = async (tmdbId, mediaType) => {
+  try {
+    const tmdbKey = import.meta.env.VITE_TMDB_KEY;
+    if (!tmdbKey || !tmdbId) return null;
+
+    const response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?language=en-US`, {
+      headers: {
+        accept: "application/json",
+        Authorization: `Bearer ${tmdbKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    return {
+      vote_average: firstNumber(data.vote_average),
+      vote_count: firstNumber(data.vote_count),
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch TMDB metadata for ${mediaType}:${tmdbId}: ${error.message}`);
+    return null;
+  }
+};
+
+const buildMetadataPatch = (item = {}, imdbData = {}, tmdbData = null) => {
+  const imdbRating = firstNumber(imdbData.imdbRating, item.imdbRating, item.imdb_rating);
+  const imdbVotes = firstNumber(imdbData.imdbVotes, item.imdbVotes, item.imdb_vote_count);
+  const imdbId = imdbData.imdbId || item.imdbId || item.imdb_id || null;
+
+  const voteAverage = firstNumber(tmdbData?.vote_average, item.vote_average, item.tmdb_rating, item?.sort?.tmdbRating) || 0;
+  const voteCount = firstNumber(tmdbData?.vote_count, item.vote_count, item.tmdb_vote_count, item?.sort?.tmdbVotes) || 0;
+
+  return {
+    imdbId,
+    imdbRating,
+    imdbVotes,
+    imdb_rating: imdbRating,
+    imdb_vote_count: imdbVotes,
+    vote_average: voteAverage,
+    vote_count: voteCount,
+    tmdb_rating: voteAverage,
+    tmdb_vote_count: voteCount,
+    sort: {
+      ...(item.sort || {}),
+      tmdbRating: voteAverage,
+      tmdbVotes: voteCount,
+      imdbRating: imdbRating ?? null,
+      imdbVotes: imdbVotes ?? null,
+    },
+    lastMetadataRefresh: new Date().toISOString(),
+  };
+};
+
+const collectMetadataTargets = async (userId) => {
+  const targets = [];
+
+  const libraryItemsRef = collection(db, "users", userId, "library_items");
+  const libraryItemsSnap = await getDocs(libraryItemsRef);
+  libraryItemsSnap.docs.forEach((snap) => {
+    targets.push({
+      docRef: snap.ref,
+      docId: snap.id,
+      source: "library_items",
+      ...snap.data(),
+    });
+  });
+
+  const legacyLibraryRef = collection(db, "users", userId, "library");
+  const legacyLibrarySnap = await getDocs(legacyLibraryRef);
+  legacyLibrarySnap.docs.forEach((snap) => {
+    targets.push({
+      docRef: snap.ref,
+      docId: snap.id,
+      source: "library",
+      ...snap.data(),
+    });
+  });
+
+  const customListsRef = collection(db, "users", userId, "custom_lists");
+  const customListsSnap = await getDocs(customListsRef);
+  for (const listDoc of customListsSnap.docs) {
+    const itemsRef = collection(db, "users", userId, "custom_lists", listDoc.id, "items");
+    const itemsSnap = await getDocs(itemsRef);
+    itemsSnap.docs.forEach((snap) => {
+      targets.push({
+        docRef: snap.ref,
+        docId: snap.id,
+        source: "custom_list_items",
+        listId: listDoc.id,
+        ...snap.data(),
+      });
+    });
+  }
+
+  return targets;
+};
+
 /**
  * Refreshes IMDb metadata for items with missing or null ratings
  * Safe to call repeatedly - only updates items that need it
@@ -1244,31 +1591,23 @@ export const refreshLibraryMetadata = async (
   } = options;
 
   try {
-    const libraryRef = collection(db, "users", userId, "library");
-    const snapshot = await getDocs(libraryRef);
-    
-    // Filter items that need refresh
-    const itemsToRefresh = snapshot.docs
-      .map(doc => ({ docRef: doc.ref, ...doc.data() }))
-      .filter(item => {
-        // Include items with:
-        // 1. No IMDb rating (null)
-        // 2. Missing IMDb ID
-        // 3. Force refresh enabled
-        return forceRefresh || 
-               item.imdbRating === null || 
-               item.imdbRating === undefined || 
-               !item.imdbId;
-      })
+    const allTargets = await collectMetadataTargets(userId);
+    const itemsToRefresh = allTargets
+      .filter((item) => needsMetadataRefresh(item, forceRefresh))
       .slice(0, batchSize);
 
     const summary = {
-      totalItems: snapshot.docs.length,
+      totalItems: allTargets.length,
       itemsToRefresh: itemsToRefresh.length,
       refreshed: 0,
       failed: 0,
       errors: [],
       startTime: new Date(),
+      bySource: {
+        library_items: 0,
+        library: 0,
+        custom_list_items: 0,
+      },
     };
 
     console.log(`🔄 Starting metadata refresh for ${itemsToRefresh.length} items (batch size: ${batchSize})`);
@@ -1287,35 +1626,35 @@ export const refreshLibraryMetadata = async (
           });
         }
 
-        // Fetch fresh IMDb data
-        const imdbData = await fetchImdbData(item.id, item.media_type);
+        const { tmdbId, mediaType } = deriveTmdbContext(item, item.docId);
+        if (!tmdbId) {
+          throw new Error("Missing TMDB id");
+        }
 
-        // Only update if we got valid data
-        if (imdbData.imdbRating !== null || imdbData.imdbId) {
-          await setDoc(
-            item.docRef,
-            {
-              imdbRating: imdbData.imdbRating,
-              imdbVotes: imdbData.imdbVotes,
-              imdbId: imdbData.imdbId,
-              lastMetadataRefresh: new Date().toISOString(),
-            },
-            { merge: true }
-          );
+        const imdbData = await fetchImdbData(tmdbId, mediaType);
+        const tmdbData = await fetchTmdbMetadata(tmdbId, mediaType);
+        const patch = buildMetadataPatch(item, imdbData, tmdbData);
+
+        if (patch.imdbRating !== null || patch.imdbId || patch.vote_count > 0) {
+          await setDoc(item.docRef, patch, { merge: true });
 
           summary.refreshed++;
-          console.log(`✅ Refreshed: ${item.title} (Rating: ${imdbData.imdbRating})`);
+          if (summary.bySource[item.source] !== undefined) {
+            summary.bySource[item.source] += 1;
+          }
+          console.log(`✅ Refreshed: ${item.title || item.name || item.docId} (${item.source})`);
         } else {
-          console.warn(`⚠️ No IMDb data found for: ${item.title}`);
+          console.warn(`⚠️ No metadata found for: ${item.title || item.name || item.docId}`);
         }
       } catch (error) {
         summary.failed++;
         summary.errors.push({
-          itemId: item.id,
-          title: item.title,
+          itemId: item.id || item.docId,
+          title: item.title || item.name || item.docId,
+          source: item.source,
           error: error.message,
         });
-        console.error(`❌ Failed to refresh ${item.title}:`, error.message);
+        console.error(`❌ Failed to refresh ${item.title || item.name || item.docId}:`, error.message);
       }
 
       // Small delay to prevent overwhelming the API
@@ -1444,16 +1783,17 @@ export const refreshCustomListMetadata = async (
  */
 export const getItemsWithMissingMetadata = async (userId) => {
   try {
-    const libraryRef = collection(db, "users", userId, "library");
-    const snapshot = await getDocs(libraryRef);
+    const allTargets = await collectMetadataTargets(userId);
 
-    const missingMetadata = snapshot.docs
-      .map(doc => doc.data())
-      .filter(item => 
-        item.imdbRating === null || 
-        item.imdbRating === undefined || 
-        !item.imdbId
-      );
+    const missingMetadata = allTargets
+      .filter((item) => needsMetadataRefresh(item, false))
+      .map((item) => ({
+        id: item.id || item.docId,
+        title: item.title || item.name || item.docId,
+        mediaType: deriveTmdbContext(item, item.docId).mediaType,
+        source: item.source,
+        listId: item.listId || null,
+      }));
 
     console.log(`Found ${missingMetadata.length} items with missing metadata`);
     return missingMetadata;
@@ -1472,12 +1812,15 @@ export const getItemsWithMissingMetadata = async (userId) => {
  */
 export const getMetadataStatistics = async (userId) => {
   try {
-    const libraryRef = collection(db, "users", userId, "library");
-    const snapshot = await getDocs(libraryRef);
+    const items = await collectMetadataTargets(userId);
+    const withRatings = items.filter((item) => !needsMetadataRefresh(item, false));
+    const withoutRatings = items.filter((item) => needsMetadataRefresh(item, false));
 
-    const items = snapshot.docs.map(doc => doc.data());
-    const withRatings = items.filter(item => item.imdbRating !== null && item.imdbRating !== undefined);
-    const withoutRatings = items.filter(item => item.imdbRating === null || item.imdbRating === undefined);
+    const sourceCounts = items.reduce((acc, item) => {
+      const key = item.source || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
     
     const stats = {
       totalItems: items.length,
@@ -1485,12 +1828,19 @@ export const getMetadataStatistics = async (userId) => {
       itemsWithoutMetadata: withoutRatings.length,
       completeness: items.length > 0 ? ((withRatings.length / items.length) * 100).toFixed(2) + '%' : '0%',
       averageImdbRating: withRatings.length > 0 
-        ? (withRatings.reduce((sum, item) => sum + (item.imdbRating || 0), 0) / withRatings.length).toFixed(2)
+        ? (
+            withRatings.reduce(
+              (sum, item) => sum + (firstNumber(item.imdbRating, item.imdb_rating) || 0),
+              0
+            ) / withRatings.length
+          ).toFixed(2)
         : 'N/A',
-      itemsMissingData: withoutRatings.map(item => ({
-        id: item.id,
-        title: item.title,
-        mediaType: item.media_type,
+      sourceCounts,
+      itemsMissingData: withoutRatings.map((item) => ({
+        id: item.id || item.docId,
+        title: item.title || item.name || item.docId,
+        mediaType: deriveTmdbContext(item, item.docId).mediaType,
+        source: item.source,
       })),
     };
 
