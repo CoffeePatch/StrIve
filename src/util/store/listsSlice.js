@@ -1,9 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import {
-  getList,
-  addToList,
-  removeFromList,
   createCustomList,
+  updateCustomList,
   deleteCustomList,
   addItemToCustomList,
   removeItemFromCustomList,
@@ -196,6 +194,26 @@ export const deleteList = createAsyncThunk(
   }
 );
 
+export const updateListMetadata = createAsyncThunk(
+  "lists/updateListMetadata",
+  async ({ userId, listId, updates }, { rejectWithValue }) => {
+    try {
+      const result = await updateCustomList(userId, listId, updates);
+      return {
+        listId,
+        updates: {
+          ...(typeof result.name === "string" ? { name: result.name } : {}),
+          ...(typeof result.description === "string"
+            ? { description: result.description }
+            : {}),
+        },
+      };
+    } catch (error) {
+      return rejectWithValue(error.toString());
+    }
+  }
+);
+
 export const addItem = createAsyncThunk(
   "lists/addItem",
   async ({ userId, listId, mediaItem }, { rejectWithValue }) => {
@@ -350,6 +368,13 @@ const listsSlice = createSlice({
         state.customLists.lists = state.customLists.lists.filter(
           (list) => list.id !== action.payload
         );
+
+        if (state.activeList.details?.id === action.payload) {
+          state.activeList.details = null;
+          state.activeList.items = [];
+          state.activeList.status = "idle";
+          state.activeList.error = null;
+        }
       })
       .addCase(deleteList.rejected, (state, action) => {
         state.customLists.status = "failed";
@@ -469,6 +494,29 @@ const listsSlice = createSlice({
       .addCase(fetchActiveList.rejected, (state, action) => {
         state.activeList.status = "failed";
         state.activeList.error = action.payload;
+      })
+      // Update List Metadata
+      .addCase(updateListMetadata.pending, (state) => {
+        state.customLists.status = "loading";
+      })
+      .addCase(updateListMetadata.fulfilled, (state, action) => {
+        state.customLists.status = "succeeded";
+        const { listId, updates } = action.payload;
+
+        const list = state.customLists.lists.find((l) => l.id === listId);
+        if (list) {
+          if (typeof updates.name === "string") list.name = updates.name;
+          if (typeof updates.description === "string") list.description = updates.description;
+        }
+
+        if (state.activeList.details?.id === listId) {
+          if (typeof updates.name === "string") state.activeList.details.name = updates.name;
+          if (typeof updates.description === "string") state.activeList.details.description = updates.description;
+        }
+      })
+      .addCase(updateListMetadata.rejected, (state, action) => {
+        state.customLists.status = "failed";
+        state.customLists.error = action.payload;
       })
       // Pin List
       .addCase(pinListThunk.fulfilled, (state, action) => {

@@ -92,11 +92,11 @@ const TVShowCard = ({
 
           {onRemove && (
             <button
-              className="absolute top-1 right-1 bg-black/90 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 z-10"
+              className="absolute top-1 left-1 p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 text-yellow-400 hover:text-red-500 z-10"
               onClick={handleRemoveClick}
               aria-label="Remove from list"
             >
-              <span className="material-symbols-outlined text-white text-xs">close</span>
+              <span className="material-symbols-outlined text-xs">delete</span>
             </button>
           )}
 

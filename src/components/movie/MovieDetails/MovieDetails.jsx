@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { options } from "../../../util/core/constants";
-import { addItem, fetchLists } from "../../../util/store/listsSlice";
-import { upsertLibraryItemV2 } from "../../../util/firebase/firestoreService";
+import { fetchLists } from "../../../util/store/listsSlice";
 import Header from "../../layout/Header";
 import useRequireAuth from "../../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../../hooks/media/useImdbTitle";
@@ -32,8 +31,6 @@ const MovieDetails = () => {
   const navigate = useNavigate();
   const user = useRequireAuth();
   const dispatch = useDispatch();
-  
-  const { customLists } = useSelector((state) => state.lists);
   
   const currentId = imdbId || movieId;
   const mediaType = currentId && currentId.startsWith('tt') ? "movie" : "movie";
@@ -87,15 +84,13 @@ const MovieDetails = () => {
     setShowPlayer(true);
   };
 
-  const handleSelectList = async (selection) => {
-    if (!user) {
-      alert("Please log in to add movies to your lists.");
-      setShowPopover(false);
-      return;
-    }
+  const handleCreateNew = () => {
+    setShowPopover(false);
+    setShowCreateModal(true);
+  };
 
-    try {
-      const mediaItem = {
+  const mediaItemForLists = movieDetails
+    ? {
         id: movieDetails.id,
         title: movieDetails.title,
         poster_path: movieDetails.poster_path,
@@ -107,37 +102,8 @@ const MovieDetails = () => {
         imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         media_type: "movie",
-      };
-
-      if (selection?.kind === "system") {
-        const status = selection.action === "completed" ? "completed" : "plan_to_watch";
-        await upsertLibraryItemV2(user.uid, mediaItem, { status });
-        alert(
-          selection.action === "completed"
-            ? `${mediaItem.title} marked as completed!`
-            : `${mediaItem.title} added to watchlist!`
-        );
-      } else if (selection?.kind === "custom" && selection?.listId) {
-        await dispatch(addItem({
-          userId: user.uid,
-          listId: selection.listId,
-          mediaItem,
-        })).unwrap();
-        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
-        alert(`${mediaItem.title} added to your list!`);
       }
-      
-      setShowPopover(false);
-    } catch (error) {
-      console.error("Error adding to list:", error);
-      alert("Failed to add to list. Please try again.");
-    }
-  };
-
-  const handleCreateNew = () => {
-    setShowPopover(false);
-    setShowCreateModal(true);
-  };
+    : null;
 
   if (loading) {
     return (
@@ -330,8 +296,9 @@ const MovieDetails = () => {
                     >
                       <AddToListPopover
                         isOpen={showPopover}
-                        onSelectList={handleSelectList}
                         onCreateNew={handleCreateNew}
+                        userId={user?.uid}
+                        mediaItem={mediaItemForLists}
                       />
                     </div>
                   )}

@@ -14,6 +14,7 @@ import {
   writeBatch,
   Timestamp,
   documentId,
+  arrayRemove,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { getImdbId } from "../imdb/imdbResolver";
@@ -209,6 +210,125 @@ export const upsertLibraryItemV2 = async (
   };
 
   await setDoc(ref, payload, { merge: true });
+
+  return titleKey;
+};
+
+const resolveMediaType = (mediaItem) => {
+  return (
+    mediaItem?.media_type ||
+    mediaItem?.mediaType ||
+    (mediaItem?.first_air_date ? "tv" : "movie")
+  );
+};
+
+const resolveTmdbIdNumber = (mediaItem) => {
+  const rawId = mediaItem?.id ?? mediaItem?.tmdbId;
+  return Number(rawId);
+};
+
+const resolveLibraryItemV2Ref = (userId, mediaItem) => {
+  const mediaType = resolveMediaType(mediaItem);
+  const tmdbId = resolveTmdbIdNumber(mediaItem);
+  if (!Number.isFinite(tmdbId)) {
+    throw new Error("Invalid TMDB id for library v2 read/write");
+  }
+  const titleKey = mediaType === "tv" ? `tmdb_tv_${tmdbId}` : `tmdb_movie_${tmdbId}`;
+  return {
+    titleKey,
+    ref: doc(db, "users", userId, "library_items", titleKey),
+  };
+};
+
+/**
+ * Returns listIds for a media item.
+ * Prefers V2 (users/{uid}/library_items) and falls back to legacy (users/{uid}/library).
+ */
+export const getLibraryItemListIds = async (userId, mediaItem) => {
+  if (!userId || !mediaItem?.id) return [];
+
+  try {
+    const { ref } = resolveLibraryItemV2Ref(userId, mediaItem);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return Array.isArray(data?.listIds) ? data.listIds : [];
+    }
+  } catch (err) {
+    // Ignore and attempt legacy fallback.
+    console.debug("V2 listIds lookup failed; trying legacy:", err?.message || err);
+  }
+
+  try {
+    const legacyRef = doc(db, "users", userId, "library", String(mediaItem.id));
+    const legacySnap = await getDoc(legacyRef);
+    if (legacySnap.exists()) {
+      const data = legacySnap.data();
+      return Array.isArray(data?.listIds) ? data.listIds : [];
+    }
+  } catch (legacyErr) {
+    console.debug("Legacy listIds lookup failed:", legacyErr?.message || legacyErr);
+  }
+
+  return [];
+};
+
+/**
+ * Sets the listIds array for the V2 library item.
+ * Creates the V2 doc via upsert if missing so list views have baseline metadata.
+ */
+export const setLibraryItemV2ListIds = async (userId, mediaItem, listIds) => {
+  if (!userId) throw new Error("Missing userId");
+  if (!mediaItem?.id) throw new Error("Missing media item id");
+
+  const normalized = Array.isArray(listIds)
+    ? [...new Set(listIds.filter(Boolean))]
+    : [];
+
+  const { ref, titleKey } = resolveLibraryItemV2Ref(userId, mediaItem);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await upsertLibraryItemV2(userId, mediaItem, { status: null, listId: null });
+  }
+
+  await setDoc(
+    ref,
+    {
+      listIds: normalized,
+      updatedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+
+  return titleKey;
+};
+
+/**
+ * Sets the status field for the V2 library item.
+ * Unlike upsertLibraryItemV2, this allows explicitly clearing status (setting it to null).
+ */
+export const setLibraryItemV2Status = async (userId, mediaItem, status) => {
+  if (!userId) throw new Error("Missing userId");
+  if (!mediaItem?.id) throw new Error("Missing media item id");
+
+  const normalizedStatus = status === undefined ? null : status;
+
+  const { ref, titleKey } = resolveLibraryItemV2Ref(userId, mediaItem);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await upsertLibraryItemV2(userId, mediaItem, { status: null, listId: null });
+  }
+
+  await setDoc(
+    ref,
+    {
+      status: normalizedStatus,
+      updatedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
 
   return titleKey;
 };
@@ -565,7 +685,6 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
       sortDirection = "desc",
       includePageInfo = false,
       hydrate = true,
-      allowLegacyFallback = true,
     } = options;
 
     const allowedSortFields = new Set([
@@ -683,7 +802,6 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
       sortDirection = "desc",
       includePageInfo = false,
       hydrate = true,
-      allowLegacyFallback = true,
     } = options;
 
     const allowedSortFields = new Set([
@@ -945,6 +1063,91 @@ export const deleteCustomList = async (userId, listId) => {
     console.error("Error deleting custom list: ", error);
     throw error;
   }
+};
+
+/**
+ * Updates a custom list's metadata (name/description).
+ * Writes to users/{uid}/custom_lists/{listId}.
+ */
+export const updateCustomList = async (userId, listId, updates = {}) => {
+  if (!userId) throw new Error("Missing userId");
+  if (!listId) throw new Error("Missing listId");
+
+  const payload = {
+    ...(typeof updates.name === "string" ? { name: updates.name } : {}),
+    ...(typeof updates.description === "string"
+      ? { description: updates.description }
+      : {}),
+    updatedAt: Timestamp.now(),
+  };
+
+  const listRef = doc(db, "users", userId, "custom_lists", listId);
+  await setDoc(listRef, payload, { merge: true });
+  return {
+    listId,
+    ...(typeof payload.name === "string" ? { name: payload.name } : {}),
+    ...(typeof payload.description === "string" ? { description: payload.description } : {}),
+  };
+};
+
+/**
+ * Data hygiene: remove a deleted listId from any library items that still reference it.
+ * - V2: users/{uid}/library_items where listIds array contains listId
+ * - Legacy (best-effort): users/{uid}/library where listIds array contains listId
+ *
+ * Returns number of docs updated across both collections.
+ */
+export const removeListIdFromAllLibraryItems = async (userId, listId, options = {}) => {
+  if (!userId) throw new Error("Missing userId");
+  if (!listId) throw new Error("Missing listId");
+
+  const pageSize = Math.min(Math.max(Number(options.pageSize) || 400, 1), 450);
+
+  const scrubCollection = async (collectionName) => {
+    let lastDoc = null;
+    let updatedCount = 0;
+
+    while (true) {
+      const constraints = [
+        where("listIds", "array-contains", listId),
+        orderBy(documentId()),
+        limit(pageSize),
+      ];
+
+      if (lastDoc) {
+        constraints.splice(2, 0, startAfter(lastDoc));
+      }
+
+      const q = query(collection(db, "users", userId, collectionName), ...constraints);
+      const snap = await getDocs(q);
+
+      if (snap.empty) break;
+
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => {
+        batch.update(d.ref, { listIds: arrayRemove(listId), updatedAt: Timestamp.now() });
+      });
+      await batch.commit();
+
+      updatedCount += snap.docs.length;
+      lastDoc = snap.docs[snap.docs.length - 1];
+
+      if (snap.docs.length < pageSize) break;
+    }
+
+    return updatedCount;
+  };
+
+  const v2Count = await scrubCollection("library_items");
+
+  let legacyCount = 0;
+  try {
+    legacyCount = await scrubCollection("library");
+  } catch (e) {
+    console.debug("Legacy listId scrub skipped/failed:", e?.message || e);
+  }
+
+  return v2Count + legacyCount;
 };
 
 /**

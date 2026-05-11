@@ -100,13 +100,11 @@ const MovieCard = ({
 
           {onRemove && (
             <button
-              className="absolute top-1 right-1 bg-black/90 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 z-10"
+              className="absolute top-1 left-1 p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 text-yellow-400 hover:text-red-500 z-10"
               onClick={handleRemoveClick}
               aria-label="Remove from list"
             >
-              <span className="material-symbols-outlined text-white text-xs">
-                close
-              </span>
+              <span className="material-symbols-outlined text-xs">delete</span>
             </button>
           )}
 
@@ -206,13 +204,11 @@ const MovieCard = ({
 
         {onRemove && (
           <button
-            className="absolute top-3 right-3 bg-red-600/90 backdrop-blur-sm p-2 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-red-700 hover:scale-110 z-10"
+            className="absolute top-3 left-3 p-2 cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 text-yellow-400 hover:text-red-500 z-10"
             onClick={handleRemoveClick}
             aria-label="Remove from list"
           >
-            <span className="material-symbols-outlined text-white text-lg">
-              delete
-            </span>
+            <span className="material-symbols-outlined text-lg">delete</span>
           </button>
         )}
       </div>

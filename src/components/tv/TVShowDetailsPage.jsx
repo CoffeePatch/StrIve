@@ -8,8 +8,7 @@ import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
 import useTvVideos from "../../hooks/tv/useTvVideos";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../hooks/media/useImdbTitle";
-import { addItem, fetchLists } from "../../util/store/listsSlice";
-import { upsertLibraryItemV2 } from "../../util/firebase/firestoreService";
+import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
 import SeasonTabs from "../media/SeasonTabs";
@@ -162,11 +161,8 @@ const TVShowDetailsPage = () => {
     };
   }, [hoverTimeout]);
 
-  const handleAddToList = async (selection) => {
-    if (!user || !showDetails) return;
-
-    try {
-      const mediaItem = {
+  const mediaItemForLists = showDetails
+    ? {
         id: parseInt(tvId),
         name: showDetails.name,
         title: showDetails.name,
@@ -178,28 +174,8 @@ const TVShowDetailsPage = () => {
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         imdbId: imdbData?.id || null,
         media_type: "tv",
-      };
-
-      if (selection?.kind === "system") {
-        const status = selection.action === "completed" ? "completed" : "plan_to_watch";
-        await upsertLibraryItemV2(user.uid, mediaItem, { status });
-        alert(
-          selection.action === "completed"
-            ? `${mediaItem.title} marked as completed!`
-            : `${mediaItem.title} added to watchlist!`
-        );
-      } else if (selection?.kind === "custom" && selection?.listId) {
-        await dispatch(addItem({ userId: user.uid, listId: selection.listId, mediaItem })).unwrap();
-        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
-        alert(`${mediaItem.title} added to your list!`);
       }
-
-      setShowPopover(false);
-    } catch (error) {
-      console.error("Error adding to list:", error);
-      alert("Failed to add to list. Please try again.");
-    }
-  };
+    : null;
 
   const handleCreateNew = () => {
     setShowPopover(false);
@@ -450,8 +426,9 @@ const TVShowDetailsPage = () => {
                       >
                         <AddToListPopover
                           isOpen={showPopover}
-                          onSelectList={handleAddToList}
                           onCreateNew={handleCreateNew}
+                          userId={user?.uid}
+                          mediaItem={mediaItemForLists}
                         />
                       </div>
                     )}

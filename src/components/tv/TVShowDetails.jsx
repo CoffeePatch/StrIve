@@ -8,8 +8,7 @@ import {
   setSelectedSeason,
 } from "../../util/store/tvShowsSlice";
 import { addToList } from "../../util/firebase/firestoreService";
-import { upsertLibraryItemV2 } from "../../util/firebase/firestoreService";
-import { addItem } from "../../util/store/listsSlice";
+import { fetchLists } from "../../util/store/listsSlice";
 import TVShowPlayer from "./TVShowPlayer";
 import Header from "../layout/Header";
 import { ArrowLeft, Play, Plus, Star } from "lucide-react";
@@ -48,6 +47,12 @@ const TVShowDetails = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  useEffect(() => {
+    if (user?.uid) {
+      dispatch(fetchLists(user.uid));
+    }
+  }, [dispatch, user?.uid]);
 
   const fetchSeasonDetails = React.useCallback(async (seasonNumber) => {
     try {
@@ -137,15 +142,13 @@ const TVShowDetails = () => {
     }
   };
 
-  const handleSelectList = async (selection) => {
-    if (!user) {
-      alert("Please log in to add shows to your lists.");
-      setShowPopover(false);
-      return;
-    }
+  const handleCreateNew = () => {
+    setShowPopover(false);
+    setShowCreateModal(true);
+  };
 
-    try {
-      const mediaItem = {
+  const mediaItemForLists = tvShowDetails
+    ? {
         id: tvId,
         title: tvShowDetails?.name || "TV Show",
         poster_path: tvShowDetails?.poster_path,
@@ -158,37 +161,8 @@ const TVShowDetails = () => {
         imdbId: imdbData?.id || null,
         media_type: "tv",
         type: "tv",
-      };
-
-      if (selection?.kind === 'system') {
-        const status = selection.action === 'completed' ? 'completed' : 'plan_to_watch';
-        await upsertLibraryItemV2(user.uid, mediaItem, { status });
-        alert(
-          selection.action === 'completed'
-            ? `${mediaItem.title} marked as completed!`
-            : `${mediaItem.title} added to watchlist!`
-        );
-      } else if (selection?.kind === 'custom' && selection?.listId) {
-        await dispatch(addItem({ 
-          userId: user.uid, 
-          listId: selection.listId,
-          mediaItem 
-        })).unwrap();
-        await upsertLibraryItemV2(user.uid, mediaItem, { listId: selection.listId, status: null });
-        alert(`${mediaItem.title} added to your list!`);
       }
-      
-      setShowPopover(false);
-    } catch (error) {
-      console.error("Error adding to list:", error);
-      alert("Failed to add to list. Please try again.");
-    }
-  };
-
-  const handleCreateNew = () => {
-    setShowPopover(false);
-    setShowCreateModal(true);
-  };
+    : null;
 
   if (isLoading) {
     return (
@@ -356,8 +330,10 @@ const TVShowDetails = () => {
                       onMouseLeave={() => setShowPopover(false)}
                     >
                       <AddToListPopover 
-                        onSelectList={handleSelectList}
+                        isOpen={showPopover}
                         onCreateNew={handleCreateNew}
+                        userId={user?.uid}
+                        mediaItem={mediaItemForLists}
                       />
                     </div>
                   )}

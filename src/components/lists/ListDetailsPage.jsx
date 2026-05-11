@@ -1,18 +1,33 @@
-import React, { useEffect, useCallback, useState, useMemo } from "react";
+import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
-import { fetchActiveList, removeItem } from "../../util/store/listsSlice";
+import {
+  fetchActiveList,
+  removeItem,
+  addItem,
+  deleteList,
+  updateListMetadata,
+} from "../../util/store/listsSlice";
 import MovieCard from "../movie/Cards/MovieCard";
 import Header from "../layout/Header";
 import { exportListCsv } from "../../util/export/exportDownload";
 import manualEnrichmentService from "../../services/enrichment/manualEnrichmentService";
+import { toast } from "react-toastify";
+import {
+  getLibraryItemListIds,
+  removeListIdFromAllLibraryItems,
+  setLibraryItemV2ListIds,
+  toggleCustomListTag,
+} from "../../util/firebase/firestoreService";
 
 const ListDetailsPage = () => {
   const dispatch = useDispatch();
   const user = useRequireAuth();
+  const userId = user?.uid;
   const { listId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { details, items, status, error } = useSelector(
     (state) => state.lists.activeList
   );
@@ -20,6 +35,17 @@ const ListDetailsPage = () => {
   const [filterType, setFilterType] = useState("all");
   const [sortType, setSortType] = useState("dateAddedDesc");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   // Enrichment state
   const [isEnriching, setIsEnriching] = useState(false);
@@ -27,10 +53,10 @@ const ListDetailsPage = () => {
   const [enrichedItems, setEnrichedItems] = useState(new Map());
 
   useEffect(() => {
-    if (user && listId) {
-      dispatch(fetchActiveList({ userId: user.uid, listId }));
+    if (userId && listId) {
+      dispatch(fetchActiveList({ userId, listId }));
     }
-  }, [dispatch, user, listId]);
+  }, [dispatch, userId, listId]);
 
   useEffect(() => {
     if (location.state?.importSuccess) {
@@ -43,28 +69,177 @@ const ListDetailsPage = () => {
     }
   }, [location.state]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (e) => {
+      const node = menuRef.current;
+      if (!node) return;
+      if (node.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpen]);
+
   const handleRemoveItem = async (item) => {
-    if (user && listId) {
-      try {
-        await dispatch(
-          removeItem({ userId: user.uid, listId, mediaId: item.id })
-        ).unwrap();
-      } catch (err) {
-        console.error("Failed to remove item:", err);
-      }
+    if (!userId || !listId) return;
+
+    let prevListIds = [];
+    try {
+      prevListIds = await getLibraryItemListIds(userId, item);
+    } catch (e) {
+      console.debug("Failed to fetch listIds before remove:", e?.message || e);
     }
+
+    const nextListIds = (prevListIds || []).filter((id) => id !== listId);
+
+    try {
+      await dispatch(removeItem({ userId, listId, mediaId: item.id })).unwrap();
+
+      try {
+        await setLibraryItemV2ListIds(userId, item, nextListIds);
+      } catch (e) {
+        console.debug("V2 listIds update failed:", e?.message || e);
+      }
+
+      // Keep legacy doc in sync where it still exists.
+      try {
+        await toggleCustomListTag(userId, item, listId, false);
+      } catch (e) {
+        console.debug("Legacy list tag update failed:", e?.message || e);
+      }
+    } catch (err) {
+      console.error("Failed to remove item:", err);
+      toast.error("Failed to remove item");
+      return;
+    }
+
+    toast(
+      ({ closeToast }) => (
+        <div className="flex items-center gap-3">
+          <span className="text-sm">Removed from list</span>
+          <button
+            className="text-sm underline"
+            onClick={async () => {
+              try {
+                await dispatch(addItem({ userId, listId, mediaItem: item })).unwrap();
+
+                try {
+                  const currentListIds = await getLibraryItemListIds(userId, item);
+                  const restored = Array.isArray(currentListIds)
+                    ? (currentListIds.includes(listId) ? currentListIds : [...currentListIds, listId])
+                    : [listId];
+                  await setLibraryItemV2ListIds(userId, item, restored);
+                } catch (e) {
+                  console.debug("V2 listIds restore failed:", e?.message || e);
+                }
+
+                try {
+                  await toggleCustomListTag(userId, item, listId, true);
+                } catch (e) {
+                  console.debug("Legacy list tag restore failed:", e?.message || e);
+                }
+
+                closeToast?.();
+              } catch (undoErr) {
+                console.error("Undo failed:", undoErr);
+                toast.error("Undo failed");
+              }
+            }}
+            aria-label="Undo remove"
+          >
+            Undo
+          </button>
+        </div>
+      ),
+      { autoClose: 5000 }
+    );
   };
 
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
-    if (!user || !listId) return;
+    if (!userId || !listId) return;
     try {
       setExporting(true);
       await exportListCsv(listId, details?.name);
     } finally {
       setExporting(false);
     }
-  }, [user, listId, details]);
+  }, [userId, listId, details]);
+
+  const openEdit = useCallback(() => {
+    setMenuOpen(false);
+    setEditTitle(details?.name || "");
+    setEditDescription(details?.description || "");
+    setEditOpen(true);
+  }, [details]);
+
+  const saveEdit = useCallback(async () => {
+    if (!userId || !listId) return;
+
+    const nextName = String(editTitle || "").trim();
+    const nextDescription = String(editDescription || "").trim();
+
+    if (!nextName) {
+      toast.error("Title is required");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      await dispatch(
+        updateListMetadata({
+          userId,
+          listId,
+          updates: { name: nextName, description: nextDescription },
+        })
+      ).unwrap();
+      setEditOpen(false);
+      toast.success("List updated");
+    } catch (e) {
+      console.error("Update list failed:", e);
+      toast.error("Failed to update list");
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [userId, listId, editTitle, editDescription, dispatch]);
+
+  const openDelete = useCallback(() => {
+    setMenuOpen(false);
+    setDeleteOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!userId || !listId) return;
+
+    try {
+      setDeleting(true);
+      await dispatch(deleteList({ userId, listId })).unwrap();
+      setDeleteOpen(false);
+
+      toast.success("List deleted");
+
+      // Clean up tags from library items (client-side for free tier)
+      removeListIdFromAllLibraryItems(userId, listId)
+        .then((count) => {
+          if (count > 0) {
+            toast.info(`Cleaned up ${count} item(s)`);
+          }
+        })
+        .catch((err) => {
+          console.debug("Tag cleanup skipped:", err?.message || err);
+        });
+
+      navigate("/library", { replace: true });
+    } catch (e) {
+      console.error("Delete list failed:", e);
+      toast.error("Failed to delete list");
+    } finally {
+      setDeleting(false);
+    }
+  }, [userId, listId, dispatch, navigate]);
 
   // Handle manual enrichment
   const handleEnrichList = useCallback(async () => {
@@ -186,16 +361,62 @@ const ListDetailsPage = () => {
                   {/* Additional fields will go here */}
                 </div>
                 {/* List Title - Top Right */}
-                <div className="text-right">
-                  <h1 className="text-4xl font-bold text-white">
-                    {details.name}
-                  </h1>
-                  {details.description && (
-                    <p className="text-gray-400 mt-2">{details.description}</p>
-                  )}
-                  <p className="text-gray-500 text-sm mt-1">
-                    {items?.length || 0} items
-                  </p>
+                <div className="flex items-start justify-end gap-3" ref={menuRef}>
+                  <div className="text-right">
+                    <h1 className="text-4xl font-bold text-white">
+                      {details.name}
+                    </h1>
+                    {details.description && (
+                      <p className="text-gray-400 mt-2">{details.description}</p>
+                    )}
+                    <p className="text-gray-500 text-sm mt-1">
+                      {items?.length || 0} items
+                    </p>
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="p-2 rounded-full border border-gray-800 bg-transparent hover:bg-gray-900 transition-all"
+                      onClick={() => setMenuOpen((v) => !v)}
+                      aria-label="List menu"
+                      aria-expanded={menuOpen}
+                    >
+                      <span className="material-symbols-outlined text-white">more_vert</span>
+                    </button>
+
+                    {menuOpen && (
+                      <div className="absolute right-0 mt-2 w-44 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden z-50">
+                        <button
+                          type="button"
+                          onClick={openEdit}
+                          className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800"
+                        >
+                          Edit List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={openDelete}
+                          className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800"
+                        >
+                          Delete List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setMenuOpen(false);
+                            await handleExport();
+                          }}
+                          disabled={exporting}
+                          className={`w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800 ${
+                            exporting ? "opacity-50 cursor-not-allowed" : ""
+                          }`}
+                        >
+                          Export List
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -265,22 +486,6 @@ const ListDetailsPage = () => {
                     <option value="titleAsc">Sort: Title (A-Z)</option>
                     <option value="voteAverageDesc">Sort: Rating</option>
                   </select>
-
-                  {/* Export Button */}
-                  <button
-                    onClick={handleExport}
-                    disabled={exporting}
-                    className={`px-4 py-2 bg-gray-900 border border-gray-900 rounded-full text-sm flex items-center gap-2 transition-all ${
-                      exporting
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-gray-800"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      download
-                    </span>
-                    <span className="text-white">Export</span>
-                  </button>
 
                   {/* Enrich Button */}
                   <button
@@ -371,6 +576,116 @@ const ListDetailsPage = () => {
               )}
             </div>
           </main>
+
+          {/* Edit Modal */}
+          {editOpen && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+              <div className="bg-gray-900 rounded-xl w-full max-w-xl">
+                <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-white">Edit List</h2>
+                  <button
+                    onClick={() => setEditOpen(false)}
+                    className="text-gray-400 hover:text-white"
+                    aria-label="Close"
+                    disabled={savingEdit}
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                <div className="p-4 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Title</label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600"
+                      placeholder="List title"
+                      disabled={savingEdit}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-[110px]"
+                      placeholder="Optional description"
+                      disabled={savingEdit}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-800 flex justify-end gap-3">
+                  <button
+                    className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700"
+                    onClick={() => setEditOpen(false)}
+                    disabled={savingEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 ${
+                      savingEdit ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    onClick={saveEdit}
+                    disabled={savingEdit}
+                  >
+                    {savingEdit ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Modal */}
+          {deleteOpen && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+              <div className="bg-gray-900 rounded-xl w-full max-w-xl">
+                <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-white">Delete List</h2>
+                  <button
+                    onClick={() => setDeleteOpen(false)}
+                    className="text-gray-400 hover:text-white"
+                    aria-label="Close"
+                    disabled={deleting}
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  <p className="text-white">
+                    Are you sure? This cannot be undone.
+                  </p>
+                  <p className="text-gray-400 mt-2">
+                    This will permanently delete <span className="text-white font-semibold">{details?.name}</span>.
+                  </p>
+                </div>
+
+                <div className="p-4 border-t border-gray-800 flex justify-end gap-3">
+                  <button
+                    className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700"
+                    onClick={() => setDeleteOpen(false)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 ${
+                      deleting ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
