@@ -179,27 +179,6 @@ const MovieCard = ({
               </span>
             </div>
           </div>
-
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <h3 className="text-white text-sm font-semibold font-secondary mb-2 line-clamp-2">
-              {movie.title || movie.name}
-            </h3>
-            <div className="flex items-center justify-between gap-2">
-              <div className="px-1 py-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-yellow-400 text-sm">
-                  star
-                </span>
-                <span className="text-white font-semibold text-sm font-secondary">
-                  {movie.vote_average?.toFixed(1)}
-                </span>
-              </div>
-              <div className="px-1 py-1">
-                <span className="text-white text-xs font-bold font-secondary tracking-wide">
-                  HD
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {onRemove && (
@@ -218,22 +197,18 @@ const MovieCard = ({
           <h3 className="text-white text-sm font-semibold font-secondary truncate group-hover:text-red-400 transition-colors">
             {movie.title || movie.name}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-white/60 text-xs font-medium">
-              {(movie.release_date || movie.first_air_date)?.split("-")[0]}
-            </p>
-            <span className="text-white/40">•</span>
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-1 text-white/60">
+              <span className="text-xs font-medium">{(movie.release_date || movie.first_air_date)?.split("-")[0]}</span>
+              <span className="text-white/40">•</span>
               <span className="material-symbols-outlined text-white/60 text-xs">
-                {movie.media_type === "tv" || movie.first_air_date
-                  ? "tv"
-                  : "movie"}
+                {movie.media_type === "tv" || movie.first_air_date ? "tv" : "movie"}
               </span>
-              <p className="text-white/60 text-xs font-medium">
-                {movie.media_type === "tv" || movie.first_air_date
-                  ? "Series"
-                  : "Film"}
-              </p>
+              <span className="text-xs font-medium">{movie.media_type === "tv" || movie.first_air_date ? "Series" : "Film"}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-yellow-400 text-sm">star</span>
+              <span className="text-yellow-400 text-xs font-semibold">{movie.vote_average?.toFixed(1)}</span>
             </div>
           </div>
         </div>

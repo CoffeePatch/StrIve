@@ -161,29 +161,21 @@ const TVShowCard = ({
               <span className="material-symbols-outlined text-5xl text-white">play_circle</span>
             </div>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="glass-effect px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-yellow-400 text-sm">star</span>
-                <span className="text-white font-semibold text-sm font-secondary">{data.vote_average?.toFixed(1)}</span>
-              </div>
-              <div className="glass-effect px-3 py-1.5 rounded-full flex items-center gap-1">
-                <span className="material-symbols-outlined text-white text-sm">tv</span>
-                <span className="text-white text-xs font-bold font-secondary tracking-wide">SERIES</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
       <div className="mt-3 px-1">
         <h3 className="text-white text-sm font-semibold font-secondary truncate group-hover:text-red-400 transition-colors">{data.name}</h3>
-        <div className="flex items-center gap-2 mt-1">
-          <p className="text-white/60 text-xs font-medium">{data.first_air_date?.split("-")[0]}</p>
-          <span className="text-white/40">•</span>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-1 text-white/60">
+            <span className="text-xs font-medium">{data.first_air_date?.split("-")[0]}</span>
+            <span className="text-white/40">•</span>
             <span className="material-symbols-outlined text-white/60 text-xs">tv</span>
-            <p className="text-white/60 text-xs font-medium">Series</p>
+            <span className="text-xs font-medium">Series</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="material-symbols-outlined text-yellow-400 text-sm">star</span>
+            <span className="text-yellow-400 text-xs font-semibold">{data.vote_average?.toFixed(1)}</span>
           </div>
         </div>
       </div>

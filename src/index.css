@@ -96,13 +96,17 @@ body {
   display: none !important;
 }
 
-/* Smooth scrolling */
-.scrollbar-hide {
+/* Smooth scrolling for vertical scroll */
+html, body {
   scroll-behavior: smooth;
 }
 
-* {
-  scroll-behavior: smooth;
+/* GPU acceleration for horizontal scroll containers */
+[data-horizontal-scroll="true"] {
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* Body styling with Premium Typography */
