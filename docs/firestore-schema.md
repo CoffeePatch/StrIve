@@ -18,34 +18,89 @@ This avoids duplicate records, reduces drift, and keeps reads cheap.
 - `tmdb_movie_{tmdbId}`
 - `tmdb_tv_{tmdbId}`
 
-Recommended fields:
+Actual stored fields used by the app:
 - `titleKey` (string, required)
-- `id` (string or number TMDB id)
+- `tmdbId` (number)
 - `mediaType` (string: `movie` | `tv`)
-- `media_type` (string mirror for backward compatibility)
 - `title` (string)
-- `name` (string)
-- `poster_path` (string)
-- `overview` (string)
-- `release_date` (string)
-- `first_air_date` (string)
-- `status` (string | null): `plan_to_watch` | `watching` | `completed` | `dropped` | null
-- `listIds` (string[]) custom list tags
-- `vote_average` (number) TMDB score
-- `vote_count` (number) TMDB votes
+- `images` (map)
+	- `tmdbPoster` (string | null)
+	- `simklPoster` (string | null)
+	- `imdbPoster` (string | null)
 - `imdbId` (string | null)
 - `imdbRating` (number | null)
 - `imdbVotes` (number | null)
-- `sort` (map):
-	- `tmdbRating` (number)
-	- `tmdbVotes` (number)
-	- `imdbRating` (number | null)
+- `metadata` (map)
+	- `genres` (string[])
+	- `runtimeMinutes` (number | null)
+- `ratings` (map)
+	- `imdbScore` (number | null)
 	- `imdbVotes` (number | null)
-	- `year` (number | null)
-- `userRating` (number | null)
-- `addedAt` (timestamp)
-- `updatedAt` (timestamp)
-- `lastWatchedAt` (timestamp | null)
+	- `tmdbScore` (number | null)
+	- `tmdbVotes` (number | null)
+- `releaseYear` (number | null)
+- `tracking` (map)
+	- `watchStatus` (string | null): `Plan to Watch` | `Watching` | `Completed` | `Dropped` | null
+	- `listIds` (string[])
+	- `addedAt` (timestamp)
+	- `updatedAt` (timestamp)
+
+TV-only fields:
+
+- `tvProgress` (map, TV only)
+	- `completionPercent` (number)
+	- `nextToWatch` (map | null)
+	- `totalEpisodes` (number)
+	- `watchedEpisodes` (number)
+
+Legacy documents may contain extra fields, but the app should only rely on the fields above.
+
+## Normalization Pipeline
+
+The app does not write Firestore documents directly from raw API payloads. It normalizes incoming media data first, then stores the normalized schema above.
+
+### 1. Source payloads
+
+Typical inputs come from:
+- TMDB movie or TV responses
+- IMDb lookup results for title/rating enrichment
+- Simkl poster or metadata references when available
+
+### 2. Normalization rules
+
+The write path in `src/util/firebase/firestoreService.js` maps the source payload into the canonical Firestore document shape:
+
+- `titleKey` is derived from TMDB id and media type: `tmdb_movie_{tmdbId}` or `tmdb_tv_{tmdbId}`
+- `tmdbId` is stored as the numeric TMDB id
+- `mediaType` is stored as `movie` or `tv`
+- `title` is taken from the best available title field
+- `images.tmdbPoster` is the primary poster source
+- `images.simklPoster` and `images.imdbPoster` are fallback poster sources
+- `imdbRating` and `imdbVotes` are preserved when available
+- `ratings.tmdbScore` and `ratings.tmdbVotes` are written from TMDB values
+- `ratings.imdbScore` and `ratings.imdbVotes` are written from IMDb values when available
+- `metadata.genres` and `metadata.runtimeMinutes` are stored from the normalized media metadata
+- `releaseYear` is derived from the release or first-air year
+- `tracking.watchStatus`, `tracking.listIds`, `tracking.addedAt`, and `tracking.updatedAt` are written together on the canonical document
+- `tvProgress` is only written for TV items and should not be assumed for movies
+
+### 3. Default handling
+
+- Missing poster fields should stay `null`, not empty strings
+- Missing IMDb values should stay `null`
+- Missing numeric counts should stay `null` or `0` only when the field is explicitly a count and the UI expects a numeric fallback
+- Data should be merged into the existing canonical doc so list membership and timestamps are preserved
+
+### 4. Read normalization
+
+When the app reads from Firestore, it normalizes the stored document back into the UI shape by reading:
+- `images.tmdbPoster` first, then `images.simklPoster`, then `images.imdbPoster`
+- `ratings.imdbScore`, `ratings.imdbVotes`, `ratings.tmdbScore`, `ratings.tmdbVotes`
+- `tracking.watchStatus`, `tracking.listIds`, `tracking.addedAt`, `tracking.updatedAt`
+- `metadata.genres`, `metadata.runtimeMinutes`
+- `tvProgress` when present
+
+This keeps rendering schema-first and avoids guessing from empty placeholder fields.
 
 ### Future-ready TV Progress Block
 
@@ -74,10 +129,6 @@ Custom lists remain as presentation/group metadata:
 - `ownerId` (string)
 - `isPinned` (boolean)
 - `pinnedAt` (timestamp | null)
-
-### users/{userId}/custom_lists/{listId}/items/{mediaId}
-
-Legacy/compatibility path. Data should be migrated and maintained in `library_items`.
 
 ## Query and Index Strategy
 

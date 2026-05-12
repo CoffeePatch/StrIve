@@ -63,13 +63,13 @@ const ListActionsButton = ({ mediaItem, listId, listDetails }) => {
       {isMenuVisible && (
         <div className="absolute bottom-full mb-2 w-48 bg-gray-800 rounded-lg shadow-lg z-20">
           <ul>
-            {["watchlist", "favorites", "completed"].map((listName) => (
+          {["Plan to Watch", "Watching", "Completed"].map((listName) => (
               <li key={listName}>
                 <button
                   onClick={() => handleToggleToList(listName)}
                   className="w-full text-left px-4 py-2 hover:bg-gray-700 flex items-center justify-between"
                 >
-                  <span>{listName.charAt(0).toUpperCase() + listName.slice(1)}</span>
+                  <span>{listName}</span>
                   {memberships[listName] && <Check className="w-5 h-5 text-green-500" />}
                 </button>
               </li>

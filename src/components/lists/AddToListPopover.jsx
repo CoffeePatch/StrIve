@@ -3,16 +3,16 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import {
   getLibraryItemListIds,
-  setLibraryItemV2ListIds,
+  setLibraryItemListIds,
 } from '../../util/firebase/firestoreService';
 
 import { addItem, removeItem } from '../../util/store/listsSlice';
 
 const RESERVED_STATUS_IDS = new Set([
-  'plan_to_watch',
-  'completed',
-  'watching',
-  'dropped',
+  'Plan to Watch',
+  'Completed',
+  'Watching',
+  'Dropped',
 ]);
 
 const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
@@ -116,7 +116,7 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
 
       isPersistingRef.current = true;
       try {
-        await setLibraryItemV2ListIds(userId, mediaItem, next);
+        await setLibraryItemListIds(userId, mediaItem, next);
 
         await Promise.all([
           ...toAdd.map((listId) =>
@@ -130,7 +130,7 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
       } catch (err) {
         console.error('Failed to update listIds:', err);
         try {
-          await setLibraryItemV2ListIds(userId, mediaItem, prev);
+          await setLibraryItemListIds(userId, mediaItem, prev);
         } catch (rollbackErr) {
           console.warn('Failed to rollback listIds:', rollbackErr);
         }
@@ -168,88 +168,78 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
       onMouseEnter={(e) => e.stopPropagation()}
     >
       <div className="py-2 max-h-96 overflow-y-auto">
-        {shouldShowMembershipLoading ? (
-          <div className="px-4 py-3 text-sm text-white/60 font-secondary text-center">
-            Loading...
-          </div>
-        ) : (
+        {/* Pinned Lists Section */}
+        {pinnedLists.length > 0 && (
           <>
-
-            {/* Pinned Lists Section */}
-            {pinnedLists.length > 0 && (
-              <>
-                <div className="px-4 py-2 text-xs text-white/40 font-secondary uppercase tracking-wider">
-                  Pinned Lists
+            <div className="px-4 py-2 text-xs text-white/40 font-secondary uppercase tracking-wider">
+              Pinned Lists
+            </div>
+            {pinnedLists.map((list) => (
+              <label
+                key={list.id}
+                className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={isChecked(list.id)}
+                    disabled={disableInputs}
+                    onChange={() => toggleListId(list.id)}
+                    className="h-4 w-4"
+                  />
+                  <span className="font-secondary truncate">{list.name}</span>
                 </div>
-                {pinnedLists.map((list) => (
-                  <label
-                    key={list.id}
-                    className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-white/40">{list.items?.length || 0}</span>
+                  <span
+                    className="material-symbols-outlined text-yellow-400 text-base"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={isChecked(list.id)}
-                        disabled={disableInputs}
-                        onChange={() => toggleListId(list.id)}
-                        className="h-4 w-4"
-                      />
-                      <span className="font-secondary truncate">{list.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-white/40">{list.items?.length || 0}</span>
-                      <span 
-                        className="material-symbols-outlined text-yellow-400 text-base"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        star
-                      </span>
-                    </div>
-                  </label>
-                ))}
-                {unpinnedLists.length > 0 && <div className="border-t border-white/10 my-2"></div>}
-              </>
-            )}
-        
-            {/* Other Lists Section */}
-            {unpinnedLists.length > 0 && (
-              <>
-                {pinnedLists.length > 0 && (
-                  <div className="px-4 py-2 text-xs text-white/40 font-secondary uppercase tracking-wider">
-                    Other Lists
-                  </div>
-                )}
-                {unpinnedLists.map((list) => (
-                  <label
-                    key={list.id}
-                    className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={isChecked(list.id)}
-                        disabled={disableInputs}
-                        onChange={() => toggleListId(list.id)}
-                        className="h-4 w-4"
-                      />
-                      <span className="font-secondary truncate">{list.name}</span>
-                    </div>
-                    <span className="text-xs text-white/40 flex-shrink-0">{list.items?.length || 0}</span>
-                  </label>
-                ))}
-              </>
-            )}
-        
-            {sortedLists.length === 0 && (
-              <div className="px-4 py-3 text-sm text-white/50 font-secondary text-center">
-                No lists yet
-              </div>
-            )}
-        
-            {sortedLists.length > 0 && <div className="border-t border-white/10 my-2"></div>}
-
+                    star
+                  </span>
+                </div>
+              </label>
+            ))}
+            {unpinnedLists.length > 0 && <div className="border-t border-white/10 my-2"></div>}
           </>
         )}
+
+        {/* Other Lists Section */}
+        {unpinnedLists.length > 0 && (
+          <>
+            {pinnedLists.length > 0 && (
+              <div className="px-4 py-2 text-xs text-white/40 font-secondary uppercase tracking-wider">
+                Other Lists
+              </div>
+            )}
+            {unpinnedLists.map((list) => (
+              <label
+                key={list.id}
+                className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={isChecked(list.id)}
+                    disabled={disableInputs}
+                    onChange={() => toggleListId(list.id)}
+                    className="h-4 w-4"
+                  />
+                  <span className="font-secondary truncate">{list.name}</span>
+                </div>
+                <span className="text-xs text-white/40 flex-shrink-0">{list.items?.length || 0}</span>
+              </label>
+            ))}
+          </>
+        )}
+
+        {sortedLists.length === 0 && (
+          <div className="px-4 py-3 text-sm text-white/50 font-secondary text-center">
+            No lists yet
+          </div>
+        )}
+
+        {sortedLists.length > 0 && <div className="border-t border-white/10 my-2"></div>}
         
         {/* Create New List Option */}
         <button

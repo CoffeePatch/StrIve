@@ -10,6 +10,7 @@ import MoviePlayer from "../../movie/Player/MoviePlayer";
 import AddToListPopover from "../../lists/AddToListPopover";
 import CreateListModal from "../../lists/CreateListModal";
 import { Star } from "lucide-react";
+import { setLibraryItemStatus } from "../../../util/firebase/firestoreService";
 
 const formatCount = (num) => {
   if (num === null || num === undefined) return 'N/A';
@@ -26,6 +27,8 @@ const MovieDetails = () => {
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const castScrollRef = useRef(null);
   const similarScrollRef = useRef(null);
   const navigate = useNavigate();
@@ -88,6 +91,49 @@ const MovieDetails = () => {
     setShowPopover(false);
     setShowCreateModal(true);
   };
+
+  const handleToggleWatchlist = async () => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+    try {
+      const newStatus = isWatchlisted ? null : "Plan to Watch";
+      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
+      setIsWatchlisted(!isWatchlisted);
+    } catch (error) {
+      console.error("Error updating watchlist:", error);
+    }
+  };
+
+  const handleToggleCompleted = async () => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+    try {
+      const newStatus = isCompleted ? null : "Completed";
+      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
+      setIsCompleted(!isCompleted);
+    } catch (error) {
+      console.error("Error updating completed status:", error);
+    }
+  };
+
+  const actionButtonBaseClass =
+    "group inline-flex h-11 w-11 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
+
+  const actionButtonPrimaryClass =
+    `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[146px] hover:bg-white hover:px-4 hover:text-black`;
+
+  const actionButtonSecondaryClass =
+    `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[132px] hover:bg-white/10 hover:px-4 hover:text-white`;
+
+  const actionButtonNeutralClass =
+    `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[140px] hover:bg-white/10 hover:px-4 hover:text-white`;
+
+  const actionButtonLabelClass =
+    "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
 
   const mediaItemForLists = movieDetails
     ? {
@@ -239,14 +285,15 @@ const MovieDetails = () => {
                 {movieDetails.overview}
               </p>
 
-              <div className="flex flex-wrap gap-4 mb-8">
+              <div className="flex flex-wrap items-center gap-3 lg:gap-4 mb-8">
                 <button
                   onClick={handlePlayMovie}
-                  className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all hover:opacity-90 focus-accent cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-text-primary)', color: '#000' }}
+                  className={actionButtonPrimaryClass}
                 >
-                  <span className="material-symbols-outlined text-2xl">play_circle</span>
-                  <span>Play Now</span>
+                  <span className="material-symbols-outlined text-xl shrink-0 text-current">
+                    play_circle
+                  </span>
+                  <span className={actionButtonLabelClass}>Play Now</span>
                 </button>
 
                 {trailer && (
@@ -254,54 +301,81 @@ const MovieDetails = () => {
                     href={`https://www.youtube.com/watch?v=${trailer.key}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all focus-accent cursor-pointer"
-                    style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                    className={actionButtonSecondaryClass}
                   >
-                    <span className="material-symbols-outlined text-2xl">movie</span>
-                    <span>Trailer</span>
+                    <span className="material-symbols-outlined text-xl shrink-0 text-current">
+                      movie
+                    </span>
+                    <span className={actionButtonLabelClass}>Trailer</span>
                   </a>
                 )}
 
-                <div 
-                  className="relative"
-                  onMouseEnter={() => {
-                    if (hoverTimeout) clearTimeout(hoverTimeout);
-                    const timeout = setTimeout(() => setShowPopover(true), 500);
-                    setHoverTimeout(timeout);
-                  }}
-                  onMouseLeave={() => {
-                    if (hoverTimeout) clearTimeout(hoverTimeout);
-                    const timeout = setTimeout(() => setShowPopover(false), 300);
-                    setHoverTimeout(timeout);
-                  }}
-                >
+                <div className="flex items-center gap-2">
                   <button
-                    className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all focus-accent cursor-pointer"
-                    style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                    onClick={handleToggleWatchlist}
+                    className={actionButtonNeutralClass}
+                    title="Add to Watchlist"
                   >
-                    <span className="material-symbols-outlined text-2xl">add</span>
-                    <span>Add to List</span>
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-400' : 'text-white/75 group-hover:text-white'}`}>
+                      bookmark
+                    </span>
+                    <span className={actionButtonLabelClass}>Watchlist</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleToggleCompleted}
+                    className={actionButtonNeutralClass}
+                    title="Mark as Completed"
+                  >
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isCompleted ? 'text-green-400' : 'text-white/75 group-hover:text-white'}`}>
+                      check_circle
+                    </span>
+                    <span className={actionButtonLabelClass}>Watched</span>
                   </button>
 
-                  {showPopover && (
-                    <div
-                      onMouseEnter={() => {
-                        if (hoverTimeout) clearTimeout(hoverTimeout);
-                      }}
-                      onMouseLeave={() => {
-                        if (hoverTimeout) clearTimeout(hoverTimeout);
-                        const timeout = setTimeout(() => setShowPopover(false), 300);
-                        setHoverTimeout(timeout);
-                      }}
+                  <div 
+                    className="relative"
+                    onMouseEnter={() => {
+                      if (hoverTimeout) clearTimeout(hoverTimeout);
+                      const timeout = setTimeout(() => setShowPopover(true), 500);
+                      setHoverTimeout(timeout);
+                    }}
+                    onMouseLeave={() => {
+                      if (hoverTimeout) clearTimeout(hoverTimeout);
+                      const timeout = setTimeout(() => setShowPopover(false), 300);
+                      setHoverTimeout(timeout);
+                    }}
+                  >
+                    <button
+                      className={actionButtonNeutralClass}
+                      title="Add to List"
                     >
-                      <AddToListPopover
-                        isOpen={showPopover}
-                        onCreateNew={handleCreateNew}
-                        userId={user?.uid}
-                        mediaItem={mediaItemForLists}
-                      />
-                    </div>
-                  )}
+                      <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
+                        playlist_add
+                      </span>
+                      <span className={actionButtonLabelClass}>Lists</span>
+                    </button>
+
+                    {showPopover && (
+                      <div
+                        onMouseEnter={() => {
+                          if (hoverTimeout) clearTimeout(hoverTimeout);
+                        }}
+                        onMouseLeave={() => {
+                          if (hoverTimeout) clearTimeout(hoverTimeout);
+                          const timeout = setTimeout(() => setShowPopover(false), 300);
+                          setHoverTimeout(timeout);
+                        }}
+                      >
+                        <AddToListPopover
+                          isOpen={showPopover}
+                          onCreateNew={handleCreateNew}
+                          userId={user?.uid}
+                          mediaItem={mediaItemForLists}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

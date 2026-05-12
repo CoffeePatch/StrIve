@@ -62,10 +62,10 @@ const fetchImdbData = async (tmdbId, mediaType) => {
       titleData?.aggregateRating,
       titleData?.imdbRating
     );
-    
+
     // Ensure rating is a valid number (not NaN or 0)
-    const validRating = (imdbRating && !isNaN(imdbRating) && imdbRating > 0) 
-      ? imdbRating 
+    const validRating = (imdbRating && !isNaN(imdbRating) && imdbRating > 0)
+      ? imdbRating
       : null;
 
     // Extract and validate votes
@@ -75,10 +75,10 @@ const fetchImdbData = async (tmdbId, mediaType) => {
       titleData?.voteCount,
       titleData?.imdbVotes
     );
-    
+
     // Ensure votes is a valid number (not NaN or 0)
-    const validVotes = (imdbVotes && !isNaN(imdbVotes) && imdbVotes > 0) 
-      ? imdbVotes 
+    const validVotes = (imdbVotes && !isNaN(imdbVotes) && imdbVotes > 0)
+      ? imdbVotes
       : null;
 
     return {
@@ -92,11 +92,7 @@ const fetchImdbData = async (tmdbId, mediaType) => {
   }
 };
 
-/**
- * Writes/updates a normalized library item in users/{uid}/library_items.
- * Keeps library screen populated even while legacy collections still exist.
- */
-export const upsertLibraryItemV2 = async (
+export const upsertLibraryItem = async (
   userId,
   mediaItem,
   { status = null, listId = null } = {}
@@ -115,33 +111,8 @@ export const upsertLibraryItemV2 = async (
   const existingData = existingSnap.exists() ? existingSnap.data() : {};
   const now = Timestamp.now();
 
-  const inputImdbRating = firstNumber(
-    mediaItem.imdbRating,
-    mediaItem.imdb_rating,
-    mediaItem?.rating?.aggregateRating,
-    mediaItem?.rating?.ratingValue
-  );
-  const inputImdbVotes = firstNumber(
-    mediaItem.imdbVotes,
-    mediaItem.imdb_vote_count,
-    mediaItem.imdbVotesCount,
-    mediaItem?.rating?.voteCount,
-    mediaItem?.rating?.ratingCount
-  );
-
-  let imdbId = mediaItem.imdbId || mediaItem.imdb_id || existingData.imdbId || null;
-  let imdbRating = firstNumber(inputImdbRating, existingData.imdbRating, existingData.imdb_rating);
-  let imdbVotes = firstNumber(inputImdbVotes, existingData.imdbVotes, existingData.imdb_vote_count);
-
-  if (!imdbRating || !imdbVotes) {
-    const fetchedImdb = await fetchImdbData(String(tmdbId), mediaType);
-    imdbId = imdbId || fetchedImdb.imdbId || null;
-    imdbRating = imdbRating || fetchedImdb.imdbRating || null;
-    imdbVotes = imdbVotes || fetchedImdb.imdbVotes || null;
-  }
-
-  const mergedListIds = Array.isArray(existingData.listIds)
-    ? [...existingData.listIds]
+  const mergedListIds = Array.isArray(existingData?.tracking?.listIds)
+    ? [...existingData.tracking.listIds]
     : [];
 
   if (listId && !mergedListIds.includes(listId)) {
@@ -149,22 +120,51 @@ export const upsertLibraryItemV2 = async (
   }
 
   const voteAverage = firstNumber(
+    mediaItem?.ratings?.tmdbScore,
     mediaItem.vote_average,
     mediaItem.tmdb_rating,
+    existingData?.ratings?.tmdbScore,
     existingData.vote_average,
     existingData.tmdb_rating,
     existingData?.sort?.tmdbRating
   );
 
   const voteCount = firstNumber(
+    mediaItem?.ratings?.tmdbVotes,
     mediaItem.vote_count,
     mediaItem.tmdb_vote_count,
+    existingData?.ratings?.tmdbVotes,
     existingData.vote_count,
     existingData.tmdb_vote_count,
     existingData?.sort?.tmdbVotes
   );
 
-  const resolvedStatus = status ?? existingData.status ?? null;
+  const imdbScore = firstNumber(
+    mediaItem?.ratings?.imdbScore,
+    mediaItem.imdbRating,
+    mediaItem.imdb_rating,
+    mediaItem?.rating?.aggregateRating,
+    mediaItem?.rating?.ratingValue,
+    existingData?.ratings?.imdbScore,
+    existingData.imdbRating,
+    existingData.imdb_rating,
+    existingData?.sort?.imdbRating
+  );
+
+  const imdbVotes = firstNumber(
+    mediaItem?.ratings?.imdbVotes,
+    mediaItem.imdbVotes,
+    mediaItem.imdb_vote_count,
+    mediaItem.imdbVotesCount,
+    mediaItem?.rating?.voteCount,
+    mediaItem?.rating?.ratingCount,
+    existingData?.ratings?.imdbVotes,
+    existingData.imdbVotes,
+    existingData.imdb_vote_count,
+    existingData?.sort?.imdbVotes
+  );
+
+  const resolvedStatus = status ?? existingData?.tracking?.watchStatus ?? null;
   const payload = {
     titleKey,
     mediaType,
@@ -188,24 +188,30 @@ export const upsertLibraryItemV2 = async (
     overview: mediaItem.overview || existingData.overview || "",
     vote_average: voteAverage ?? 0,
     vote_count: voteCount ?? 0,
-    imdbId,
-    imdbRating,
-    imdbVotes,
+    ratings: {
+      imdbScore: imdbScore ?? null,
+      imdbVotes: imdbVotes ?? null,
+      tmdbScore: voteAverage ?? 0,
+      tmdbVotes: voteCount ?? 0,
+    },
     sort: {
       tmdbRating: voteAverage ?? 0,
       tmdbVotes: voteCount ?? 0,
-      imdbRating: imdbRating ?? null,
+      imdbRating: imdbScore ?? null,
       imdbVotes: imdbVotes ?? null,
       year:
         Number((mediaItem.release_date || mediaItem.first_air_date || "").slice(0, 4)) ||
         existingData?.sort?.year ||
         null,
     },
-    status: resolvedStatus,
-    listIds: mergedListIds,
+    tracking: {
+      watchStatus: resolvedStatus,
+      listIds: mergedListIds,
+      updatedAt: now,
+      addedAt: existingData?.tracking?.addedAt || existingData.addedAt || now,
+    },
     userRating: null,
-    updatedAt: now,
-    addedAt: existingData.addedAt || now,
+    addedAt: existingData.addedAt || existingData?.tracking?.addedAt || now,
     lastWatchedAt: null,
   };
 
@@ -252,22 +258,10 @@ export const getLibraryItemListIds = async (userId, mediaItem) => {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
-      return Array.isArray(data?.listIds) ? data.listIds : [];
+      return Array.isArray(data?.tracking?.listIds) ? data.tracking.listIds : [];
     }
   } catch (err) {
-    // Ignore and attempt legacy fallback.
-    console.debug("V2 listIds lookup failed; trying legacy:", err?.message || err);
-  }
-
-  try {
-    const legacyRef = doc(db, "users", userId, "library", String(mediaItem.id));
-    const legacySnap = await getDoc(legacyRef);
-    if (legacySnap.exists()) {
-      const data = legacySnap.data();
-      return Array.isArray(data?.listIds) ? data.listIds : [];
-    }
-  } catch (legacyErr) {
-    console.debug("Legacy listIds lookup failed:", legacyErr?.message || legacyErr);
+    console.error("Failed to get list IDs for item:", err?.message || err);
   }
 
   return [];
@@ -277,7 +271,7 @@ export const getLibraryItemListIds = async (userId, mediaItem) => {
  * Sets the listIds array for the V2 library item.
  * Creates the V2 doc via upsert if missing so list views have baseline metadata.
  */
-export const setLibraryItemV2ListIds = async (userId, mediaItem, listIds) => {
+export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   if (!userId) throw new Error("Missing userId");
   if (!mediaItem?.id) throw new Error("Missing media item id");
 
@@ -289,14 +283,14 @@ export const setLibraryItemV2ListIds = async (userId, mediaItem, listIds) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItemV2(userId, mediaItem, { status: null, listId: null });
+    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null });
   }
 
   await setDoc(
     ref,
     {
-      listIds: normalized,
-      updatedAt: Timestamp.now(),
+      "tracking.listIds": normalized,
+      "tracking.updatedAt": Timestamp.now(),
     },
     { merge: true }
   );
@@ -308,7 +302,7 @@ export const setLibraryItemV2ListIds = async (userId, mediaItem, listIds) => {
  * Sets the status field for the V2 library item.
  * Unlike upsertLibraryItemV2, this allows explicitly clearing status (setting it to null).
  */
-export const setLibraryItemV2Status = async (userId, mediaItem, status) => {
+export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   if (!userId) throw new Error("Missing userId");
   if (!mediaItem?.id) throw new Error("Missing media item id");
 
@@ -318,19 +312,23 @@ export const setLibraryItemV2Status = async (userId, mediaItem, status) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItemV2(userId, mediaItem, { status: null, listId: null });
+    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null });
   }
 
   await setDoc(
     ref,
     {
-      status: normalizedStatus,
-      updatedAt: Timestamp.now(),
+      "tracking.watchStatus": normalizedStatus,
+      "tracking.updatedAt": Timestamp.now(),
     },
     { merge: true }
   );
 
   return titleKey;
+};
+
+export const setLibraryItemV2Status = async (userId, mediaItem, status) => {
+  return setLibraryItemStatus(userId, mediaItem, status);
 };
 
 const normalizeLibraryItem = (docId, data = {}) => {
@@ -343,6 +341,32 @@ const normalizeLibraryItem = (docId, data = {}) => {
     : "Untitled";
   const resolvedTitle = data.title || data.name || data.display?.title || fallbackTitle;
   const isFallbackTitle = resolvedTitle === fallbackTitle;
+  const normalizedRatings = {
+    imdbScore: firstNumber(
+      data?.ratings?.imdbScore,
+      data.imdbRating,
+      data.imdb_rating,
+      data?.sort?.imdbRating
+    ),
+    imdbVotes: firstNumber(
+      data?.ratings?.imdbVotes,
+      data.imdbVotes,
+      data.imdb_vote_count,
+      data?.sort?.imdbVotes
+    ),
+    tmdbScore: firstNumber(
+      data?.ratings?.tmdbScore,
+      data.vote_average,
+      data.tmdb_rating,
+      data?.sort?.tmdbRating
+    ) ?? 0,
+    tmdbVotes: firstNumber(
+      data?.ratings?.tmdbVotes,
+      data.vote_count,
+      data.tmdb_vote_count,
+      data?.sort?.tmdbVotes
+    ) ?? 0,
+  };
 
   return {
     ...data,
@@ -352,35 +376,16 @@ const normalizeLibraryItem = (docId, data = {}) => {
     title: resolvedTitle,
     name: data.name || data.title || data.display?.title || resolvedTitle,
     isFallbackTitle,
-    poster_path: data.poster_path || data.display?.posterPath || "",
-    release_date: data.release_date || data.display?.releaseDate || "",
-    first_air_date: data.first_air_date || data.display?.releaseDate || "",
-    vote_average:
-      typeof data.vote_average === "number"
-        ? data.vote_average
-        : (typeof data.tmdb_rating === "number"
-            ? data.tmdb_rating
-            : (typeof data.sort?.tmdbRating === "number" ? data.sort.tmdbRating : 0)),
-    vote_count:
-      typeof data.vote_count === "number"
-        ? data.vote_count
-        : (typeof data.tmdb_vote_count === "number"
-            ? data.tmdb_vote_count
-            : (typeof data.sort?.tmdbVotes === "number" ? data.sort.tmdbVotes : 0)),
-    imdbRating:
-      typeof data.imdbRating === "number"
-        ? data.imdbRating
-        : (typeof data.imdb_rating === "number"
-            ? data.imdb_rating
-            : (typeof data.sort?.imdbRating === "number" ? data.sort.imdbRating : null)),
-    imdbVotes:
-      typeof data.imdbVotes === "number"
-        ? data.imdbVotes
-        : (typeof data.imdb_vote_count === "number"
-            ? data.imdb_vote_count
-            : (typeof data.sort?.imdbVotes === "number" ? data.sort.imdbVotes : null)),
-    imdbId: data.imdbId || data.imdb_id || null,
-    dateAdded: data.dateAdded || data.addedAt || data.updatedAt || null,
+    poster_path: data.images?.tmdbPoster || data.images?.simklPoster || data.images?.imdbPoster || data.poster_path || data.display?.posterPath || null,
+    release_date: data.release_date || data.display?.releaseDate || null,
+    first_air_date: data.first_air_date || data.display?.releaseDate || null,
+    vote_average: normalizedRatings.tmdbScore,
+    vote_count: normalizedRatings.tmdbVotes,
+    imdbRating: normalizedRatings.imdbScore,
+    imdbVotes: normalizedRatings.imdbVotes,
+    ratings: normalizedRatings,
+    genres: data.metadata?.genres || data.genres || [],
+    dateAdded: data.dateAdded || data?.tracking?.addedAt || data.addedAt || data?.tracking?.updatedAt || null,
   };
 };
 
@@ -520,15 +525,15 @@ export const updateLibraryItem = async (userId, mediaItem, status) => {
   try {
     const tmdbId = String(mediaItem.id);
     const mediaType = mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-    
+
     // Reference to the library document
     const itemRef = doc(db, "users", userId, "library", tmdbId);
-    
+
     // Check if document exists
     const docSnapshot = await getDoc(itemRef);
     const exists = docSnapshot.exists();
     const existingData = exists ? docSnapshot.data() : {};
-    
+
     // Prepare the base document structure
     const libraryItem = {
       id: tmdbId,
@@ -543,20 +548,36 @@ export const updateLibraryItem = async (userId, mediaItem, status) => {
       listIds: existingData.listIds || [],
     };
 
-    // If this is a NEW document, fetch IMDb data ONCE
-    if (!exists || !existingData.imdbRating) {
-      console.log(`Fetching IMDb data for new library item: ${tmdbId}`);
-      const imdbData = await fetchImdbData(tmdbId, mediaType);
-      
-      libraryItem.imdbRating = imdbData.imdbRating;
-      libraryItem.imdbVotes = imdbData.imdbVotes;
-      libraryItem.imdbId = imdbData.imdbId;
-    } else {
-      // Preserve existing IMDb data
-      libraryItem.imdbRating = existingData.imdbRating;
-      libraryItem.imdbVotes = existingData.imdbVotes;
-      libraryItem.imdbId = existingData.imdbId;
-    }
+    libraryItem.ratings = {
+      imdbScore: firstNumber(
+        mediaItem?.ratings?.imdbScore,
+        mediaItem.imdbRating,
+        mediaItem.imdb_rating,
+        existingData?.ratings?.imdbScore,
+        existingData.imdbRating,
+        existingData.imdb_rating
+      ),
+      imdbVotes: firstNumber(
+        mediaItem?.ratings?.imdbVotes,
+        mediaItem.imdbVotes,
+        mediaItem.imdb_vote_count,
+        existingData?.ratings?.imdbVotes,
+        existingData.imdbVotes,
+        existingData.imdb_vote_count
+      ),
+      tmdbScore: firstNumber(
+        mediaItem?.ratings?.tmdbScore,
+        mediaItem.vote_average,
+        existingData?.ratings?.tmdbScore,
+        existingData.vote_average
+      ) ?? 0,
+      tmdbVotes: firstNumber(
+        mediaItem?.ratings?.tmdbVotes,
+        mediaItem.vote_count,
+        existingData?.ratings?.tmdbVotes,
+        existingData.vote_count
+      ) ?? 0,
+    };
 
     // Preserve existing progress if any
     if (existingData.progress) {
@@ -565,8 +586,8 @@ export const updateLibraryItem = async (userId, mediaItem, status) => {
 
     // Save to Firestore
     await setDoc(itemRef, libraryItem, { merge: true });
-    
-    console.log(`✅ Library item updated: ${libraryItem.title} (Status: ${status})`);
+
+    console.log(`Γ£à Library item updated: ${libraryItem.title} (Status: ${status})`);
     return libraryItem;
   } catch (error) {
     console.error("Error updating library item:", error);
@@ -586,63 +607,20 @@ export const updateLibraryItem = async (userId, mediaItem, status) => {
  */
 export const toggleCustomListTag = async (userId, mediaItem, listId, add = true) => {
   try {
-    const tmdbId = String(mediaItem.id);
-    const mediaType = mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-    
-    // Reference to the library document
-    const itemRef = doc(db, "users", userId, "library", tmdbId);
-    
-    // Check if document exists
-    const docSnapshot = await getDoc(itemRef);
-    const exists = docSnapshot.exists();
-    
-    if (!exists) {
-      // Document doesn't exist yet - create it with "passive" status
-      console.log(`Creating passive library item for list tagging: ${tmdbId}`);
-      
-      const imdbData = await fetchImdbData(tmdbId, mediaType);
-      
-      const libraryItem = {
-        id: tmdbId,
-        media_type: mediaType,
-        title: mediaItem.title || mediaItem.name || "",
-        poster_path: mediaItem.poster_path || "",
-        release_date: mediaItem.release_date || mediaItem.first_air_date || "",
-        vote_average: mediaItem.vote_average || 0,
-        vote_count: mediaItem.vote_count || 0,
-        status: null, // Passive - only in custom lists
-        dateAdded: new Date().toISOString(),
-        listIds: add ? [listId] : [],
-        imdbRating: imdbData.imdbRating,
-        imdbVotes: imdbData.imdbVotes,
-        imdbId: imdbData.imdbId,
-      };
-      
-      await setDoc(itemRef, libraryItem);
-      console.log(`✅ Created passive item and added to list: ${listId}`);
-    } else {
-      // Document exists - toggle the list ID
-      const existingData = docSnapshot.data();
-      const currentListIds = existingData.listIds || [];
-      
-      let updatedListIds;
-      if (add) {
-        // Add list ID if not already present
-        if (!currentListIds.includes(listId)) {
-          updatedListIds = [...currentListIds, listId];
-          console.log(`✅ Added to list: ${listId}`);
-        } else {
-          console.log(`⚠️ Already in list: ${listId}`);
-          return; // Already in list, no update needed
-        }
+    const currentListIds = await getLibraryItemListIds(userId, mediaItem);
+    let updatedListIds;
+
+    if (add) {
+      if (!currentListIds.includes(listId)) {
+        updatedListIds = [...currentListIds, listId];
       } else {
-        // Remove list ID
-        updatedListIds = currentListIds.filter(id => id !== listId);
-        console.log(`✅ Removed from list: ${listId}`);
+        return;
       }
-      
-      await setDoc(itemRef, { listIds: updatedListIds }, { merge: true });
+    } else {
+      updatedListIds = currentListIds.filter((id) => id !== listId);
     }
+
+    await setLibraryItemListIds(userId, mediaItem, updatedListIds);
   } catch (error) {
     console.error("Error toggling custom list tag:", error);
     throw error;
@@ -659,7 +637,7 @@ export const getLibraryItem = async (userId, tmdbId) => {
   try {
     const itemRef = doc(db, "users", userId, "library", String(tmdbId));
     const docSnapshot = await getDoc(itemRef);
-    
+
     if (docSnapshot.exists()) {
       return docSnapshot.data();
     }
@@ -678,81 +656,37 @@ export const getLibraryItem = async (userId, tmdbId) => {
  */
 export const getLibraryByStatus = async (userId, status, options = {}) => {
   try {
-    const {
-      pageSize = 50,
-      cursor = null,
-      sortBy = "updatedAt",
-      sortDirection = "desc",
-      includePageInfo = false,
-      hydrate = true,
-    } = options;
+    const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
-    const allowedSortFields = new Set([
-      "updatedAt",
-      "sort.imdbRating",
-      "sort.year",
-    ]);
+    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const items = querySnapshot.docs
+      .map((d) => normalizeLibraryItem(d.id, d.data()))
+      .filter((item) => {
+        if (status == null) {
+          return !item?.tracking?.watchStatus;
+        }
+        return item?.tracking?.watchStatus === status;
+      });
 
-    const normalizedSortBy = allowedSortFields.has(sortBy) ? sortBy : "updatedAt";
-    const normalizedSortDirection = sortDirection === "asc" ? "asc" : "desc";
-    const normalizedPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
-
-    const constraints = [
-      where("status", "==", status),
-      orderBy(normalizedSortBy, normalizedSortDirection),
-      limit(normalizedPageSize + 1),
-    ];
-
-    if (cursor) {
-      constraints.push(startAfter(cursor));
-    }
-
-    let querySnapshot;
-    try {
-      const libraryQuery = query(
-        collection(db, "users", userId, "library_items"),
-        ...constraints
-      );
-      querySnapshot = await getDocs(libraryQuery);
-    } catch (primaryError) {
-      if (!isIndexRelatedError(primaryError)) {
-        throw primaryError;
+    const sortValue = (item) => {
+      if (sortBy === "sort.imdbRating") {
+        return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
       }
-
-      // Index-safe fallback: keep server-side status filtering but drop custom ordering.
-      const fallbackConstraints = [
-        where("status", "==", status),
-        orderBy(documentId()),
-      ];
-
-      // Important: preserve cursor-based pagination even in fallback mode.
-      // Without this, callers that page until hasMore=false can repeatedly fetch the
-      // first page and appear to "freeze" (especially on the Library screen).
-      if (cursor) {
-        fallbackConstraints.push(startAfter(cursor));
+      if (sortBy === "sort.year") return Number(item?.sort?.year) || 0;
+      if (sortBy === "updatedAt") {
+        const value = item?.tracking?.updatedAt || item?.tracking?.addedAt || item?.addedAt || null;
+        return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
       }
+      return 0;
+    };
 
-      fallbackConstraints.push(limit(normalizedPageSize + 1));
+    const direction = sortDirection === "asc" ? 1 : -1;
+    const sortedItems = [...items].sort((left, right) => (sortValue(left) - sortValue(right)) * direction);
 
-      const fallbackQuery = query(
-        collection(db, "users", userId, "library_items"),
-        ...fallbackConstraints
-      );
-      querySnapshot = await getDocs(fallbackQuery);
-    }
-
-    const hasMore = querySnapshot.docs.length > normalizedPageSize;
-    const pageDocs = hasMore
-      ? querySnapshot.docs.slice(0, normalizedPageSize)
-      : querySnapshot.docs;
-
-    const items = pageDocs.map((d) => normalizeLibraryItem(d.id, d.data()));
-    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1] : null;
-
-    let hydratedItems = items;
+    let hydratedItems = sortedItems;
     if (hydrate) {
       try {
-        const catalogHydrated = await hydrateItemsFromCatalog(items);
+        const catalogHydrated = await hydrateItemsFromCatalog(sortedItems);
         hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
       } catch (hydrateError) {
         console.warn("Hydration skipped for getLibraryByStatus:", hydrateError?.message || hydrateError);
@@ -760,30 +694,13 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
     }
 
     if (includePageInfo) {
-      return { items: hydratedItems, hasMore, nextCursor };
+      return { items: hydratedItems, hasMore: false, nextCursor: null };
     }
 
     return hydratedItems;
   } catch (error) {
     console.error("Error getting library by status:", error);
-    if (!options.allowLegacyFallback) {
-      throw error;
-    }
-    // Legacy fallback for transition period
-    try {
-      const legacyQuery = query(
-        collection(db, "users", userId, "library"),
-        where("status", "==", status),
-        limit(100)
-      );
-      const legacySnapshot = await getDocs(legacyQuery);
-      const legacyItems = legacySnapshot.docs.map((d) => normalizeLibraryItem(d.id, d.data()));
-      const catalogHydrated = await hydrateItemsFromCatalog(legacyItems);
-      return hydrateItemsFromTmdb(catalogHydrated);
-    } catch (legacyError) {
-      console.error("Legacy fallback failed for getLibraryByStatus:", legacyError);
-      throw error;
-    }
+    throw error;
   }
 };
 
@@ -795,81 +712,32 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
  */
 export const getLibraryByListId = async (userId, listId, options = {}) => {
   try {
-    const {
-      pageSize = 50,
-      cursor = null,
-      sortBy = "addedAt",
-      sortDirection = "desc",
-      includePageInfo = false,
-      hydrate = true,
-    } = options;
+    const { sortBy = "addedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
-    const allowedSortFields = new Set([
-      "addedAt",
-      "sort.imdbRating",
-      "position",
-    ]);
+    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const items = querySnapshot.docs
+      .map((d) => normalizeLibraryItem(d.id, d.data()))
+      .filter((item) => Array.isArray(item?.tracking?.listIds) && item.tracking.listIds.includes(listId));
 
-    const normalizedSortBy = allowedSortFields.has(sortBy) ? sortBy : "addedAt";
-    const defaultDirection = normalizedSortBy === "position" ? "asc" : "desc";
-    const normalizedSortDirection = sortDirection === "asc" || sortDirection === "desc"
-      ? sortDirection
-      : defaultDirection;
-    const normalizedPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
-
-    const constraints = [
-      where("listIds", "array-contains", listId),
-      orderBy(normalizedSortBy, normalizedSortDirection),
-      limit(normalizedPageSize + 1),
-    ];
-
-    if (cursor) {
-      constraints.push(startAfter(cursor));
-    }
-
-    let querySnapshot;
-    try {
-      const listItemsQuery = query(
-        collection(db, "users", userId, "library_items"),
-        ...constraints
-      );
-      querySnapshot = await getDocs(listItemsQuery);
-    } catch (primaryError) {
-      if (!isIndexRelatedError(primaryError)) {
-        throw primaryError;
+    const sortValue = (item) => {
+      if (sortBy === "sort.imdbRating") {
+        return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
       }
-
-      const fallbackConstraints = [
-        where("listIds", "array-contains", listId),
-        orderBy(documentId()),
-      ];
-
-      // Preserve cursor-based pagination in fallback mode.
-      if (cursor) {
-        fallbackConstraints.push(startAfter(cursor));
+      if (sortBy === "position") return Number(item?.position) || 0;
+      if (sortBy === "addedAt") {
+        const value = item?.addedAt || item?.tracking?.addedAt || item?.tracking?.updatedAt || null;
+        return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
       }
+      return 0;
+    };
 
-      fallbackConstraints.push(limit(normalizedPageSize + 1));
+    const direction = sortDirection === "asc" ? 1 : -1;
+    const sortedItems = [...items].sort((left, right) => (sortValue(left) - sortValue(right)) * direction);
 
-      const fallbackQuery = query(
-        collection(db, "users", userId, "library_items"),
-        ...fallbackConstraints
-      );
-      querySnapshot = await getDocs(fallbackQuery);
-    }
-
-    const hasMore = querySnapshot.docs.length > normalizedPageSize;
-    const pageDocs = hasMore
-      ? querySnapshot.docs.slice(0, normalizedPageSize)
-      : querySnapshot.docs;
-
-    const items = pageDocs.map((d) => normalizeLibraryItem(d.id, d.data()));
-    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1] : null;
-
-    let hydratedItems = items;
+    let hydratedItems = sortedItems;
     if (hydrate) {
       try {
-        const catalogHydrated = await hydrateItemsFromCatalog(items);
+        const catalogHydrated = await hydrateItemsFromCatalog(sortedItems);
         hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
       } catch (hydrateError) {
         console.warn("Hydration skipped for getLibraryByListId:", hydrateError?.message || hydrateError);
@@ -877,29 +745,13 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     }
 
     if (includePageInfo) {
-      return { items: hydratedItems, hasMore, nextCursor };
+      return { items: hydratedItems, hasMore: false, nextCursor: null };
     }
 
     return hydratedItems;
   } catch (error) {
     console.error("Error getting library by list ID:", error);
-    if (!options.allowLegacyFallback) {
-      throw error;
-    }
-    // Legacy fallback for transition period
-    try {
-      const legacyItemsQuery = query(
-        collection(db, "users", userId, "custom_lists", listId, "items"),
-        limit(100)
-      );
-      const legacySnapshot = await getDocs(legacyItemsQuery);
-      const legacyItems = legacySnapshot.docs.map((d) => normalizeLibraryItem(d.id, d.data()));
-      const catalogHydrated = await hydrateItemsFromCatalog(legacyItems);
-      return hydrateItemsFromTmdb(catalogHydrated);
-    } catch (legacyError) {
-      console.error("Legacy fallback failed for getLibraryByListId:", legacyError);
-      throw error;
-    }
+    throw error;
   }
 };
 
@@ -918,32 +770,6 @@ export const addToList = async (userId, listName, mediaItem) => {
     const mediaType =
       mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
 
-    // Reuse existing IMDb data first, fetch only if missing
-    let imdbData = {
-      imdbId: mediaItem.imdbId || mediaItem.imdb_id || null,
-      imdbRating: firstNumber(
-        mediaItem.imdbRating,
-        mediaItem.imdb_rating,
-        mediaItem?.rating?.aggregateRating,
-        mediaItem?.rating?.ratingValue
-      ),
-      imdbVotes: firstNumber(
-        mediaItem.imdbVotes,
-        mediaItem.imdb_vote_count,
-        mediaItem?.rating?.voteCount,
-        mediaItem?.rating?.ratingCount
-      ),
-    };
-
-    if (!imdbData.imdbRating || !imdbData.imdbVotes) {
-      const fetchedImdb = await fetchImdbData(mediaItem.id, mediaType);
-      imdbData = {
-        imdbId: imdbData.imdbId || fetchedImdb.imdbId,
-        imdbRating: imdbData.imdbRating || fetchedImdb.imdbRating,
-        imdbVotes: imdbData.imdbVotes || fetchedImdb.imdbVotes,
-      };
-    }
-
     const itemToSave = {
       id: mediaItem.id,
       title: mediaItem.title || mediaItem.name,
@@ -953,9 +779,12 @@ export const addToList = async (userId, listName, mediaItem) => {
       vote_count: mediaItem.vote_count,
       media_type: mediaType,
       dateAdded: new Date().toISOString(),
-      imdbId: imdbData.imdbId,
-      imdbRating: imdbData.imdbRating,
-      imdbVotes: imdbData.imdbVotes,
+      ratings: {
+        imdbScore: firstNumber(mediaItem?.ratings?.imdbScore, mediaItem.imdbRating, mediaItem.imdb_rating),
+        imdbVotes: firstNumber(mediaItem?.ratings?.imdbVotes, mediaItem.imdbVotes, mediaItem.imdb_vote_count),
+        tmdbScore: firstNumber(mediaItem?.ratings?.tmdbScore, mediaItem.vote_average) ?? 0,
+        tmdbVotes: firstNumber(mediaItem?.ratings?.tmdbVotes, mediaItem.vote_count) ?? 0,
+      },
     };
     const itemRef = doc(db, "users", userId, listName, String(mediaItem.id));
     await setDoc(itemRef, itemToSave);
@@ -1011,6 +840,8 @@ export const removeFromList = async (userId, listName, mediaId) => {
   }
 };
 
+
+
 /**
  * Creates a new custom list for a user in Firestore.
  * @param {string} userId - The UID of the user from Firebase Auth.
@@ -1019,13 +850,13 @@ export const removeFromList = async (userId, listName, mediaId) => {
  */
 export const createCustomList = async (userId, listData) => {
   try {
-    const customListsRef = collection(db, "users", userId, "custom_lists");
+    const listsRef = collection(db, "users", userId, "lists");
     const newListData = {
       ...listData,
       createdAt: new Date(),
       ownerId: userId,
     };
-    const docRef = await addDoc(customListsRef, newListData);
+    const docRef = await addDoc(listsRef, newListData);
     console.log(`Successfully created custom list with ID: ${docRef.id}`);
     return docRef.id;
   } catch (error) {
@@ -1041,23 +872,9 @@ export const createCustomList = async (userId, listData) => {
  */
 export const deleteCustomList = async (userId, listId) => {
   try {
-    // First, delete all items in the list's items subcollection
-    const itemsCollectionRef = collection(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items"
-    );
-    const itemsSnapshot = await getDocs(itemsCollectionRef);
-
-    const deletePromises = itemsSnapshot.docs.map((doc) => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
-
-    // Then, delete the list document itself
-    const listRef = doc(db, "users", userId, "custom_lists", listId);
+    const listRef = doc(db, "users", userId, "lists", listId);
     await deleteDoc(listRef);
+
     console.log(`Successfully deleted custom list with ID: ${listId}`);
   } catch (error) {
     console.error("Error deleting custom list: ", error);
@@ -1067,7 +884,7 @@ export const deleteCustomList = async (userId, listId) => {
 
 /**
  * Updates a custom list's metadata (name/description).
- * Writes to users/{uid}/custom_lists/{listId}.
+ * Writes to users/{uid}/lists/{listId}.
  */
 export const updateCustomList = async (userId, listId, updates = {}) => {
   if (!userId) throw new Error("Missing userId");
@@ -1081,7 +898,7 @@ export const updateCustomList = async (userId, listId, updates = {}) => {
     updatedAt: Timestamp.now(),
   };
 
-  const listRef = doc(db, "users", userId, "custom_lists", listId);
+  const listRef = doc(db, "users", userId, "lists", listId);
   await setDoc(listRef, payload, { merge: true });
   return {
     listId,
@@ -1102,52 +919,38 @@ export const removeListIdFromAllLibraryItems = async (userId, listId, options = 
   if (!listId) throw new Error("Missing listId");
 
   const pageSize = Math.min(Math.max(Number(options.pageSize) || 400, 1), 450);
+  let lastDoc = null;
+  let updatedCount = 0;
 
-  const scrubCollection = async (collectionName) => {
-    let lastDoc = null;
-    let updatedCount = 0;
+  while (true) {
+    const constraints = [
+      where("tracking.listIds", "array-contains", listId),
+      orderBy("titleKey"),
+      limit(pageSize),
+    ];
 
-    while (true) {
-      const constraints = [
-        where("listIds", "array-contains", listId),
-        orderBy(documentId()),
-        limit(pageSize),
-      ];
-
-      if (lastDoc) {
-        constraints.splice(2, 0, startAfter(lastDoc));
-      }
-
-      const q = query(collection(db, "users", userId, collectionName), ...constraints);
-      const snap = await getDocs(q);
-
-      if (snap.empty) break;
-
-      const batch = writeBatch(db);
-      snap.docs.forEach((d) => {
-        batch.update(d.ref, { listIds: arrayRemove(listId), updatedAt: Timestamp.now() });
-      });
-      await batch.commit();
-
-      updatedCount += snap.docs.length;
-      lastDoc = snap.docs[snap.docs.length - 1];
-
-      if (snap.docs.length < pageSize) break;
+    if (lastDoc) {
+      constraints.splice(2, 0, startAfter(lastDoc));
     }
 
-    return updatedCount;
-  };
+    const q = query(collection(db, "users", userId, "library_items"), ...constraints);
+    const snap = await getDocs(q);
 
-  const v2Count = await scrubCollection("library_items");
+    if (snap.empty) break;
 
-  let legacyCount = 0;
-  try {
-    legacyCount = await scrubCollection("library");
-  } catch (e) {
-    console.debug("Legacy listId scrub skipped/failed:", e?.message || e);
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => {
+      batch.update(d.ref, { "tracking.listIds": arrayRemove(listId), "tracking.updatedAt": Timestamp.now() });
+    });
+    await batch.commit();
+
+    updatedCount += snap.docs.length;
+    lastDoc = snap.docs[snap.docs.length - 1];
+
+    if (snap.docs.length < pageSize) break;
   }
 
-  return v2Count + legacyCount;
+  return updatedCount;
 };
 
 /**
@@ -1158,74 +961,9 @@ export const removeListIdFromAllLibraryItems = async (userId, listId, options = 
  */
 export const addItemToCustomList = async (userId, listId, mediaItem) => {
   try {
-    const mediaType =
-      mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-
-    // Reuse existing IMDb data first, fetch only when missing
-    let imdbData = { imdbId: null, imdbRating: null, imdbVotes: null };
-    if (mediaType !== "episode") {
-      imdbData = {
-        imdbId: mediaItem.imdbId || mediaItem.imdb_id || null,
-        imdbRating: firstNumber(
-          mediaItem.imdbRating,
-          mediaItem.imdb_rating,
-          mediaItem?.rating?.aggregateRating,
-          mediaItem?.rating?.ratingValue
-        ),
-        imdbVotes: firstNumber(
-          mediaItem.imdbVotes,
-          mediaItem.imdb_vote_count,
-          mediaItem?.rating?.voteCount,
-          mediaItem?.rating?.ratingCount
-        ),
-      };
-
-      if (!imdbData.imdbRating || !imdbData.imdbVotes) {
-        const fetchedImdb = await fetchImdbData(mediaItem.id, mediaType);
-        imdbData = {
-          imdbId: imdbData.imdbId || fetchedImdb.imdbId,
-          imdbRating: imdbData.imdbRating || fetchedImdb.imdbRating,
-          imdbVotes: imdbData.imdbVotes || fetchedImdb.imdbVotes,
-        };
-      }
-    }
-
-    const itemToSave = {
-      id: mediaItem.id,
-      title: mediaItem.title || mediaItem.name,
-      poster_path: mediaItem.poster_path,
-      release_date: mediaItem.release_date || mediaItem.first_air_date || "",
-      vote_average: mediaItem.vote_average || 0,
-      vote_count: mediaItem.vote_count || 0,
-      media_type: mediaType,
-      dateAdded: new Date(),
-      imdbId: imdbData.imdbId,
-      imdbRating: imdbData.imdbRating,
-      imdbVotes: imdbData.imdbVotes,
-      // Preserve episode-specific fields
-      ...(mediaType === "episode" && {
-        showId: mediaItem.showId,
-        showTitle: mediaItem.showTitle,
-        seasonNumber: mediaItem.seasonNumber,
-        episodeNumber: mediaItem.episodeNumber,
-        episodeTitle: mediaItem.episodeTitle,
-        backdrop_path: mediaItem.backdrop_path,
-        overview: mediaItem.overview,
-      }),
-    };
-    
-    const itemsCollectionRef = collection(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items"
-    );
-    const itemRef = doc(itemsCollectionRef, String(mediaItem.id));
-    await setDoc(itemRef, itemToSave);
+    await setLibraryItemListIds(userId, mediaItem, [listId]);
     console.log(
-      `Successfully added ${itemToSave.title} to custom list ${listId}`
+      `Successfully added ${mediaItem.title || mediaItem.name} to custom list ${listId}`
     );
   } catch (error) {
     console.error("Error adding item to custom list: ", error);
@@ -1241,96 +979,16 @@ export const addItemToCustomList = async (userId, listId, mediaItem) => {
  */
 export const addItemsToCustomListBatch = async (userId, listId, items) => {
   try {
-    const itemsCollectionRef = collection(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items"
-    );
-
-    // Process items in chunks of 500 (Firestore batch limit)
-    const chunkSize = 450; // Safety margin
+    const chunkSize = 450;
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
-      const currentBatch = writeBatch(db);
-
-      const promises = chunk.map(async (mediaItem) => {
-        const mediaType =
-          mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-
-        // Note: Fetching IMDB data for each item might be slow/rate-limited.
-        // For batch operations, we might skip IMDB data or fetch it lazily later.
-        // For now, we'll skip IMDB fetch to ensure speed and avoid timeouts.
-
-        const itemToSave = {
-          // === IDs ===
-          id: String(mediaItem.id),
-          tmdbId: mediaItem.tmdbId || null,
-          simklId: mediaItem.simklId || null,
-          imdbId: mediaItem.imdbId || null,
-          tvdbId: mediaItem.tvdbId || null,
-          malId: mediaItem.malId || null,
-          anilistId: mediaItem.anilistId || null,
-          anidbId: mediaItem.anidbId || null,
-          
-          // === Basic Info ===
-          title: mediaItem.title || mediaItem.name || "",
-          year: mediaItem.year || null,
-          poster_path: mediaItem.poster_path || null,
-          release_date: mediaItem.release_date || mediaItem.first_air_date || null,
-          first_air_date: mediaItem.first_air_date || null,
-          media_type: mediaType,
-          runtime: mediaItem.runtime || null,
-          
-          // === User Data ===
-          status: mediaItem.status || null,
-          watchedAt: mediaItem.watchedAt || null,
-          addedToWatchlistAt: mediaItem.addedToWatchlistAt || null,
-          user_rating: mediaItem.user_rating || null,
-          watchedEpisodesCount: mediaItem.watchedEpisodesCount || 0,
-          totalEpisodesCount: mediaItem.totalEpisodesCount || 0,
-          notAiredEpisodesCount: mediaItem.notAiredEpisodesCount || 0,
-          nextToWatch: mediaItem.nextToWatch || null,
-          lastWatched: mediaItem.lastWatched || null,
-          animeType: mediaItem.animeType || null,
-          
-          // === Ratings (placeholders - filled by enrichment) ===
-          vote_average: mediaItem.vote_average || 0,
-          vote_count: mediaItem.vote_count || 0,
-          tmdb_rating: mediaItem.tmdb_rating || null,
-          tmdb_vote_count: mediaItem.tmdb_vote_count || null,
-          imdb_rating: mediaItem.imdb_rating || null,
-          imdb_vote_count: mediaItem.imdb_vote_count || null,
-          
-          // === Metadata (placeholders - filled by enrichment) ===
-          overview: mediaItem.overview || null,
-          backdrop_path: mediaItem.backdrop_path || null,
-          
-          // === Tracking ===
-          dateAdded: new Date(),
-          enrichmentStatus: mediaItem.enrichmentStatus || "pending",
-          lastEnriched: mediaItem.lastEnriched || null,
-        };
-
-        // Remove undefined fields just in case
-        Object.keys(itemToSave).forEach(
-          (key) => itemToSave[key] === undefined && delete itemToSave[key]
-        );
-
-        const itemRef = doc(itemsCollectionRef, String(mediaItem.id));
-        currentBatch.set(itemRef, itemToSave);
-      });
-
+      const promises = chunk.map((mediaItem) =>
+        setLibraryItemListIds(userId, mediaItem, [listId])
+      );
       await Promise.all(promises);
-      await currentBatch.commit();
-      console.log(`Successfully committed batch of ${chunk.length} items`);
+      console.log(`Successfully added batch of ${chunk.length} items to list ${listId}`);
     }
-
-    console.log(
-      `Successfully added ${items.length} items to custom list ${listId}`
-    );
+    console.log(`Successfully added ${items.length} items to custom list ${listId}`);
   } catch (error) {
     console.error("Error batch adding items to custom list: ", error);
     throw error;
@@ -1345,16 +1003,12 @@ export const addItemsToCustomListBatch = async (userId, listId, items) => {
  */
 export const removeItemFromCustomList = async (userId, listId, mediaId) => {
   try {
-    const itemRef = doc(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items",
-      String(mediaId)
-    );
-    await deleteDoc(itemRef);
+    const mediaType = mediaId.includes("_tv_") ? "tv" : "movie";
+    const numericId = Number(mediaId.split("_").pop());
+    const mediaItem = { id: numericId, media_type: mediaType };
+    const currentListIds = await getLibraryItemListIds(userId, mediaItem);
+    const updatedListIds = currentListIds.filter((id) => id !== listId);
+    await setLibraryItemListIds(userId, mediaItem, updatedListIds);
     console.log(
       `Successfully removed item ${mediaId} from custom list ${listId}`
     );
@@ -1371,23 +1025,13 @@ export const removeItemFromCustomList = async (userId, listId, mediaId) => {
  */
 export const fetchUserLists = async (userId) => {
   try {
-    const customListsCollectionRef = collection(
-      db,
-      "users",
-      String(userId),
-      "custom_lists"
-    );
-    const querySnapshot = await getDocs(customListsCollectionRef);
-    try {
-      const lists = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      return lists;
-    } catch (error) {
-      console.error("Error parsing custom lists: ", error);
-      return []; // Return empty list if parsing fails
-    }
+    const listsRef = collection(db, "users", userId, "lists");
+    const querySnapshot = await getDocs(listsRef);
+    const lists = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    return lists;
   } catch (error) {
     console.error("Error fetching user's custom lists: ", error);
     throw error;
@@ -1402,32 +1046,7 @@ export const fetchUserLists = async (userId) => {
 export const fetchUserListsWithPreviews = async (userId) => {
   try {
     const lists = await fetchUserLists(userId);
-    const listsWithPreviews = await Promise.all(
-      lists.map(async (list) => {
-        // Fetch only the first 10 items for preview
-        const itemsCollectionRef = collection(
-          db,
-          "users",
-          userId,
-          "custom_lists",
-          list.id,
-          "items"
-        );
-        const itemsQuery = query(itemsCollectionRef, limit(10));
-        const itemsSnapshot = await getDocs(itemsQuery);
-
-        const items = itemsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        return {
-          ...list,
-          items: items,
-        };
-      })
-    );
-    return listsWithPreviews;
+    return lists;
   } catch (error) {
     console.error("Error fetching user's custom lists with previews: ", error);
     throw error;
@@ -1442,14 +1061,11 @@ export const fetchUserListsWithPreviews = async (userId) => {
  */
 export const fetchListWithItems = async (userId, listId) => {
   try {
-    // Fetch the list document
-    const listRef = doc(db, "users", userId, "custom_lists", listId);
+    const listRef = doc(db, "users", userId, "lists", listId);
     const listSnap = await getDoc(listRef);
 
     if (!listSnap.exists()) {
-      throw new Error(
-        `List with ID ${listId} does not exist for user ${userId}`
-      );
+      throw new Error(`List with ID ${listId} does not exist for user ${userId}`);
     }
 
     const listData = {
@@ -1457,26 +1073,7 @@ export const fetchListWithItems = async (userId, listId) => {
       ...listSnap.data(),
     };
 
-    // Fetch all items in the list
-    const itemsCollectionRef = collection(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items"
-    );
-    const itemsSnapshot = await getDocs(itemsCollectionRef);
-
-    const items = itemsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return {
-      ...listData,
-      items: items,
-    };
+    return listData;
   } catch (error) {
     console.error("Error fetching list with items: ", error);
     throw error;
@@ -1490,7 +1087,7 @@ export const fetchListWithItems = async (userId, listId) => {
  */
 export const pinList = async (userId, listId) => {
   try {
-    const listRef = doc(db, "users", userId, "custom_lists", listId);
+    const listRef = doc(db, "users", userId, "lists", listId);
     await setDoc(
       listRef,
       {
@@ -1513,7 +1110,7 @@ export const pinList = async (userId, listId) => {
  */
 export const unpinList = async (userId, listId) => {
   try {
-    const listRef = doc(db, "users", userId, "custom_lists", listId);
+    const listRef = doc(db, "users", userId, "lists", listId);
     await setDoc(
       listRef,
       {
@@ -1536,7 +1133,16 @@ export const unpinList = async (userId, listId) => {
  */
 export const createDefaultWatchLaterList = async (userId) => {
   try {
-    const customListsRef = collection(db, "users", userId, "custom_lists");
+    const existingLists = await fetchUserLists(userId);
+    const existingWatchLater = existingLists.find(
+      (list) => (list.name || "").toLowerCase() === "watch later"
+    );
+
+    if (existingWatchLater) {
+      return existingWatchLater.id;
+    }
+
+    const listsRef = collection(db, "users", userId, "lists");
     const newListData = {
       name: "Watch Later",
       description: "Your default watch later list",
@@ -1545,7 +1151,7 @@ export const createDefaultWatchLaterList = async (userId) => {
       isPinned: true,
       pinnedAt: new Date(),
     };
-    const docRef = await addDoc(customListsRef, newListData);
+    const docRef = await addDoc(listsRef, newListData);
     console.log(
       `Successfully created default Watch Later list with ID: ${docRef.id}`
     );
@@ -1565,26 +1171,16 @@ export const createDefaultWatchLaterList = async (userId) => {
  */
 export const updateItemEnrichment = async (
   userId,
-  listId,
   itemId,
   enrichedData
 ) => {
   try {
-    const itemRef = doc(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items",
-      String(itemId)
-    );
+    const libraryItemRef = doc(db, "users", userId, "library_items", String(itemId));
     await setDoc(
-      itemRef,
+      libraryItemRef,
       {
         ...enrichedData,
-        enrichmentStatus: "complete",
-        lastEnriched: new Date().toISOString(),
+        updatedAt: Timestamp.now(),
       },
       { merge: true }
     );
@@ -1602,32 +1198,19 @@ export const updateItemEnrichment = async (
  */
 export const getPendingItemsInList = async (userId, listId, limitCount = 5) => {
   try {
-    const itemsCollectionRef = collection(
-      db,
-      "users",
-      userId,
-      "custom_lists",
-      listId,
-      "items"
-    );
-
-    // Note: This query requires an index on enrichmentStatus.
-    // If index is missing, it might fail. For now, we might just fetch latest added.
-    // Ideally: where("enrichmentStatus", "==", "pending")
-
+    const libraryItemsRef = collection(db, "users", userId, "library_items");
     const q = query(
-      itemsCollectionRef,
-      // where("enrichmentStatus", "==", "pending"), // Commented out to avoid index error for now
-      limit(50) // Fetch 50, filter in memory if needed
+      libraryItemsRef,
+      where("tracking.listIds", "array-contains", listId),
+      limit(limitCount)
     );
-
     const snapshot = await getDocs(q);
-    return snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((item) => item.enrichmentStatus === "pending")
-      .slice(0, limitCount);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
   } catch (error) {
-    console.error("Error fetching pending items:", error);
+    console.error("Error fetching items in list:", error);
     return [];
   }
 };
@@ -1742,33 +1325,6 @@ const collectMetadataTargets = async (userId) => {
     });
   });
 
-  const legacyLibraryRef = collection(db, "users", userId, "library");
-  const legacyLibrarySnap = await getDocs(legacyLibraryRef);
-  legacyLibrarySnap.docs.forEach((snap) => {
-    targets.push({
-      docRef: snap.ref,
-      docId: snap.id,
-      source: "library",
-      ...snap.data(),
-    });
-  });
-
-  const customListsRef = collection(db, "users", userId, "custom_lists");
-  const customListsSnap = await getDocs(customListsRef);
-  for (const listDoc of customListsSnap.docs) {
-    const itemsRef = collection(db, "users", userId, "custom_lists", listDoc.id, "items");
-    const itemsSnap = await getDocs(itemsRef);
-    itemsSnap.docs.forEach((snap) => {
-      targets.push({
-        docRef: snap.ref,
-        docId: snap.id,
-        source: "custom_list_items",
-        listId: listDoc.id,
-        ...snap.data(),
-      });
-    });
-  }
-
   return targets;
 };
 
@@ -1813,7 +1369,7 @@ export const refreshLibraryMetadata = async (
       },
     };
 
-    console.log(`🔄 Starting metadata refresh for ${itemsToRefresh.length} items (batch size: ${batchSize})`);
+    console.log(`≡ƒöä Starting metadata refresh for ${itemsToRefresh.length} items (batch size: ${batchSize})`);
 
     // Process each item with concurrency control
     for (let i = 0; i < itemsToRefresh.length; i++) {
@@ -1845,9 +1401,9 @@ export const refreshLibraryMetadata = async (
           if (summary.bySource[item.source] !== undefined) {
             summary.bySource[item.source] += 1;
           }
-          console.log(`✅ Refreshed: ${item.title || item.name || item.docId} (${item.source})`);
+          console.log(`Γ£à Refreshed: ${item.title || item.name || item.docId} (${item.source})`);
         } else {
-          console.warn(`⚠️ No metadata found for: ${item.title || item.name || item.docId}`);
+          console.warn(`ΓÜá∩╕Å No metadata found for: ${item.title || item.name || item.docId}`);
         }
       } catch (error) {
         summary.failed++;
@@ -1857,7 +1413,7 @@ export const refreshLibraryMetadata = async (
           source: item.source,
           error: error.message,
         });
-        console.error(`❌ Failed to refresh ${item.title || item.name || item.docId}:`, error.message);
+        console.error(`Γ¥î Failed to refresh ${item.title || item.name || item.docId}:`, error.message);
       }
 
       // Small delay to prevent overwhelming the API
@@ -1869,7 +1425,7 @@ export const refreshLibraryMetadata = async (
     summary.endTime = new Date();
     summary.duration = summary.endTime - summary.startTime;
 
-    console.log(`✅ Metadata refresh complete:`, summary);
+    console.log(`Γ£à Metadata refresh complete:`, summary);
     return summary;
   } catch (error) {
     console.error("Error refreshing library metadata:", error);
@@ -1917,7 +1473,7 @@ export const refreshCustomListMetadata = async (
       startTime: new Date(),
     };
 
-    console.log(`🔄 Refreshing metadata for custom list "${listId}" (${itemsToRefresh.length} items)`);
+    console.log(`≡ƒöä Refreshing metadata for custom list "${listId}" (${itemsToRefresh.length} items)`);
 
     for (let i = 0; i < itemsToRefresh.length; i++) {
       const item = itemsToRefresh[i];
@@ -1948,7 +1504,7 @@ export const refreshCustomListMetadata = async (
           );
 
           summary.refreshed++;
-          console.log(`✅ Refreshed: ${item.title}`);
+          console.log(`Γ£à Refreshed: ${item.title}`);
         }
       } catch (error) {
         summary.failed++;
@@ -1957,7 +1513,7 @@ export const refreshCustomListMetadata = async (
           title: item.title,
           error: error.message,
         });
-        console.error(`❌ Failed: ${item.title}`);
+        console.error(`Γ¥î Failed: ${item.title}`);
       }
 
       // Delay between requests
@@ -1969,7 +1525,7 @@ export const refreshCustomListMetadata = async (
     summary.endTime = new Date();
     summary.duration = summary.endTime - summary.startTime;
 
-    console.log(`✅ Custom list refresh complete:`, summary);
+    console.log(`Γ£à Custom list refresh complete:`, summary);
     return summary;
   } catch (error) {
     console.error("Error refreshing custom list metadata:", error);
@@ -2024,19 +1580,19 @@ export const getMetadataStatistics = async (userId) => {
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-    
+
     const stats = {
       totalItems: items.length,
       itemsWithMetadata: withRatings.length,
       itemsWithoutMetadata: withoutRatings.length,
       completeness: items.length > 0 ? ((withRatings.length / items.length) * 100).toFixed(2) + '%' : '0%',
-      averageImdbRating: withRatings.length > 0 
+      averageImdbRating: withRatings.length > 0
         ? (
-            withRatings.reduce(
-              (sum, item) => sum + (firstNumber(item.imdbRating, item.imdb_rating) || 0),
-              0
-            ) / withRatings.length
-          ).toFixed(2)
+          withRatings.reduce(
+            (sum, item) => sum + (firstNumber(item.imdbRating, item.imdb_rating) || 0),
+            0
+          ) / withRatings.length
+        ).toFixed(2)
         : 'N/A',
       sourceCounts,
       itemsMissingData: withoutRatings.map((item) => ({

@@ -27,7 +27,8 @@ const ScrollToTop = () => {
   const location = useLocation();
 
   useLayoutEffect(() => {
-    window.scrollTo(0, 0);
+    // Only scroll on pathname changes, ignore hash and search
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }, [location.pathname]);
 
   return null;

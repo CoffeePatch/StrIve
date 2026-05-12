@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { ArrowLeft, Play, Plus, Star, ExternalLink, Check } from "lucide-react";
+import { ArrowLeft, Play, Star } from "lucide-react";
 import Header from "../layout/Header";
 import useTvShowDetails from "../../hooks/tv/useTvShowDetails";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
@@ -20,6 +20,7 @@ import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
 import EpisodeMatrixView from "./TVShowDetails/EpisodeMatrixView";
 import CreateListModal from "../lists/CreateListModal";
 import AddToListPopover from "../lists/AddToListPopover";
+import { setLibraryItemStatus } from "../../util/firebase/firestoreService";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
@@ -52,6 +53,9 @@ const TVShowDetailsPage = () => {
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [isWatched, setIsWatched] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
     tvId,
@@ -166,16 +170,102 @@ const TVShowDetailsPage = () => {
         id: parseInt(tvId),
         name: showDetails.name,
         title: showDetails.name,
-        poster_path: showDetails.posterPath,
-        first_air_date: showDetails.firstAirDate,
-        vote_average: showDetails.voteAverage,
-        vote_count: showDetails.voteCount,
+        poster_path: showDetails.posterPath || showDetails.poster_path,
+        first_air_date: showDetails.firstAirDate || showDetails.first_air_date,
+        release_date: showDetails.firstAirDate || showDetails.first_air_date,
+        overview: showDetails.overview,
+        vote_average: showDetails.voteAverage ?? showDetails.vote_average,
+        vote_count: showDetails.voteCount ?? showDetails.vote_count,
+        releaseYear: Number(String(showDetails.firstAirDate || showDetails.first_air_date || "").slice(0, 4)) || null,
+        images: {
+          tmdbPoster: showDetails.posterPath || showDetails.poster_path || "",
+        },
+        ratings: {
+          tmdbScore: showDetails.voteAverage ?? showDetails.vote_average ?? 0,
+          tmdbVotes: showDetails.voteCount ?? showDetails.vote_count ?? 0,
+          imdbScore: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
+          imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+        },
+        metadata: {
+          genres: Array.isArray(showDetails.genres)
+            ? showDetails.genres.map((genre) => genre.name).filter(Boolean)
+            : [],
+          overview: showDetails.overview || "",
+          runtimeMinutes: Number(showDetails.episodeRunTime?.[0] || showDetails.runtimeMinutes || 0) || null,
+          releaseDate: showDetails.firstAirDate || showDetails.first_air_date || "",
+          firstAirDate: showDetails.firstAirDate || showDetails.first_air_date || "",
+          releaseYear: Number(String(showDetails.firstAirDate || showDetails.first_air_date || "").slice(0, 4)) || null,
+        },
         imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         imdbId: imdbData?.id || null,
         media_type: "tv",
       }
     : null;
+
+  const tvProgressForWatching = () => {
+    const totalEpisodesCount = Number(showDetails?.numberOfEpisodes || seasonData?.episodes?.length || 0) || 0;
+    const totalSeasonsCount = Number(showDetails?.numberOfSeasons || 0) || 0;
+
+    return {
+      totalEpisodesCount,
+      totalSeasonsCount,
+      airedEpisodesCount: totalEpisodesCount,
+      watchedEpisodesCount: 0,
+      completionRatioAired: 0,
+      nextToWatch: null,
+      lastWatched: null,
+    };
+  };
+
+  const handleToggleWatchlist = async () => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+
+    try {
+      const newStatus = isWatchlisted ? null : "Plan to Watch";
+      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
+      setIsWatchlisted(!isWatchlisted);
+      if (newStatus === "Plan to Watch") setIsWatched(false);
+    } catch (error) {
+      console.error("Error updating watchlist:", error);
+    }
+  };
+
+  const handleToggleWatched = async () => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+
+    try {
+      const newStatus = isWatched ? null : "Completed";
+      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
+      setIsWatched(!isWatched);
+      if (newStatus === "Completed") setIsWatchlisted(false);
+    } catch (error) {
+      console.error("Error updating watched status:", error);
+    }
+  };
+
+  const handleToggleWatching = async () => {
+    if (!user) {
+      alert("Please log in first.");
+      return;
+    }
+
+    try {
+      const newStatus = isWatching ? null : "Watching";
+      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus, {
+        tvProgress: tvProgressForWatching(),
+      });
+      setIsWatching(!isWatching);
+    } catch (error) {
+      console.error("Error updating watching progress:", error);
+    }
+  };
 
   const handleCreateNew = () => {
     setShowPopover(false);
@@ -366,15 +456,28 @@ const TVShowDetailsPage = () => {
                 </p>
 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap items-center gap-3 lg:gap-4">
+                  {(() => {
+                    const actionButtonBaseClass =
+                      "group inline-flex h-11 w-11 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
+                    const actionButtonPrimaryClass =
+                      `${actionButtonBaseClass} bg-white text-black hover:w-[148px] hover:bg-white hover:px-4`;
+                    const actionButtonSecondaryClass =
+                      `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[140px] hover:bg-white/10 hover:px-4 hover:text-white`;
+                    const actionButtonNeutralClass =
+                      `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[154px] hover:bg-white/10 hover:px-4 hover:text-white`;
+                    const actionButtonLabelClass =
+                      "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
+
+                    return (
+                      <>
                   {seasonData?.episodes && seasonData.episodes.length > 0 && (
                     <button
                       onClick={handlePlayNow}
-                      className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all hover:opacity-90 focus-accent cursor-pointer"
-                      style={{ backgroundColor: 'var(--color-text-primary)', color: '#000' }}
+                      className={actionButtonPrimaryClass}
                     >
-                      <Play className="w-6 h-6" />
-                      Play Now
+                      <Play className="w-5 h-5 shrink-0" />
+                      <span className={actionButtonLabelClass}>Play Now</span>
                     </button>
                   )}
 
@@ -383,13 +486,45 @@ const TVShowDetailsPage = () => {
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all focus-accent cursor-pointer"
-                      style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                      className={actionButtonSecondaryClass}
                     >
-                      <Play className="w-6 h-6" />
-                      Trailer
+                      <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
+                      <span className={actionButtonLabelClass}>Trailer</span>
                     </a>
                   )}
+
+                  <button
+                    onClick={handleToggleWatchlist}
+                    className={actionButtonNeutralClass}
+                    title="Watchlist"
+                  >
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-400' : 'text-white/75 group-hover:text-white'}`}>
+                      bookmark
+                    </span>
+                    <span className={actionButtonLabelClass}>Watchlist</span>
+                  </button>
+
+                  <button
+                    onClick={handleToggleWatched}
+                    className={actionButtonNeutralClass}
+                    title="Watched"
+                  >
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-400' : 'text-white/75 group-hover:text-white'}`}>
+                      check_circle
+                    </span>
+                    <span className={actionButtonLabelClass}>Watched</span>
+                  </button>
+
+                  <button
+                    onClick={handleToggleWatching}
+                    className={actionButtonNeutralClass}
+                    title="Watching"
+                  >
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatching ? 'text-blue-400' : 'text-white/75 group-hover:text-white'}`}>
+                      schedule
+                    </span>
+                    <span className={actionButtonLabelClass}>Watching</span>
+                  </button>
 
                   <div 
                     ref={popoverRef}
@@ -406,11 +541,12 @@ const TVShowDetailsPage = () => {
                     }}
                   >
                     <button
-                      className="flex items-center gap-2 px-8 py-4 rounded font-semibold text-lg transition-all focus-accent cursor-pointer"
-                      style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                      className={actionButtonNeutralClass}
                     >
-                      <Plus className="w-6 h-6" />
-                      Add to List
+                      <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
+                        playlist_add
+                      </span>
+                      <span className={actionButtonLabelClass}>Lists</span>
                     </button>
 
                     {showPopover && (
@@ -433,6 +569,9 @@ const TVShowDetailsPage = () => {
                       </div>
                     )}
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {showDetails.genres && showDetails.genres.length > 0 && (

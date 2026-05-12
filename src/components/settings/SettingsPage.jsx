@@ -296,11 +296,11 @@ const SettingsPage = () => {
       setMessage(null);
 
       const [watchlist, watched] = await Promise.all([
-        getLibraryByStatus(user.uid, "plan_to_watch", {
+        getLibraryByStatus(user.uid, "Plan to Watch", {
           hydrate: false,
           allowLegacyFallback: false,
         }),
-        getLibraryByStatus(user.uid, "completed", {
+        getLibraryByStatus(user.uid, "Completed", {
           hydrate: false,
           allowLegacyFallback: false,
         }),
@@ -308,7 +308,7 @@ const SettingsPage = () => {
 
       const rows = [
         ...watchlist.map((item) => ({
-          status: "plan_to_watch",
+          status: "Plan to Watch",
           title: item.title || item.name || "",
           mediaType: item.media_type || item.mediaType || "movie",
           year: extractYear(item.release_date || item.first_air_date),
@@ -325,7 +325,7 @@ const SettingsPage = () => {
           }/${item.id}`,
         })),
         ...watched.map((item) => ({
-          status: "completed",
+          status: "Completed",
           title: item.title || item.name || "",
           mediaType: item.media_type || item.mediaType || "movie",
           year: extractYear(item.release_date || item.first_air_date),

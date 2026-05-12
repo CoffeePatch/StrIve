@@ -17,7 +17,7 @@ import { toast } from "react-toastify";
 import {
   getLibraryItemListIds,
   removeListIdFromAllLibraryItems,
-  setLibraryItemV2ListIds,
+  setLibraryItemListIds,
   toggleCustomListTag,
 } from "../../util/firebase/firestoreService";
 
@@ -99,7 +99,7 @@ const ListDetailsPage = () => {
       await dispatch(removeItem({ userId, listId, mediaId: item.id })).unwrap();
 
       try {
-        await setLibraryItemV2ListIds(userId, item, nextListIds);
+        await setLibraryItemListIds(userId, item, nextListIds);
       } catch (e) {
         console.debug("V2 listIds update failed:", e?.message || e);
       }
@@ -131,7 +131,7 @@ const ListDetailsPage = () => {
                   const restored = Array.isArray(currentListIds)
                     ? (currentListIds.includes(listId) ? currentListIds : [...currentListIds, listId])
                     : [listId];
-                  await setLibraryItemV2ListIds(userId, item, restored);
+                  await setLibraryItemListIds(userId, item, restored);
                 } catch (e) {
                   console.debug("V2 listIds restore failed:", e?.message || e);
                 }

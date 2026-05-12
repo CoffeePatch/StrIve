@@ -1,6 +1,5 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useImdbRating } from "../../../hooks/media/useImdbRating";
 
 const MovieCard = ({
   movie,
@@ -11,31 +10,23 @@ const MovieCard = ({
   cardSize = "default",
 }) => {
   const navigate = useNavigate();
+  const displayYear =
+    movie.releaseYear ||
+    movie.release_date?.split("-")[0] ||
+    movie.first_air_date?.split("-")[0] ||
+    "N/A";
 
   const cardWidthClass = cardSize === "compact" ? "w-44" : "w-52";
 
-  const preloadedImdb = {
-    imdbRating: movie?.imdbRating ?? movie?.imdb_rating,
-    imdbVotes: movie?.imdbVotes ?? movie?.imdb_vote_count,
-    imdbId: movie?.imdbId ?? movie?.imdb_id,
-  };
-  const hasPreloadedImdb = !!preloadedImdb.imdbRating;
-  
-  // Fetch IMDb rating for "just-in-time" enrichment
-  const { rating, loading } = useImdbRating(
-    movie.id,
-    movie.media_type || (movie.first_air_date ? 'tv' : 'movie'),
-    preloadedImdb,
-    enableImdb
-  );
+  const imdbScore = Number(movie?.ratings?.imdbScore);
+  const imdbVotes = Number(movie?.ratings?.imdbVotes || 0);
+  const hasImdbScore = Number.isFinite(imdbScore) && imdbScore > 0;
 
-  const displayRating = enableImdb
-    ? (rating || (hasPreloadedImdb
-        ? {
-            score: Number(preloadedImdb.imdbRating),
-            votes: Number(preloadedImdb.imdbVotes || 0),
-          }
-        : null))
+  const displayRating = enableImdb && hasImdbScore
+    ? {
+        score: imdbScore,
+        votes: imdbVotes,
+      }
     : null;
 
   const formatVotes = (votes) => {
@@ -79,12 +70,6 @@ const MovieCard = ({
             className="w-full h-full object-cover"
           />
 
-          {enableImdb && loading && !displayRating && (
-            <div className="absolute top-2 right-2 bg-black/90 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5 border border-yellow-500/20 shadow-lg z-10">
-              <div className="skeleton-badge"></div>
-            </div>
-          )}
-
           {enableImdb && displayRating && displayRating.score && (
             <div className="absolute top-2 right-2 bg-black/90 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5 border border-yellow-500/50 shadow-lg z-10 animate-in">
               <span className="text-yellow-400 text-xs font-bold">IMDb</span>
@@ -118,8 +103,7 @@ const MovieCard = ({
 
           <div className="flex justify-between items-center mt-1">
             <span className="text-gray-400 text-xs">
-              {(movie.release_date || movie.first_air_date)?.split("-")[0] ||
-                "N/A"}
+              {displayYear}
             </span>
             <div className="flex items-center gap-0.5">
               <span
@@ -199,7 +183,7 @@ const MovieCard = ({
           </h3>
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1 text-white/60">
-              <span className="text-xs font-medium">{(movie.release_date || movie.first_air_date)?.split("-")[0]}</span>
+              <span className="text-xs font-medium">{displayYear}</span>
               <span className="text-white/40">•</span>
               <span className="material-symbols-outlined text-white/60 text-xs">
                 {movie.media_type === "tv" || movie.first_air_date ? "tv" : "movie"}

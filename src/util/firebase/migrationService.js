@@ -20,7 +20,7 @@ import {
   query,
   setDoc,
 } from 'firebase/firestore';
-import { upsertLibraryItemV2 } from './firestoreService';
+import { upsertLibraryItem } from './firestoreService';
 
 const normalizeStatus = (status, fallback = null) => {
   const normalized = String(status || '').toLowerCase();
@@ -148,7 +148,7 @@ const migrateCollectionToLibraryItems = async (userId, collectionName, status) =
 
         if (!mediaItem.id) continue;
 
-        await upsertLibraryItemV2(userId, mediaItem, {
+        await upsertLibraryItem(userId, mediaItem, {
           status: normalizeStatus(itemData.status, status),
         });
 
@@ -208,7 +208,7 @@ const migrateCustomListsToLibraryItems = async (userId) => {
           normalizeStatus(existing?.status, 'plan_to_watch')
         );
 
-        await upsertLibraryItemV2(userId, mediaItem, {
+        await upsertLibraryItem(userId, mediaItem, {
           listId,
           status: resolvedStatus,
         });

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   getLibraryByStatus,
   getLibraryByListId,
   getLibraryItemListIds,
-  setLibraryItemV2ListIds,
-  setLibraryItemV2Status,
+  setLibraryItemListIds,
+  setLibraryItemStatus,
   updateLibraryItem,
   toggleCustomListTag,
   addItemToCustomList,
@@ -32,6 +32,13 @@ const LibraryMasterPage = () => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating-desc');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [imdbFilter, setImdbFilter] = useState('all');
+  const [imdbVotesFilter, setImdbVotesFilter] = useState('all');
+  const [tmdbFilter, setTmdbFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [genreFilter, setGenreFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [listMenuOpen, setListMenuOpen] = useState(false);
@@ -72,11 +79,11 @@ const LibraryMasterPage = () => {
         let fetchedItems = [];
 
         if (activeTab === 'watchlist') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'plan_to_watch', signal);
+          fetchedItems = await fetchAllByStatus(user.uid, 'Plan to Watch', signal);
         } else if (activeTab === 'watching') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'watching', signal);
+          fetchedItems = await fetchAllByStatus(user.uid, 'Watching', signal);
         } else if (activeTab === 'watched') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'completed', signal);
+          fetchedItems = await fetchAllByStatus(user.uid, 'Completed', signal);
         } else if (activeTab === 'custom' && selectedListId) {
           fetchedItems = await fetchAllByListId(user.uid, selectedListId, signal);
         }
@@ -139,95 +146,45 @@ const LibraryMasterPage = () => {
   }, [user?.uid, activeTab, selectedListId, sortBy, loadItems]);
 
   const fetchAllByStatus = async (userId, status, signal) => {
-    const allItems = [];
-    let cursor = null;
-    let hasMore = true;
-    const maxPages = 200;
-    let pageCount = 0;
+    if (signal?.cancelled) return [];
 
-    while (hasMore && pageCount < maxPages) {
-      if (signal?.cancelled) break;
+    const items = await getLibraryByStatus(userId, status, {
+      hydrate: false,
+      includePageInfo: false,
+    });
 
-      const page = await getLibraryByStatus(userId, status, {
-        pageSize: 100,
-        cursor,
-        includePageInfo: true,
-        hydrate: false,
-        allowLegacyFallback: false,
-      });
-
-      if (signal?.cancelled) break;
-
-      allItems.push(...(page.items || []));
-
-      const nextCursor = page.nextCursor || null;
-
-      if (!!page.hasMore && !nextCursor) {
-        console.warn('Library pagination halted: hasMore=true but nextCursor was null');
-        break;
-      }
-
-      if (nextCursor && cursor && nextCursor.id === cursor.id) {
-        console.warn('Library pagination halted: cursor did not advance');
-        break;
-      }
-
-      hasMore = !!page.hasMore;
-      cursor = nextCursor;
-      pageCount += 1;
-
-      if (pageCount % 10 === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
-
-    return allItems;
+    return Array.isArray(items) ? items : [];
   };
 
   const fetchAllByListId = async (userId, listId, signal) => {
-    const allItems = [];
-    let cursor = null;
-    let hasMore = true;
-    const maxPages = 200;
-    let pageCount = 0;
+    if (signal?.cancelled) return [];
 
-    while (hasMore && pageCount < maxPages) {
-      if (signal?.cancelled) break;
+    const items = await getLibraryByListId(userId, listId, {
+      hydrate: false,
+      includePageInfo: false,
+    });
 
-      const page = await getLibraryByListId(userId, listId, {
-        pageSize: 100,
-        cursor,
-        includePageInfo: true,
-        hydrate: false,
-        allowLegacyFallback: false,
-      });
+    return Array.isArray(items) ? items : [];
+  };
 
-      if (signal?.cancelled) break;
+  const getAddedTimestamp = (item) => {
+    const candidate =
+      item?.tracking?.addedAt ||
+      item?.addedAt ||
+      item?.dateAdded ||
+      item?.tracking?.updatedAt ||
+      null;
 
-      allItems.push(...(page.items || []));
+    if (!candidate) return 0;
 
-      const nextCursor = page.nextCursor || null;
+    if (typeof candidate === 'number') return candidate;
 
-      if (!!page.hasMore && !nextCursor) {
-        console.warn('Library pagination halted: hasMore=true but nextCursor was null');
-        break;
-      }
-
-      if (nextCursor && cursor && nextCursor.id === cursor.id) {
-        console.warn('Library pagination halted: cursor did not advance');
-        break;
-      }
-
-      hasMore = !!page.hasMore;
-      cursor = nextCursor;
-      pageCount += 1;
-
-      if (pageCount % 10 === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
+    if (typeof candidate?.toDate === 'function') {
+      return candidate.toDate().getTime();
     }
 
-    return allItems;
+    const parsed = new Date(candidate).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
   };
 
   const sortItems = (itemsToSort, sortOption) => {
@@ -235,20 +192,20 @@ const LibraryMasterPage = () => {
 
     if (sortOption === 'rating-desc') {
       sorted.sort((a, b) => {
-        const ratingA = a.imdbRating || 0;
-        const ratingB = b.imdbRating || 0;
+        const ratingA = Number(a?.ratings?.imdbScore ?? a?.imdbRating) || 0;
+        const ratingB = Number(b?.ratings?.imdbScore ?? b?.imdbRating) || 0;
         return ratingB - ratingA;
       });
     } else if (sortOption === 'rating-asc') {
       sorted.sort((a, b) => {
-        const ratingA = a.imdbRating || 0;
-        const ratingB = b.imdbRating || 0;
+        const ratingA = Number(a?.ratings?.imdbScore ?? a?.imdbRating) || 0;
+        const ratingB = Number(b?.ratings?.imdbScore ?? b?.imdbRating) || 0;
         return ratingA - ratingB;
       });
     } else if (sortOption === 'date') {
       sorted.sort((a, b) => {
-        const dateA = new Date(a.dateAdded || 0);
-        const dateB = new Date(b.dateAdded || 0);
+        const dateA = getAddedTimestamp(a);
+        const dateB = getAddedTimestamp(b);
         return dateB - dateA;
       });
     }
@@ -256,14 +213,122 @@ const LibraryMasterPage = () => {
     return sorted;
   };
 
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const getItemYear = (item) => item.releaseYear || null;
+  const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item.vote_average);
+
+  const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item.imdbRating);
+
+  const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item.imdbVotes);
+
+  const getItemGenres = (item) => {
+    return Array.isArray(item.genres) ? item.genres : [];
+  };
+
+  const standardGenres = [
+    'Action',
+    'Adventure',
+    'Animation',
+    'Comedy',
+    'Crime',
+    'Documentary',
+    'Drama',
+    'Family',
+    'Fantasy',
+    'History',
+    'Horror',
+    'Music',
+    'Mystery',
+    'Romance',
+    'Science Fiction',
+    'Thriller',
+    'War',
+    'Western',
+  ];
+
+  const availableYears = useMemo(() => {
+    const yearSet = new Set();
+    items.forEach((item) => {
+      const year = getItemYear(item);
+      if (year) yearSet.add(year);
+    });
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [items]);
+
+  const clearAdvancedFilters = useCallback(() => {
+    setImdbFilter('all');
+    setImdbVotesFilter('all');
+    setTmdbFilter('all');
+    setTypeFilter('all');
+    setGenreFilter('all');
+    setYearFilter('all');
+  }, []);
+
+  useEffect(() => {
+    clearAdvancedFilters();
+  }, [activeTab, selectedListId, clearAdvancedFilters]);
+
+  const matchesScoreBucket = (score, bucket) => {
+    if (bucket === 'all') return true;
+    if (score == null) return false;
+    if (bucket === '9plus') return score >= 9;
+    if (bucket === '8plus') return score >= 8;
+    if (bucket === '7plus') return score >= 7;
+    if (bucket === '6plus') return score >= 6;
+    if (bucket === 'below6') return score < 6;
+    return true;
+  };
+
+  const matchesVotesBucket = (votes, bucket) => {
+    if (bucket === 'all') return true;
+    if (votes == null) return false;
+    if (bucket === '1000plus') return votes >= 1000;
+    if (bucket === '10000plus') return votes >= 10000;
+    if (bucket === '50000plus') return votes >= 50000;
+    if (bucket === '100000plus') return votes >= 100000;
+    if (bucket === '150000plus') return votes >= 150000;
+    if (bucket === '500000plus') return votes >= 500000;
+    if (bucket === '1000000plus') return votes >= 1000000;
+    return true;
+  };
+
   const getFilteredItems = () => {
-    if (!searchQuery.trim()) {
-      return items;
-    }
-    const query = searchQuery.toLowerCase();
-    return items.filter((item) =>
-      (item.title || item.name || '').toLowerCase().includes(query)
-    );
+    const query = searchQuery.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const title = (item.title || item.name || '').toLowerCase();
+      if (query && !title.includes(query)) return false;
+
+      const imdb = getImdbRating(item);
+      if (!matchesScoreBucket(imdb, imdbFilter)) return false;
+
+      const imdbVotes = getImdbVotes(item);
+      if (!matchesVotesBucket(imdbVotes, imdbVotesFilter)) return false;
+
+      const tmdb = getTmdbRating(item);
+      if (!matchesScoreBucket(tmdb, tmdbFilter)) return false;
+
+      // Map filter values to Firestore media_type values
+      if (typeFilter !== 'all') {
+        const itemMediaType = (item.media_type || item.mediaType || '').toLowerCase();
+        const firestoreType = typeFilter === 'series' ? 'tv' : typeFilter;
+        if (itemMediaType !== firestoreType) return false;
+      }
+
+      const itemYear = getItemYear(item);
+      if (yearFilter !== 'all' && itemYear < parseInt(yearFilter)) return false;
+
+      if (genreFilter !== 'all') {
+        const genres = getItemGenres(item).map((g) => g.toLowerCase());
+        if (!genres.includes(genreFilter.toLowerCase())) return false;
+      }
+
+      return true;
+    });
   };
 
   const handleItemClick = (item) => {
@@ -287,9 +352,9 @@ const LibraryMasterPage = () => {
       const list = customLists.find((l) => l.id === selectedListId);
       return list?.name || 'list';
     }
-    if (activeTab === 'watching') return 'watching';
-    if (activeTab === 'watched') return 'watched';
-    return 'watchlist';
+    if (activeTab === 'watching') return 'Watching';
+    if (activeTab === 'watched') return 'Completed';
+    return 'Plan to Watch';
   }, [activeTab, customLists, selectedListId]);
 
   const handleRemove = useCallback(
@@ -301,11 +366,11 @@ const LibraryMasterPage = () => {
       const labelAtRemove = getTabLabel();
       const statusToRestore =
         tabAtRemove === 'watchlist'
-          ? 'plan_to_watch'
+          ? 'Plan to Watch'
           : tabAtRemove === 'watching'
-            ? 'watching'
+            ? 'Watching'
             : tabAtRemove === 'watched'
-              ? 'completed'
+              ? 'Completed'
               : null;
 
       setItems((prev) => prev.filter((x) => !(String(x.id) === String(item.id) && (x.media_type || x.mediaType) === (item.media_type || item.mediaType))));
@@ -318,7 +383,7 @@ const LibraryMasterPage = () => {
 
           const currentListIds = await getLibraryItemListIds(user.uid, item);
           const nextListIds = (currentListIds || []).filter((id) => id !== listIdAtRemove);
-          await setLibraryItemV2ListIds(user.uid, item, nextListIds);
+          await setLibraryItemListIds(user.uid, item, nextListIds);
 
           // Keep legacy doc in sync where it still exists.
           try {
@@ -328,7 +393,7 @@ const LibraryMasterPage = () => {
           }
         } else {
           // System status tabs: clear status
-          await setLibraryItemV2Status(user.uid, item, null);
+          await setLibraryItemStatus(user.uid, item, null);
 
           try {
             await updateLibraryItem(user.uid, item, null);
@@ -361,7 +426,7 @@ const LibraryMasterPage = () => {
                           ? currentListIds
                           : [...currentListIds, listIdAtRemove])
                       : [listIdAtRemove];
-                    await setLibraryItemV2ListIds(user.uid, item, restored);
+                    await setLibraryItemListIds(user.uid, item, restored);
 
                     try {
                       await toggleCustomListTag(user.uid, item, listIdAtRemove, true);
@@ -369,7 +434,7 @@ const LibraryMasterPage = () => {
                       console.debug('Legacy list tag restore failed:', e?.message || e);
                     }
                   } else {
-                    await setLibraryItemV2Status(user.uid, item, statusToRestore);
+                    await setLibraryItemStatus(user.uid, item, statusToRestore);
 
                     try {
                       await updateLibraryItem(user.uid, item, statusToRestore);
@@ -578,7 +643,7 @@ const LibraryMasterPage = () => {
               }`}
             >
               <span className="material-symbols-outlined">bookmark</span>
-              <span>Watchlist</span>
+              <span>Plan to Watch</span>
             </button>
             <button
               onClick={() => {
@@ -606,7 +671,7 @@ const LibraryMasterPage = () => {
               }`}
             >
               <span className="material-symbols-outlined">check_circle</span>
-              <span>Watched</span>
+              <span>Completed</span>
             </button>
             <button
               onClick={() => {
@@ -626,8 +691,8 @@ const LibraryMasterPage = () => {
 
           {/* Custom List Selector */}
           {activeTab === 'custom' && (
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center w-full gap-3 justify-between">
+              <div className="flex items-center gap-4 shrink-0">
                 <label className="text-white/70 font-secondary">Select List:</label>
                 <select
                   value={selectedListId || ''}
@@ -646,25 +711,140 @@ const LibraryMasterPage = () => {
                 </select>
               </div>
 
-              {/* Top-right three-dots menu (no background) */}
-              <div className="relative" ref={listMenuRef}>
+              {filtersOpen && (
+                <div className="overflow-x-auto flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-max">
+                    <span className="material-symbols-outlined text-white/60 text-base">tune</span>
+
+                    <select
+                      value={imdbFilter}
+                      onChange={(e) => setImdbFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="IMDb Rating"
+                    >
+                      <option value="all">IMDb: All</option>
+                      <option value="9plus">IMDb: 9+</option>
+                      <option value="8plus">IMDb: 8+</option>
+                      <option value="7plus">IMDb: 7+</option>
+                      <option value="6plus">IMDb: 6+</option>
+                      <option value="below6">IMDb: Below 6</option>
+                    </select>
+
+                    <select
+                      value={imdbVotesFilter}
+                      onChange={(e) => setImdbVotesFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="IMDb Votes"
+                    >
+                      <option value="all">Votes: All</option>
+                      <option value="1000plus">1K+ votes</option>
+                      <option value="10000plus">10K+ votes</option>
+                      <option value="50000plus">50K+ votes</option>
+                      <option value="100000plus">100K+ votes</option>
+                      <option value="150000plus">150K+ votes</option>
+                      <option value="500000plus">500K+ votes</option>
+                      <option value="1000000plus">1M+ votes</option>
+                    </select>
+
+                    <select
+                      value={tmdbFilter}
+                      onChange={(e) => setTmdbFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="TMDB Rating"
+                    >
+                      <option value="all">TMDB: All</option>
+                      <option value="9plus">TMDB: 9+</option>
+                      <option value="8plus">TMDB: 8+</option>
+                      <option value="7plus">TMDB: 7+</option>
+                      <option value="6plus">TMDB: 6+</option>
+                      <option value="below6">TMDB: Below 6</option>
+                    </select>
+
+                    <select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="Type"
+                    >
+                      <option value="all">Type: All</option>
+                      <option value="movie">Movie</option>
+                      <option value="series">Series</option>
+                    </select>
+
+                    <select
+                      value={genreFilter}
+                      onChange={(e) => setGenreFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="Genres"
+                    >
+                      <option value="all">Genres: All</option>
+                      {standardGenres.map((genre) => (
+                        <option key={genre} value={genre}>
+                          {genre}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={yearFilter}
+                      onChange={(e) => setYearFilter(e.target.value)}
+                      className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                      title="Years"
+                    >
+                      <option value="all">Years: All</option>
+                      {availableYears.map((year) => (
+                        <option key={year} value={String(year)}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={clearAdvancedFilters}
+                      className="px-2.5 py-1.5 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30 text-xs transition-colors"
+                      title="Clear filters"
+                    >
+                      <span className="material-symbols-outlined text-sm">restart_alt</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Filters toggle and three-dots menu */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  className="p-1 text-white/80 hover:text-white focus:outline-none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!selectedListId) return toast.info('Select a list first');
-                    const list = customLists.find((l) => l.id === selectedListId);
-                    setEditTitle(list?.name || '');
-                    setEditDescription(list?.description || '');
-                    setListMenuOpen((v) => !v);
-                  }}
-                  aria-label="List actions"
+                  className={`p-1 transition-all flex items-center justify-center ${
+                    filtersOpen
+                      ? 'text-white'
+                      : 'text-white/80 hover:text-white'
+                  }`}
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  aria-label="Toggle advanced filters"
+                  title="Filters"
                 >
-                  <span className="material-symbols-outlined">more_vert</span>
+                  <span className={`material-symbols-outlined text-base transition-transform ${filtersOpen ? '-rotate-90' : ''}`}>
+                    chevron_left
+                  </span>
                 </button>
 
-                {listMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 glass-effect border border-white/10 rounded-lg overflow-hidden z-40">
+                <div className="relative" ref={listMenuRef}>
+                  <button
+                    className="p-1 text-white/80 hover:text-white focus:outline-none"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!selectedListId) return toast.info('Select a list first');
+                      const list = customLists.find((l) => l.id === selectedListId);
+                      setEditTitle(list?.name || '');
+                      setEditDescription(list?.description || '');
+                      setListMenuOpen((v) => !v);
+                    }}
+                    aria-label="List actions"
+                  >
+                    <span className="material-symbols-outlined">more_vert</span>
+                  </button>
+
+                  {listMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-44 glass-effect border border-white/10 rounded-lg overflow-hidden z-40">
                     <button
                       className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
                       onClick={() => {
@@ -701,6 +881,125 @@ const LibraryMasterPage = () => {
                     </button>
                   </div>
                 )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab !== 'custom' && (
+            <div className="flex justify-end">
+              <button
+                className={`glass-effect px-2.5 py-2 rounded-lg border transition-all flex items-center justify-center ${
+                  filtersOpen
+                    ? 'text-white border-red-500/60 bg-red-600/20'
+                    : 'text-white/80 border-white/15 hover:border-white/30 hover:text-white'
+                }`}
+                onClick={() => setFiltersOpen((v) => !v)}
+                aria-label="Toggle advanced filters"
+                title="Filters"
+              >
+                <span className={`material-symbols-outlined text-base transition-transform ${filtersOpen ? '-rotate-90' : ''}`}>
+                  chevron_left
+                </span>
+              </button>
+            </div>
+          )}
+
+          {activeTab !== 'custom' && filtersOpen && (
+            <div className="glass-effect rounded-xl px-3 py-2 border border-white/10 bg-white/5 overflow-x-auto">
+              <div className="flex items-center gap-2 min-w-max">
+                <span className="material-symbols-outlined text-white/60 text-base">tune</span>
+
+                <select
+                  value={imdbFilter}
+                  onChange={(e) => setImdbFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="IMDb Rating"
+                >
+                  <option value="all">IMDb: All</option>
+                  <option value="9plus">IMDb: 9+</option>
+                  <option value="8plus">IMDb: 8+</option>
+                  <option value="7plus">IMDb: 7+</option>
+                  <option value="6plus">IMDb: 6+</option>
+                  <option value="below6">IMDb: Below 6</option>
+                </select>
+
+                <select
+                  value={imdbVotesFilter}
+                  onChange={(e) => setImdbVotesFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="IMDb Votes"
+                >
+                  <option value="all">Votes: All</option>
+                  <option value="1000plus">1K+ votes</option>
+                  <option value="10000plus">10K+ votes</option>
+                  <option value="50000plus">50K+ votes</option>
+                  <option value="100000plus">100K+ votes</option>
+                  <option value="150000plus">150K+ votes</option>
+                  <option value="500000plus">500K+ votes</option>
+                  <option value="1000000plus">1M+ votes</option>
+                </select>
+
+                <select
+                  value={tmdbFilter}
+                  onChange={(e) => setTmdbFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="TMDB Rating"
+                >
+                  <option value="all">TMDB: All</option>
+                  <option value="9plus">TMDB: 9+</option>
+                  <option value="8plus">TMDB: 8+</option>
+                  <option value="7plus">TMDB: 7+</option>
+                  <option value="6plus">TMDB: 6+</option>
+                  <option value="below6">TMDB: Below 6</option>
+                </select>
+
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="Type"
+                >
+                  <option value="all">Type: All</option>
+                  <option value="movie">Movie</option>
+                  <option value="series">Series</option>
+                </select>
+
+                <select
+                  value={genreFilter}
+                  onChange={(e) => setGenreFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="Genres"
+                >
+                  <option value="all">Genres: All</option>
+                  {standardGenres.map((genre) => (
+                    <option key={genre} value={genre}>
+                      {genre}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                  className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
+                  title="Years"
+                >
+                  <option value="all">Years: All</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={String(year)}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={clearAdvancedFilters}
+                  className="px-2.5 py-1.5 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30 text-xs transition-colors"
+                  title="Clear filters"
+                >
+                  <span className="material-symbols-outlined text-sm">restart_alt</span>
+                </button>
               </div>
             </div>
           )}
@@ -741,9 +1040,10 @@ const LibraryMasterPage = () => {
               </span>
               <p className="text-white/60 font-secondary text-lg">
                 {activeTab === 'watchlist'
-                  ? '📭 Your watchlist is empty. Search for movies or shows to add them!'                    : activeTab === 'watching'
+                  ? '📭 Your Plan to Watch list is empty. Search for movies or shows to add them!'
+                  : activeTab === 'watching'
                     ? '📺 You\'re not currently watching anything.'                  : activeTab === 'watched'
-                  ? '👀 You haven\'t marked anything as watched yet.'
+                  ? '👀 You haven\'t marked anything as completed yet.'
                   : '🎬 This list is empty. Add items to get started!'}
               </p>
             </div>
@@ -811,17 +1111,17 @@ const LibraryMasterPage = () => {
                             {(item.release_date || item.first_air_date)?.split('-')[0]} •{' '}
                             {item.media_type === 'tv' ? 'Series' : 'Film'}
                           </p>
-                          {item.imdbRating && (
+                          {getImdbRating(item) && (
                             <div className="flex items-center gap-2 mt-3">
                               <span className="material-symbols-outlined text-yellow-400 text-sm">
                                 star
                               </span>
                               <span className="text-yellow-400 font-semibold">
-                                {item.imdbRating.toFixed(1)}
+                                {getImdbRating(item).toFixed(1)}
                               </span>
-                              {item.imdbVotes && (
+                              {getImdbVotes(item) && (
                                 <span className="text-white/40 text-sm">
-                                  {(item.imdbVotes / 1000000).toFixed(1)}M votes
+                                  {(getImdbVotes(item) / 1000000).toFixed(1)}M votes
                                 </span>
                               )}
                             </div>
