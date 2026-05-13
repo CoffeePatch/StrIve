@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { addToList } from "../../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../../util/firebase/firestoreService";
 import { options } from "../../../util/core/constants";
 import {
   Star,
@@ -110,11 +110,10 @@ const MoviePlayer = ({ movieId, onClose }) => {
         overview: movieDetails?.overview,
         release_date: movieDetails?.release_date,
         vote_average: movieDetails?.vote_average,
-        watched_at: new Date().toISOString(),
-        type: "movie",
+        media_type: "movie",
       };
 
-      await addToList(user.uid, "watched", watchedItem);
+      await upsertLibraryItem(user.uid, watchedItem, { status: "Completed" });
       setIsAddedToWatched(true);
       console.log(`Added ${movieDetails?.original_title} to watched list`);
     } catch (error) {

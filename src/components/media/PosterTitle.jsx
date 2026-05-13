@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { addToList } from "../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../util/firebase/firestoreService";
 import MoviePlayer from "../movie/Player/MoviePlayer";
 import { Play, Plus } from "lucide-react";
 
@@ -26,10 +26,10 @@ const PosterTitle = ({ movie }) => {
         overview,
         release_date: movie.release_date,
         vote_average: movie.vote_average,
-        type: "movie",
+        media_type: "movie",
       };
 
-      await addToList(user.uid, "watchlist", mediaItem);
+      await upsertLibraryItem(user.uid, mediaItem, { status: "Plan to Watch" });
       alert(`${mediaItem.title} added to your watchlist!`);
     } catch (error) {
       console.error("Error adding to watchlist:", error);

@@ -29,4 +29,6 @@ serviceAccountKey.json
 *.jpg
 *.jpeg
 *.txt
+functions/serviceAccount.json
+functions/lib/**/*.map
 

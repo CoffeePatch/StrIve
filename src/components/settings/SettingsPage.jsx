@@ -176,11 +176,9 @@ const SettingsPage = () => {
       const [watchlist, watched] = await Promise.all([
         getLibraryByStatus(user.uid, "plan_to_watch", {
           hydrate: false,
-          allowLegacyFallback: false,
         }),
         getLibraryByStatus(user.uid, "completed", {
           hydrate: false,
-          allowLegacyFallback: false,
         }),
       ]);
 
@@ -298,11 +296,9 @@ const SettingsPage = () => {
       const [watchlist, watched] = await Promise.all([
         getLibraryByStatus(user.uid, "Plan to Watch", {
           hydrate: false,
-          allowLegacyFallback: false,
         }),
         getLibraryByStatus(user.uid, "Completed", {
           hydrate: false,
-          allowLegacyFallback: false,
         }),
       ]);
 

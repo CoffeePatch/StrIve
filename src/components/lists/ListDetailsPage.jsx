@@ -97,19 +97,7 @@ const ListDetailsPage = () => {
 
     try {
       await dispatch(removeItem({ userId, listId, mediaId: item.id })).unwrap();
-
-      try {
-        await setLibraryItemListIds(userId, item, nextListIds);
-      } catch (e) {
-        console.debug("V2 listIds update failed:", e?.message || e);
-      }
-
-      // Keep legacy doc in sync where it still exists.
-      try {
-        await toggleCustomListTag(userId, item, listId, false);
-      } catch (e) {
-        console.debug("Legacy list tag update failed:", e?.message || e);
-      }
+      await setLibraryItemListIds(userId, item, nextListIds);
     } catch (err) {
       console.error("Failed to remove item:", err);
       toast.error("Failed to remove item");
@@ -126,21 +114,11 @@ const ListDetailsPage = () => {
               try {
                 await dispatch(addItem({ userId, listId, mediaItem: item })).unwrap();
 
-                try {
-                  const currentListIds = await getLibraryItemListIds(userId, item);
-                  const restored = Array.isArray(currentListIds)
-                    ? (currentListIds.includes(listId) ? currentListIds : [...currentListIds, listId])
-                    : [listId];
-                  await setLibraryItemListIds(userId, item, restored);
-                } catch (e) {
-                  console.debug("V2 listIds restore failed:", e?.message || e);
-                }
-
-                try {
-                  await toggleCustomListTag(userId, item, listId, true);
-                } catch (e) {
-                  console.debug("Legacy list tag restore failed:", e?.message || e);
-                }
+                const currentListIds = await getLibraryItemListIds(userId, item);
+                const restored = Array.isArray(currentListIds)
+                  ? (currentListIds.includes(listId) ? currentListIds : [...currentListIds, listId])
+                  : [listId];
+                await setLibraryItemListIds(userId, item, restored);
 
                 closeToast?.();
               } catch (undoErr) {

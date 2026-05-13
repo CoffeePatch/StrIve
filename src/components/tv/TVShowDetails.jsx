@@ -7,7 +7,7 @@ import {
   setTVShowSeasons,
   setSelectedSeason,
 } from "../../util/store/tvShowsSlice";
-import { addToList } from "../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../util/firebase/firestoreService";
 import { fetchLists } from "../../util/store/listsSlice";
 import TVShowPlayer from "./TVShowPlayer";
 import Header from "../layout/Header";
@@ -131,10 +131,9 @@ const TVShowDetails = () => {
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         imdbId: imdbData?.id || null,
         media_type: "tv",
-        type: "tv",
       };
 
-      await addToList(user.uid, "watchlist", mediaItem);
+      await upsertLibraryItem(user.uid, mediaItem, { status: "Plan to Watch" });
       alert(`${mediaItem.title} added to your watchlist!`);
     } catch (error) {
       console.error("Error adding to watchlist:", error);

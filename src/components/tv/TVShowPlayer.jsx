@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { RiveStreamingService } from "../../util/core/riveService";
-import { addToList } from "../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../../util/firebase/firestoreService";
 import { Star, Maximize, RotateCw, X, Lock } from "lucide-react";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 
@@ -39,21 +39,17 @@ const TVShowPlayer = ({ tvShow, episode, season, onClose }) => {
 
     try {
       const watchedItem = {
-        id: `${tvShow.id}_S${season}E${episode.episode_number}`,
-        tvShowId: tvShow.id,
-        title: `${tvShow.name} - S${season}E${episode.episode_number}`,
-        episodeName: episode.name,
+        id: tvShow.id,
+        title: tvShow.name,
         poster_path: tvShow.poster_path,
-        still_path: episode.still_path,
-        overview: episode.overview,
-        air_date: episode.air_date,
-        season_number: season,
-        episode_number: episode.episode_number,
-        watched_at: new Date().toISOString(),
-        type: "tv_episode",
+        overview: tvShow.overview,
+        first_air_date: tvShow.first_air_date,
+        vote_average: tvShow.vote_average,
+        vote_count: tvShow.vote_count,
+        media_type: "tv",
       };
 
-      await addToList(user.uid, "watched", watchedItem);
+      await upsertLibraryItem(user.uid, watchedItem, { status: "Completed" });
       setIsAddedToWatched(true);
       console.log(
         `Added ${tvShow.name} S${season}E${episode.episode_number} to watched list`

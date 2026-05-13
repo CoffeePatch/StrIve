@@ -36,12 +36,12 @@ const firstNumber = (...values) => {
 };
 
 /**
- * Fetches IMDB rating and votes for a media item
+ * Fetches IMDB rating, votes, and poster image for a media item
  * Ensures numbers are returned (never strings, never "0")
  * 
  * @param {string} tmdbId - The TMDB ID
  * @param {string} mediaType - The media type ('movie' or 'tv')
- * @returns {Promise<Object>} Object with imdbRating (float), imdbVotes (int), and imdbId
+ * @returns {Promise<Object>} Object with imdbId, imdbRating, imdbVotes, imdbPoster
  */
 const fetchImdbData = async (tmdbId, mediaType) => {
   try {
@@ -50,7 +50,7 @@ const fetchImdbData = async (tmdbId, mediaType) => {
 
     if (!imdbId) {
       console.debug(`No IMDb ID found for TMDB ID: ${tmdbId}`);
-      return { imdbId: null, imdbRating: null, imdbVotes: null };
+      return { imdbId: null, imdbRating: null, imdbVotes: null, imdbPoster: null };
     }
 
     const titleData = await imdbService.getTitleById(imdbId);
@@ -81,14 +81,18 @@ const fetchImdbData = async (tmdbId, mediaType) => {
       ? imdbVotes
       : null;
 
+    // Extract IMDb poster image
+    const imdbPoster = titleData?.primaryImage?.url || null;
+
     return {
       imdbId: imdbId || null,
-      imdbRating: validRating, // Float or null (NEVER 0 or "0")
-      imdbVotes: validVotes,   // Integer or null (NEVER 0)
+      imdbRating: validRating,
+      imdbVotes: validVotes,
+      imdbPoster: imdbPoster,
     };
   } catch (error) {
     console.warn(`Failed to fetch IMDB data for TMDB ${tmdbId}: ${error.message}`);
-    return { imdbId: null, imdbRating: null, imdbVotes: null };
+    return { imdbId: null, imdbRating: null, imdbVotes: null, imdbPoster: null };
   }
 };
 
@@ -111,112 +115,99 @@ export const upsertLibraryItem = async (
   const existingData = existingSnap.exists() ? existingSnap.data() : {};
   const now = Timestamp.now();
 
+  // Merge list IDs
   const mergedListIds = Array.isArray(existingData?.tracking?.listIds)
     ? [...existingData.tracking.listIds]
     : [];
-
   if (listId && !mergedListIds.includes(listId)) {
     mergedListIds.push(listId);
   }
 
-  const voteAverage = firstNumber(
+  // Normalize ratings
+  const tmdbScore = firstNumber(
     mediaItem?.ratings?.tmdbScore,
     mediaItem.vote_average,
-    mediaItem.tmdb_rating,
-    existingData?.ratings?.tmdbScore,
-    existingData.vote_average,
-    existingData.tmdb_rating,
-    existingData?.sort?.tmdbRating
-  );
+    existingData?.ratings?.tmdbScore
+  ) ?? 0;
 
-  const voteCount = firstNumber(
+  const tmdbVotes = firstNumber(
     mediaItem?.ratings?.tmdbVotes,
     mediaItem.vote_count,
-    mediaItem.tmdb_vote_count,
-    existingData?.ratings?.tmdbVotes,
-    existingData.vote_count,
-    existingData.tmdb_vote_count,
-    existingData?.sort?.tmdbVotes
-  );
+    existingData?.ratings?.tmdbVotes
+  ) ?? 0;
 
   const imdbScore = firstNumber(
     mediaItem?.ratings?.imdbScore,
     mediaItem.imdbRating,
-    mediaItem.imdb_rating,
-    mediaItem?.rating?.aggregateRating,
-    mediaItem?.rating?.ratingValue,
-    existingData?.ratings?.imdbScore,
-    existingData.imdbRating,
-    existingData.imdb_rating,
-    existingData?.sort?.imdbRating
-  );
+    existingData?.ratings?.imdbScore
+  ) ?? null;
 
   const imdbVotes = firstNumber(
     mediaItem?.ratings?.imdbVotes,
     mediaItem.imdbVotes,
-    mediaItem.imdb_vote_count,
-    mediaItem.imdbVotesCount,
-    mediaItem?.rating?.voteCount,
-    mediaItem?.rating?.ratingCount,
-    existingData?.ratings?.imdbVotes,
-    existingData.imdbVotes,
-    existingData.imdb_vote_count,
-    existingData?.sort?.imdbVotes
-  );
+    existingData?.ratings?.imdbVotes
+  ) ?? null;
 
-  const resolvedStatus = status ?? existingData?.tracking?.watchStatus ?? null;
+  // Normalize release date
+  const releaseDate = mediaItem.release_date || 
+                      mediaItem.first_air_date || 
+                      existingData.releaseDate || 
+                      null;
+
+  // Extract IMDb poster if available
+  let imdbPoster = mediaItem.imdbPoster || existingData?.images?.imdbPoster || null;
+
+  // If IMDb data is being fetched, also get the poster
+  if (mediaItem.imdbId && !imdbPoster) {
+    try {
+      const imdbData = await fetchImdbData(tmdbId, mediaType);
+      imdbPoster = imdbData.imdbPoster;
+    } catch (e) {
+      console.debug("Could not fetch IMDb poster:", e?.message);
+    }
+  }
+
   const payload = {
     titleKey,
     mediaType,
-    id: String(tmdbId),
-    media_type: mediaType,
-    title: mediaItem.title || mediaItem.name || existingData.title || existingData.name || "",
-    name: mediaItem.name || mediaItem.title || existingData.name || existingData.title || "",
-    poster_path: mediaItem.poster_path || existingData.poster_path || "",
-    release_date:
-      mediaItem.release_date ||
-      mediaItem.first_air_date ||
-      existingData.release_date ||
-      existingData.first_air_date ||
-      "",
-    first_air_date:
-      mediaItem.first_air_date ||
-      mediaItem.release_date ||
-      existingData.first_air_date ||
-      existingData.release_date ||
-      "",
-    overview: mediaItem.overview || existingData.overview || "",
-    vote_average: voteAverage ?? 0,
-    vote_count: voteCount ?? 0,
-    ratings: {
-      imdbScore: imdbScore ?? null,
-      imdbVotes: imdbVotes ?? null,
-      tmdbScore: voteAverage ?? 0,
-      tmdbVotes: voteCount ?? 0,
+    tmdbId,
+    imdbId: mediaItem.imdbId || existingData.imdbId || null,
+    title: mediaItem.title || mediaItem.name || existingData.title || "",
+    images: {
+      tmdbPoster: mediaItem.poster_path || existingData?.images?.tmdbPoster || null,
+      imdbPoster: imdbPoster,
     },
-    sort: {
-      tmdbRating: voteAverage ?? 0,
-      tmdbVotes: voteCount ?? 0,
-      imdbRating: imdbScore ?? null,
-      imdbVotes: imdbVotes ?? null,
-      year:
-        Number((mediaItem.release_date || mediaItem.first_air_date || "").slice(0, 4)) ||
-        existingData?.sort?.year ||
-        null,
+    releaseDate,
+    metadata: {
+      genres: mediaItem.genres || existingData?.metadata?.genres || [],
+      runtimeMinutes: mediaItem.runtime || existingData?.metadata?.runtimeMinutes || null,
+    },
+    ratings: {
+      imdbScore,
+      imdbVotes,
+      tmdbScore,
+      tmdbVotes,
     },
     tracking: {
-      watchStatus: resolvedStatus,
+      watchStatus: status ?? existingData?.tracking?.watchStatus ?? null,
       listIds: mergedListIds,
+      addedAt: existingData?.tracking?.addedAt || now,
       updatedAt: now,
-      addedAt: existingData?.tracking?.addedAt || existingData.addedAt || now,
+      lastWatchedAt: existingData?.tracking?.lastWatchedAt || null,
     },
-    userRating: null,
-    addedAt: existingData.addedAt || existingData?.tracking?.addedAt || now,
-    lastWatchedAt: null,
   };
 
-  await setDoc(ref, payload, { merge: true });
+  // Add TV-specific progress if needed
+  if (mediaType === "tv") {
+    payload.tvProgress = existingData?.tvProgress || {
+      totalEpisodes: mediaItem.number_of_episodes || null,
+      watchedEpisodes: 0,
+      completionPercent: 0,
+      nextToWatch: null,
+    };
+  }
 
+  await setDoc(ref, payload, { merge: true });
   return titleKey;
 };
 
@@ -233,11 +224,11 @@ const resolveTmdbIdNumber = (mediaItem) => {
   return Number(rawId);
 };
 
-const resolveLibraryItemV2Ref = (userId, mediaItem) => {
+const resolveLibraryItemRef = (userId, mediaItem) => {
   const mediaType = resolveMediaType(mediaItem);
   const tmdbId = resolveTmdbIdNumber(mediaItem);
   if (!Number.isFinite(tmdbId)) {
-    throw new Error("Invalid TMDB id for library v2 read/write");
+    throw new Error("Invalid TMDB id for library read/write");
   }
   const titleKey = mediaType === "tv" ? `tmdb_tv_${tmdbId}` : `tmdb_movie_${tmdbId}`;
   return {
@@ -247,14 +238,13 @@ const resolveLibraryItemV2Ref = (userId, mediaItem) => {
 };
 
 /**
- * Returns listIds for a media item.
- * Prefers V2 (users/{uid}/library_items) and falls back to legacy (users/{uid}/library).
+ * Returns listIds for a media item from library_items.
  */
 export const getLibraryItemListIds = async (userId, mediaItem) => {
   if (!userId || !mediaItem?.id) return [];
 
   try {
-    const { ref } = resolveLibraryItemV2Ref(userId, mediaItem);
+    const { ref } = resolveLibraryItemRef(userId, mediaItem);
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
@@ -268,8 +258,7 @@ export const getLibraryItemListIds = async (userId, mediaItem) => {
 };
 
 /**
- * Sets the listIds array for the V2 library item.
- * Creates the V2 doc via upsert if missing so list views have baseline metadata.
+ * Sets the listIds array for the library item.
  */
 export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   if (!userId) throw new Error("Missing userId");
@@ -279,7 +268,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
     ? [...new Set(listIds.filter(Boolean))]
     : [];
 
-  const { ref, titleKey } = resolveLibraryItemV2Ref(userId, mediaItem);
+  const { ref, titleKey } = resolveLibraryItemRef(userId, mediaItem);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
@@ -299,8 +288,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
 };
 
 /**
- * Sets the status field for the V2 library item.
- * Unlike upsertLibraryItemV2, this allows explicitly clearing status (setting it to null).
+ * Sets the status field for the library item.
  */
 export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   if (!userId) throw new Error("Missing userId");
@@ -308,7 +296,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
 
   const normalizedStatus = status === undefined ? null : status;
 
-  const { ref, titleKey } = resolveLibraryItemV2Ref(userId, mediaItem);
+  const { ref, titleKey } = resolveLibraryItemRef(userId, mediaItem);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
@@ -327,9 +315,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   return titleKey;
 };
 
-export const setLibraryItemV2Status = async (userId, mediaItem, status) => {
-  return setLibraryItemStatus(userId, mediaItem, status);
-};
+
 
 const normalizeLibraryItem = (docId, data = {}) => {
   const titleKey = data.titleKey || docId;
@@ -755,93 +741,6 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
   }
 };
 
-// ============================================================================
-// LEGACY FUNCTIONS (Keep for backward compatibility)
-// ============================================================================
-
-/**
- * Adds or updates a media item in a user's specific list in Firestore.
- * @param {string} userId - The UID of the user from Firebase Auth.
- * @param {string} listName - The name of the collection (e.g., "watchlist", "watched").
- * @param {object} mediaItem - The movie or TV show object to save.
- */
-export const addToList = async (userId, listName, mediaItem) => {
-  try {
-    const mediaType =
-      mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-
-    const itemToSave = {
-      id: mediaItem.id,
-      title: mediaItem.title || mediaItem.name,
-      poster_path: mediaItem.poster_path,
-      release_date: mediaItem.release_date || mediaItem.first_air_date,
-      vote_average: mediaItem.vote_average,
-      vote_count: mediaItem.vote_count,
-      media_type: mediaType,
-      dateAdded: new Date().toISOString(),
-      ratings: {
-        imdbScore: firstNumber(mediaItem?.ratings?.imdbScore, mediaItem.imdbRating, mediaItem.imdb_rating),
-        imdbVotes: firstNumber(mediaItem?.ratings?.imdbVotes, mediaItem.imdbVotes, mediaItem.imdb_vote_count),
-        tmdbScore: firstNumber(mediaItem?.ratings?.tmdbScore, mediaItem.vote_average) ?? 0,
-        tmdbVotes: firstNumber(mediaItem?.ratings?.tmdbVotes, mediaItem.vote_count) ?? 0,
-      },
-    };
-    const itemRef = doc(db, "users", userId, listName, String(mediaItem.id));
-    await setDoc(itemRef, itemToSave);
-    console.log(`Successfully added ${itemToSave.title} to ${listName}`);
-  } catch (error) {
-    console.error("Error adding document: ", error);
-    throw error;
-  }
-};
-
-/**
- * Fetches all items from a user's specific list in Firestore.
- * @param {string} userId - The UID of the user.
- * @param {string} listName - The name of the list (e.g., "watchlist").
- * @returns {Promise<Array>} - A promise that resolves to an array of media items.
- */
-export const getList = async (userId, listName) => {
-  try {
-    const listCollectionRef = collection(
-      db,
-      "users",
-      String(userId),
-      String(listName)
-    );
-    const querySnapshot = await getDocs(listCollectionRef);
-    try {
-      const list = querySnapshot.docs.map((doc) => doc.data());
-      return list;
-    } catch (error) {
-      console.error("Error parsing documents: ", error);
-      return []; // Return empty list if parsing fails
-    }
-  } catch (error) {
-    console.error("Error fetching list: ", error);
-    throw error;
-  }
-};
-
-/**
- * Removes a media item from a user's specific list in Firestore.
- * @param {string} userId - The UID of the user.
- * @param {string} listName - The name of the list (e.g., "watchlist").
- * @param {string|number} mediaId - The ID of the media item to remove.
- */
-export const removeFromList = async (userId, listName, mediaId) => {
-  try {
-    const itemRef = doc(db, "users", userId, listName, String(mediaId));
-    await deleteDoc(itemRef);
-    console.log(`Successfully removed item ${mediaId} from ${listName}`);
-  } catch (error) {
-    console.error("Error removing document: ", error);
-    throw error;
-  }
-};
-
-
-
 /**
  * Creates a new custom list for a user in Firestore.
  * @param {string} userId - The UID of the user from Firebase Auth.
@@ -909,10 +808,9 @@ export const updateCustomList = async (userId, listId, updates = {}) => {
 
 /**
  * Data hygiene: remove a deleted listId from any library items that still reference it.
- * - V2: users/{uid}/library_items where listIds array contains listId
- * - Legacy (best-effort): users/{uid}/library where listIds array contains listId
+ * - users/{uid}/library_items where listIds array contains listId
  *
- * Returns number of docs updated across both collections.
+ * Returns number of docs updated.
  */
 export const removeListIdFromAllLibraryItems = async (userId, listId, options = {}) => {
   if (!userId) throw new Error("Missing userId");

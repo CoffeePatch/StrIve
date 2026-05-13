@@ -384,22 +384,9 @@ const LibraryMasterPage = () => {
           const currentListIds = await getLibraryItemListIds(user.uid, item);
           const nextListIds = (currentListIds || []).filter((id) => id !== listIdAtRemove);
           await setLibraryItemListIds(user.uid, item, nextListIds);
-
-          // Keep legacy doc in sync where it still exists.
-          try {
-            await toggleCustomListTag(user.uid, item, listIdAtRemove, false);
-          } catch (e) {
-            console.debug('Legacy list tag update failed:', e?.message || e);
-          }
         } else {
           // System status tabs: clear status
           await setLibraryItemStatus(user.uid, item, null);
-
-          try {
-            await updateLibraryItem(user.uid, item, null);
-          } catch (e) {
-            console.debug('Legacy status clear failed:', e?.message || e);
-          }
         }
       } catch (error) {
         console.error('Remove failed:', error);
@@ -427,20 +414,8 @@ const LibraryMasterPage = () => {
                           : [...currentListIds, listIdAtRemove])
                       : [listIdAtRemove];
                     await setLibraryItemListIds(user.uid, item, restored);
-
-                    try {
-                      await toggleCustomListTag(user.uid, item, listIdAtRemove, true);
-                    } catch (e) {
-                      console.debug('Legacy list tag restore failed:', e?.message || e);
-                    }
                   } else {
                     await setLibraryItemStatus(user.uid, item, statusToRestore);
-
-                    try {
-                      await updateLibraryItem(user.uid, item, statusToRestore);
-                    } catch (e) {
-                      console.debug('Legacy status restore failed:', e?.message || e);
-                    }
                   }
 
                   setItems((prev) => sortItems([...prev, item], sortBy));
