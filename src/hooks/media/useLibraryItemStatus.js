@@ -35,7 +35,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 				ref,
 				(snap) => {
 					if (snap.exists()) {
-						const trackingStatus = snap.data()?.tracking?.watchStatus || null;
+						const trackingStatus = readWatchStatus(snap.data());
 						setStatus(trackingStatus);
 					} else {
 						setStatus(null);
@@ -54,7 +54,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 		getDoc(ref)
 			.then((snap) => {
 				if (snap.exists()) {
-					const trackingStatus = snap.data()?.tracking?.watchStatus || null;
+					const trackingStatus = readWatchStatus(snap.data());
 					setStatus(trackingStatus);
 				} else {
 					setStatus(null);
@@ -86,6 +86,15 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 function generateTitleKey(mediaId, mediaType = "movie") {
 	const type = mediaType === "tv" ? "tv" : "movie";
 	return `tmdb_${type}_${mediaId}`;
+}
+
+function readWatchStatus(data) {
+	return (
+		data?.tracking?.watchStatus ??
+		data?.watchStatus ??
+		data?.status ??
+		null
+	);
 }
 
 export default useLibraryItemStatus;

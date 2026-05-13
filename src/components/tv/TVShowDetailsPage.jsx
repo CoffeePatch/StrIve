@@ -66,7 +66,7 @@ const TVShowDetailsPage = () => {
   const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsWatched } = useLibraryItemStatus({
     userId: user?.uid,
     mediaItem: showDetails ? { id: tvId, media_type: "tv" } : null,
-    realtime: false, // One-time fetch on mount for performance
+    realtime: true,
   });
 
   // Sync Firestore library state with local UI state
@@ -162,12 +162,6 @@ const TVShowDetailsPage = () => {
     }
   }, [dispatch, user]);
 
-  // Sync Firestore library state with UI state
-  useEffect(() => {
-    setIsWatchlisted(firestoreIsWatchlisted);
-    setIsWatched(firestoreIsWatched);
-  }, [firestoreIsWatchlisted, firestoreIsWatched]);
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target)) {
@@ -225,7 +219,7 @@ const TVShowDetailsPage = () => {
     try {
       const newStatus = isWatchlisted ? null : "Plan to Watch";
       await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatchlisted(!isWatchlisted);
+      setIsWatchlisted(newStatus === "Plan to Watch");
       if (newStatus === "Plan to Watch") setIsWatched(false);
     } catch (error) {
       console.error("Error updating watchlist:", error);
@@ -241,7 +235,7 @@ const TVShowDetailsPage = () => {
     try {
       const newStatus = isWatched ? null : "Completed";
       await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatched(!isWatched);
+      setIsWatched(newStatus === "Completed");
       if (newStatus === "Completed") setIsWatchlisted(false);
     } catch (error) {
       console.error("Error updating watched status:", error);
@@ -447,6 +441,12 @@ const TVShowDetailsPage = () => {
                       `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[140px] hover:bg-white/10 hover:px-4 hover:text-white`;
                     const actionButtonNeutralClass =
                       `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[154px] hover:bg-white/10 hover:px-4 hover:text-white`;
+                    const watchlistButtonClass = isWatchlisted
+                      ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[154px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
+                      : actionButtonNeutralClass;
+                    const watchedButtonClass = isWatched
+                      ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[154px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
+                      : actionButtonNeutralClass;
                     const actionButtonLabelClass =
                       "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
 
@@ -476,10 +476,10 @@ const TVShowDetailsPage = () => {
 
                   <button
                     onClick={handleToggleWatchlist}
-                    className={actionButtonNeutralClass}
+                    className={watchlistButtonClass}
                     title="Watchlist"
                   >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-400' : 'text-white/75 group-hover:text-white'}`}>
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
                       bookmark
                     </span>
                     <span className={actionButtonLabelClass}>Watchlist</span>
@@ -487,10 +487,10 @@ const TVShowDetailsPage = () => {
 
                   <button
                     onClick={handleToggleWatched}
-                    className={actionButtonNeutralClass}
+                    className={watchedButtonClass}
                     title="Watched"
                   >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-400' : 'text-white/75 group-hover:text-white'}`}>
+                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
                       check_circle
                     </span>
                     <span className={actionButtonLabelClass}>Watched</span>

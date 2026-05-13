@@ -44,7 +44,7 @@ const MovieDetails = () => {
   const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted } = useLibraryItemStatus({
     userId: user?.uid,
     mediaItem: movieDetails ? { id: movieDetails.id, media_type: "movie" } : null,
-    realtime: false, // One-time fetch on mount for performance
+    realtime: true,
   });
 
   // Sync Firestore library state with local UI state
@@ -114,7 +114,10 @@ const MovieDetails = () => {
     try {
       const newStatus = isWatchlisted ? null : "Plan to Watch";
       await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatchlisted(!isWatchlisted);
+      setIsWatchlisted(newStatus === "Plan to Watch");
+      if (newStatus === "Plan to Watch") {
+        setIsCompleted(false);
+      }
     } catch (error) {
       console.error("Error updating watchlist:", error);
     }
@@ -128,7 +131,10 @@ const MovieDetails = () => {
     try {
       const newStatus = isCompleted ? null : "Completed";
       await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsCompleted(!isCompleted);
+      setIsCompleted(newStatus === "Completed");
+      if (newStatus === "Completed") {
+        setIsWatchlisted(false);
+      }
     } catch (error) {
       console.error("Error updating completed status:", error);
     }
@@ -145,6 +151,14 @@ const MovieDetails = () => {
 
   const actionButtonNeutralClass =
     `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[140px] hover:bg-white/10 hover:px-4 hover:text-white`;
+
+  const watchlistButtonClass = isWatchlisted
+    ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[140px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
+    : actionButtonNeutralClass;
+
+  const completedButtonClass = isCompleted
+    ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[132px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
+    : actionButtonNeutralClass;
 
   const actionButtonLabelClass =
     "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
@@ -329,10 +343,10 @@ const MovieDetails = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleToggleWatchlist}
-                    className={actionButtonNeutralClass}
+                    className={watchlistButtonClass}
                     title="Add to Watchlist"
                   >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-400' : 'text-white/75 group-hover:text-white'}`}>
+                      <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
                       bookmark
                     </span>
                     <span className={actionButtonLabelClass}>Watchlist</span>
@@ -340,10 +354,10 @@ const MovieDetails = () => {
                   
                   <button
                     onClick={handleToggleCompleted}
-                    className={actionButtonNeutralClass}
+                      className={completedButtonClass}
                     title="Mark as Completed"
                   >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isCompleted ? 'text-green-400' : 'text-white/75 group-hover:text-white'}`}>
+                      <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isCompleted ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
                       check_circle
                     </span>
                     <span className={actionButtonLabelClass}>Watched</span>
