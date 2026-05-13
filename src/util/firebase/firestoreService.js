@@ -176,7 +176,18 @@ export const upsertLibraryItem = async (
   };
 
   // Ensure runtimeMinutes is a valid number or null
-  const extractRuntime = (runtime) => {
+  const extractRuntime = (itemOrRuntime) => {
+    if (itemOrRuntime == null) return null;
+    let runtime = null;
+    if (typeof itemOrRuntime === "object") {
+      runtime = itemOrRuntime.runtime ??
+        // TMDB TV: episode_run_time is often an array
+        (Array.isArray(itemOrRuntime.episode_run_time) ? itemOrRuntime.episode_run_time[0] : itemOrRuntime.episode_run_time) ??
+        (Array.isArray(itemOrRuntime.episodeRunTime) ? itemOrRuntime.episodeRunTime[0] : itemOrRuntime.episodeRunTime) ??
+        itemOrRuntime.runtimeMinutes;
+    } else {
+      runtime = itemOrRuntime;
+    }
     const num = toNumber(runtime);
     return num && num > 0 ? num : null;
   };
@@ -194,7 +205,10 @@ export const upsertLibraryItem = async (
     releaseDate,
     metadata: {
       genres: extractGenreNames(mediaItem.genres) || extractGenreNames(existingData?.metadata?.genres) || [],
-      runtimeMinutes: extractRuntime(mediaItem.runtime) ?? extractRuntime(existingData?.metadata?.runtimeMinutes) ?? null,
+      runtimeMinutes:
+        mediaType === "movie"
+          ? extractRuntime(mediaItem.runtime) ?? extractRuntime(existingData?.metadata?.runtimeMinutes) ?? null
+          : null,
     },
     ratings: {
       imdbScore,

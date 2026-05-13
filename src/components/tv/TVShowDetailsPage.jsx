@@ -195,7 +195,7 @@ const TVShowDetailsPage = () => {
         overview: showDetails.overview,
         vote_average: showDetails.voteAverage ?? showDetails.vote_average,
         vote_count: showDetails.voteCount ?? showDetails.vote_count,
-        runtime: Number(showDetails.episodeRunTime?.[0] || 0) || null,
+        // TV shows may not have a reliable runtime; leave runtime unset
         genres: Array.isArray(showDetails.genres)
           ? showDetails.genres.map((genre) => genre.name || genre).filter(Boolean)
           : [],
