@@ -15,7 +15,7 @@ const TVShowCard = ({
   const cardWidthClass = cardSize === "compact" ? "w-44" : "w-52";
   const data = show || tvShow;
   const displayYear =
-    data.releaseYear ||
+    data.releaseDate?.split("-")[0] ||
     data.first_air_date?.split("-")[0] ||
     data.release_date?.split("-")[0] ||
     "N/A";

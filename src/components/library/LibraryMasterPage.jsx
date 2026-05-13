@@ -218,7 +218,14 @@ const LibraryMasterPage = () => {
     return Number.isFinite(parsed) ? parsed : null;
   };
 
-  const getItemYear = (item) => item.releaseYear || null;
+  const getItemYear = (item) => {
+    if (item.releaseDate) {
+      const dateStr = typeof item.releaseDate === 'string' ? item.releaseDate : String(item.releaseDate);
+      const yearMatch = dateStr.match(/\d{4}/);
+      if (yearMatch) return yearMatch[0];
+    }
+    return null;
+  };
   const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item.vote_average);
 
   const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item.imdbRating);

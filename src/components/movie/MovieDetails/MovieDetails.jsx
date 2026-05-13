@@ -6,6 +6,7 @@ import { fetchLists } from "../../../util/store/listsSlice";
 import Header from "../../layout/Header";
 import useRequireAuth from "../../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../../hooks/media/useImdbTitle";
+import useLibraryItemStatus from "../../../hooks/media/useLibraryItemStatus";
 import MoviePlayer from "../../movie/Player/MoviePlayer";
 import AddToListPopover from "../../lists/AddToListPopover";
 import CreateListModal from "../../lists/CreateListModal";
@@ -38,6 +39,19 @@ const MovieDetails = () => {
   const currentId = imdbId || movieId;
   const mediaType = currentId && currentId.startsWith('tt') ? "movie" : "movie";
   const { data: imdbData, loading: imdbLoading } = useImdbTitle(currentId, mediaType);
+
+  // Fetch library item status from Firestore (hydrate UI state on mount)
+  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted } = useLibraryItemStatus({
+    userId: user?.uid,
+    mediaItem: movieDetails ? { id: movieDetails.id, media_type: "movie" } : null,
+    realtime: false, // One-time fetch on mount for performance
+  });
+
+  // Sync Firestore library state with local UI state
+  useEffect(() => {
+    setIsWatchlisted(Boolean(firestoreIsWatchlisted));
+    setIsCompleted(Boolean(firestoreIsCompleted));
+  }, [firestoreIsWatchlisted, firestoreIsCompleted]);
 
   const trailer = movieDetails?.videos?.results?.find(
     (v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official
@@ -144,6 +158,8 @@ const MovieDetails = () => {
         release_date: movieDetails.release_date,
         vote_average: movieDetails.vote_average,
         vote_count: movieDetails.vote_count,
+        runtime: movieDetails.runtime,
+        genres: movieDetails.genres,
         imdbId: currentId && currentId.startsWith('tt') ? currentId : (imdbData?.id || null),
         imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,

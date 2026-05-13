@@ -11,7 +11,7 @@ const MovieCard = ({
 }) => {
   const navigate = useNavigate();
   const displayYear =
-    movie.releaseYear ||
+    movie.releaseDate?.split("-")[0] ||
     movie.release_date?.split("-")[0] ||
     movie.first_air_date?.split("-")[0] ||
     "N/A";

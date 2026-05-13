@@ -8,6 +8,7 @@ import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
 import useTvVideos from "../../hooks/tv/useTvVideos";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../hooks/media/useImdbTitle";
+import useLibraryItemStatus from "../../hooks/media/useLibraryItemStatus";
 import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
@@ -55,12 +56,24 @@ const TVShowDetailsPage = () => {
   const [hoverTimeout, setHoverTimeout] = useState(null);
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const [isWatched, setIsWatched] = useState(false);
-  const [isWatching, setIsWatching] = useState(false);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
     tvId,
     selectedSeason
   );
+
+  // Fetch library item status from Firestore (hydrate UI state on mount)
+  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsWatched } = useLibraryItemStatus({
+    userId: user?.uid,
+    mediaItem: showDetails ? { id: tvId, media_type: "tv" } : null,
+    realtime: false, // One-time fetch on mount for performance
+  });
+
+  // Sync Firestore library state with local UI state
+  useEffect(() => {
+    setIsWatchlisted(Boolean(firestoreIsWatchlisted));
+    setIsWatched(Boolean(firestoreIsWatched));
+  }, [firestoreIsWatchlisted, firestoreIsWatched]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -149,6 +162,12 @@ const TVShowDetailsPage = () => {
     }
   }, [dispatch, user]);
 
+  // Sync Firestore library state with UI state
+  useEffect(() => {
+    setIsWatchlisted(firestoreIsWatchlisted);
+    setIsWatched(firestoreIsWatched);
+  }, [firestoreIsWatchlisted, firestoreIsWatched]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target)) {
@@ -176,7 +195,11 @@ const TVShowDetailsPage = () => {
         overview: showDetails.overview,
         vote_average: showDetails.voteAverage ?? showDetails.vote_average,
         vote_count: showDetails.voteCount ?? showDetails.vote_count,
-        releaseYear: Number(String(showDetails.firstAirDate || showDetails.first_air_date || "").slice(0, 4)) || null,
+        runtime: Number(showDetails.episodeRunTime?.[0] || 0) || null,
+        genres: Array.isArray(showDetails.genres)
+          ? showDetails.genres.map((genre) => genre.name || genre).filter(Boolean)
+          : [],
+        number_of_episodes: showDetails.numberOfEpisodes || showDetails.number_of_episodes || null,
         images: {
           tmdbPoster: showDetails.posterPath || showDetails.poster_path || "",
         },
@@ -186,37 +209,12 @@ const TVShowDetailsPage = () => {
           imdbScore: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
           imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         },
-        metadata: {
-          genres: Array.isArray(showDetails.genres)
-            ? showDetails.genres.map((genre) => genre.name).filter(Boolean)
-            : [],
-          overview: showDetails.overview || "",
-          runtimeMinutes: Number(showDetails.episodeRunTime?.[0] || showDetails.runtimeMinutes || 0) || null,
-          releaseDate: showDetails.firstAirDate || showDetails.first_air_date || "",
-          firstAirDate: showDetails.firstAirDate || showDetails.first_air_date || "",
-          releaseYear: Number(String(showDetails.firstAirDate || showDetails.first_air_date || "").slice(0, 4)) || null,
-        },
         imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         imdbId: imdbData?.id || null,
         media_type: "tv",
       }
     : null;
-
-  const tvProgressForWatching = () => {
-    const totalEpisodesCount = Number(showDetails?.numberOfEpisodes || seasonData?.episodes?.length || 0) || 0;
-    const totalSeasonsCount = Number(showDetails?.numberOfSeasons || 0) || 0;
-
-    return {
-      totalEpisodesCount,
-      totalSeasonsCount,
-      airedEpisodesCount: totalEpisodesCount,
-      watchedEpisodesCount: 0,
-      completionRatioAired: 0,
-      nextToWatch: null,
-      lastWatched: null,
-    };
-  };
 
   const handleToggleWatchlist = async () => {
     if (!user) {
@@ -247,23 +245,6 @@ const TVShowDetailsPage = () => {
       if (newStatus === "Completed") setIsWatchlisted(false);
     } catch (error) {
       console.error("Error updating watched status:", error);
-    }
-  };
-
-  const handleToggleWatching = async () => {
-    if (!user) {
-      alert("Please log in first.");
-      return;
-    }
-
-    try {
-      const newStatus = isWatching ? null : "Watching";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus, {
-        tvProgress: tvProgressForWatching(),
-      });
-      setIsWatching(!isWatching);
-    } catch (error) {
-      console.error("Error updating watching progress:", error);
     }
   };
 
@@ -513,17 +494,6 @@ const TVShowDetailsPage = () => {
                       check_circle
                     </span>
                     <span className={actionButtonLabelClass}>Watched</span>
-                  </button>
-
-                  <button
-                    onClick={handleToggleWatching}
-                    className={actionButtonNeutralClass}
-                    title="Watching"
-                  >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatching ? 'text-blue-400' : 'text-white/75 group-hover:text-white'}`}>
-                      schedule
-                    </span>
-                    <span className={actionButtonLabelClass}>Watching</span>
                   </button>
 
                   <div 

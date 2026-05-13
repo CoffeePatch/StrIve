@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { RiveStreamingService } from "../../util/core/riveService";
-import { upsertLibraryItem } from "../../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../util/firebase/firestoreService";
 import { Star, Maximize, RotateCw, X, Lock } from "lucide-react";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 

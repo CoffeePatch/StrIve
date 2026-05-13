@@ -167,6 +167,20 @@ export const upsertLibraryItem = async (
     }
   }
 
+  // Extract genres from TMDB API format (array of objects with 'name' field)
+  const extractGenreNames = (genres) => {
+    if (!Array.isArray(genres)) return [];
+    return genres
+      .map(g => typeof g === 'string' ? g : g.name)
+      .filter(Boolean);
+  };
+
+  // Ensure runtimeMinutes is a valid number or null
+  const extractRuntime = (runtime) => {
+    const num = toNumber(runtime);
+    return num && num > 0 ? num : null;
+  };
+
   const payload = {
     titleKey,
     mediaType,
@@ -179,8 +193,8 @@ export const upsertLibraryItem = async (
     },
     releaseDate,
     metadata: {
-      genres: mediaItem.genres || existingData?.metadata?.genres || [],
-      runtimeMinutes: mediaItem.runtime || existingData?.metadata?.runtimeMinutes || null,
+      genres: extractGenreNames(mediaItem.genres) || extractGenreNames(existingData?.metadata?.genres) || [],
+      runtimeMinutes: extractRuntime(mediaItem.runtime) ?? extractRuntime(existingData?.metadata?.runtimeMinutes) ?? null,
     },
     ratings: {
       imdbScore,
@@ -1078,7 +1092,7 @@ export const updateItemEnrichment = async (
       libraryItemRef,
       {
         ...enrichedData,
-        updatedAt: Timestamp.now(),
+          "tracking.updatedAt": Timestamp.now(),
       },
       { merge: true }
     );
