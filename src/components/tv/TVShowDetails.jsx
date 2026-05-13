@@ -127,6 +127,7 @@ const TVShowDetails = () => {
         first_air_date: tvShowDetails?.first_air_date,
         vote_average: tvShowDetails?.vote_average,
         vote_count: tvShowDetails?.vote_count,
+        genres: Array.isArray(tvShowDetails?.genres) ? tvShowDetails.genres : [],
         imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
         imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
         imdbId: imdbData?.id || null,

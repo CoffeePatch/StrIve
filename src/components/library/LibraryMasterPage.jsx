@@ -233,7 +233,17 @@ const LibraryMasterPage = () => {
   const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item.imdbVotes);
 
   const getItemGenres = (item) => {
-    return Array.isArray(item.genres) ? item.genres : [];
+    if (!Array.isArray(item.genres)) return [];
+
+    return item.genres
+      .map((genre) => {
+        if (typeof genre === 'string') return genre;
+        if (genre && typeof genre === 'object' && typeof genre.name === 'string') {
+          return genre.name;
+        }
+        return null;
+      })
+      .filter(Boolean);
   };
 
   const standardGenres = [

@@ -42,9 +42,13 @@ export const normalizeTracking = async (userId: string): Promise<NormalizationRe
     const updates: Record<string, any> = {};
     let needsUpdate = false;
 
+    const nextTracking = {
+      ...tracking,
+    };
+
     // Movies: ensure watchStatus exists
     if (data.mediaType === "movie" && tracking.watchStatus === undefined) {
-      updates["tracking.watchStatus"] = null;
+      nextTracking.watchStatus = null;
       result.watchStatusAdded++;
       needsUpdate = true;
       console.log(`[NORMALIZE] ✓ Added watchStatus to movie ${doc.id}`);
@@ -52,7 +56,7 @@ export const normalizeTracking = async (userId: string): Promise<NormalizationRe
 
     // All docs: ensure updatedAt exists
     if (!tracking.updatedAt) {
-      updates["tracking.updatedAt"] = now;
+      nextTracking.updatedAt = now;
       result.updatedAtAdded++;
       needsUpdate = true;
       console.log(`[NORMALIZE] ✓ Added updatedAt to ${doc.id}`);
@@ -60,13 +64,14 @@ export const normalizeTracking = async (userId: string): Promise<NormalizationRe
 
     // All docs: ensure lastWatchedAt exists
     if (tracking.lastWatchedAt === undefined) {
-      updates["tracking.lastWatchedAt"] = null;
+      nextTracking.lastWatchedAt = null;
       result.lastWatchedAtAdded++;
       needsUpdate = true;
       console.log(`[NORMALIZE] ✓ Added lastWatchedAt to ${doc.id}`);
     }
 
     if (needsUpdate) {
+      updates.tracking = nextTracking;
       batch.update(doc.ref, updates);
       result.docsModified++;
       batchCount++;

@@ -189,10 +189,7 @@ const TVShowDetailsPage = () => {
         overview: showDetails.overview,
         vote_average: showDetails.voteAverage ?? showDetails.vote_average,
         vote_count: showDetails.voteCount ?? showDetails.vote_count,
-        // TV shows may not have a reliable runtime; leave runtime unset
-        genres: Array.isArray(showDetails.genres)
-          ? showDetails.genres.map((genre) => genre.name || genre).filter(Boolean)
-          : [],
+        genres: Array.isArray(showDetails.genres) ? showDetails.genres : [],
         number_of_episodes: showDetails.numberOfEpisodes || showDetails.number_of_episodes || null,
         images: {
           tmdbPoster: showDetails.posterPath || showDetails.poster_path || "",

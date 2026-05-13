@@ -4,23 +4,21 @@ import { useEffect, useState } from "react";
 
 const useRequireAuth = () => {
   const user = useSelector((store) => store.user.user);
+  const initialized = useSelector((store) => store.user.initialized);
   const navigate = useNavigate();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-    } else {
-      setIsChecking(false);
+    if (!initialized) {
+      return;
     }
-  }, [user, navigate]);
 
-  if (!user) {
-    return null; // Return null if redirecting
-  }
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [initialized, user, navigate]);
 
-  if (isChecking) {
-    return null; // Return null while checking
+  if (!initialized || !user) {
+    return null;
   }
 
   return user; // Return user object if authenticated

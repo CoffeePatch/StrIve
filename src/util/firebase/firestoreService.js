@@ -15,6 +15,7 @@ import {
   Timestamp,
   documentId,
   arrayRemove,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { getImdbId } from "../imdb/imdbResolver";
@@ -167,11 +168,25 @@ export const upsertLibraryItem = async (
     }
   }
 
-  // Extract genres from TMDB API format (array of objects with 'name' field)
-  const extractGenreNames = (genres) => {
+  // Preserve TMDB genre objects when available; fall back to strings if needed.
+  const normalizeGenres = (genres) => {
     if (!Array.isArray(genres)) return [];
     return genres
-      .map(g => typeof g === 'string' ? g : g.name)
+      .map((genre) => {
+        if (typeof genre === "string") {
+          return genre.trim() ? { name: genre.trim() } : null;
+        }
+
+        if (!genre || typeof genre !== "object") return null;
+
+        const normalizedName = typeof genre.name === "string" ? genre.name.trim() : "";
+        if (!normalizedName) return null;
+
+        return {
+          ...genre,
+          name: normalizedName,
+        };
+      })
       .filter(Boolean);
   };
 
@@ -204,11 +219,20 @@ export const upsertLibraryItem = async (
     },
     releaseDate,
     metadata: {
-      genres: extractGenreNames(mediaItem.genres) || extractGenreNames(existingData?.metadata?.genres) || [],
-      runtimeMinutes:
-        mediaType === "movie"
-          ? extractRuntime(mediaItem.runtime) ?? extractRuntime(existingData?.metadata?.runtimeMinutes) ?? null
-          : null,
+      genres:
+        normalizeGenres(mediaItem.genres).length > 0
+          ? normalizeGenres(mediaItem.genres)
+          : normalizeGenres(existingData?.metadata?.genres),
+      ...(mediaType === "movie"
+        ? {
+            runtimeMinutes:
+              extractRuntime(mediaItem.runtime) ??
+              extractRuntime(existingData?.metadata?.runtimeMinutes) ??
+              null,
+          }
+        : {
+            runtimeMinutes: deleteField(),
+          }),
     },
     ratings: {
       imdbScore,
@@ -306,8 +330,11 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   await setDoc(
     ref,
     {
-      "tracking.listIds": normalized,
-      "tracking.updatedAt": Timestamp.now(),
+      tracking: {
+        ...(snap.exists() ? snap.data()?.tracking || {} : {}),
+        listIds: normalized,
+        updatedAt: Timestamp.now(),
+      },
     },
     { merge: true }
   );
@@ -334,8 +361,11 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   await setDoc(
     ref,
     {
-      "tracking.watchStatus": normalizedStatus,
-      "tracking.updatedAt": Timestamp.now(),
+      tracking: {
+        ...(snap.exists() ? snap.data()?.tracking || {} : {}),
+        watchStatus: normalizedStatus,
+        updatedAt: Timestamp.now(),
+      },
     },
     { merge: true }
   );
