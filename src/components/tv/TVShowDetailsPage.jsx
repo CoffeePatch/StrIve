@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { ArrowLeft, Play, Star } from "lucide-react";
+import { ArrowLeft, Play, Star, AlertTriangle } from "lucide-react";
 import Header from "../layout/Header";
 import useTvShowDetails from "../../hooks/tv/useTvShowDetails";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
@@ -9,6 +9,10 @@ import useTvVideos from "../../hooks/tv/useTvVideos";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../hooks/media/useImdbTitle";
 import useLibraryItemStatus from "../../hooks/media/useLibraryItemStatus";
+import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
+import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
+import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
+import SeriesProgressBar from "../media/SeriesProgressBar";
 import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
@@ -21,7 +25,7 @@ import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
 import EpisodeMatrixView from "./TVShowDetails/EpisodeMatrixView";
 import CreateListModal from "../lists/CreateListModal";
 import AddToListPopover from "../lists/AddToListPopover";
-import { setLibraryItemStatus } from "../../util/firebase/firestoreService";
+import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
@@ -56,11 +60,19 @@ const TVShowDetailsPage = () => {
   const [hoverTimeout, setHoverTimeout] = useState(null);
   const [isWatchlisted, setIsWatchlisted] = useState(false);
   const [isWatched, setIsWatched] = useState(false);
+  const [showUnwatchModal, setShowUnwatchModal] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
     tvId,
     selectedSeason
   );
+
+  // Episode tracking hooks
+  const titleKey = `tmdb_tv_${tvId}`;
+  const { watchedSet, markLocallyWatched, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
+  const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
+  const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
 
   // Fetch library item status from Firestore (hydrate UI state on mount)
   const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsWatched } = useLibraryItemStatus({
@@ -156,28 +168,6 @@ const TVShowDetailsPage = () => {
     return currentSeasonEps;
   };
 
-  useEffect(() => {
-    if (user) {
-      dispatch(fetchLists(user.uid));
-    }
-  }, [dispatch, user]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-        setShowPopover(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout) clearTimeout(hoverTimeout);
-    };
-  }, [hoverTimeout]);
-
   const mediaItemForLists = showDetails
     ? {
         id: parseInt(tvId),
@@ -206,6 +196,110 @@ const TVShowDetailsPage = () => {
         media_type: "tv",
       }
     : null;
+
+  // --- Episode watched toggle handler (inline single-click) ---
+  const handleToggleEpisodeWatched = useCallback(async (episode) => {
+    if (!user) return;
+    const sn = Number(episode.seasonNumber ?? episode.season_number);
+    const en = Number(episode.episodeNumber ?? episode.episode_number);
+    const key = `${sn}:${en}`;
+
+    // If already watched, show unwatch-series confirmation
+    if (watchedSet.has(key)) {
+      setShowUnwatchModal(true);
+      return;
+    }
+
+    // Optimistic UI
+    markLocallyWatched(sn, en);
+
+    // Ensure we have all seasons loaded so we can build a full catalog for backfilling
+    let fullCatalogData = allSeasonsData;
+    if (!fullCatalogData || fullCatalogData.length === 0) {
+      fullCatalogData = await fetchAllSeasonDetails();
+    }
+
+    // If this is the first interaction, ensure the library item is created with metadata
+    if (!isWatched && !isWatchlisted) {
+      try {
+        await upsertLibraryItem(user.uid, mediaItemForLists, { status: "watching" });
+        setIsWatched(true);
+      } catch (err) {
+        console.warn("Failed to upsert library item:", err);
+      }
+    }
+
+    // Build episode catalog containing all episodes for the callable
+    let catalog = [];
+    if (fullCatalogData && fullCatalogData.length > 0) {
+      catalog = fullCatalogData.flatMap(season => 
+        season.episodes?.map(ep => ({
+          ...ep,
+          seasonNumber: season.season_number,
+        })) || []
+      ).map((ep, idx) => ({
+        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
+        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
+        absoluteOrder: Number(ep.absoluteOrder) || (Number(ep.seasonNumber ?? ep.season_number) * 1000 + Number(ep.episodeNumber ?? ep.episode_number)) || idx + 1,
+        isAired: ep.air_date ? new Date(ep.air_date) <= new Date() : true,
+      })).filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
+    } else {
+      catalog = getAllEpisodes().map((ep, idx) => ({
+        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
+        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
+        absoluteOrder: Number(ep.absoluteOrder) || (Number(ep.seasonNumber ?? ep.season_number) * 1000 + Number(ep.episodeNumber ?? ep.episode_number)) || idx + 1,
+        isAired: ep.isAired !== false,
+      })).filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
+    }
+
+    markEpisodeWatched({ titleKey, seasonNumber: sn, episodeNumber: en, mode: 'backfill_to_episode', episodeCatalog: catalog })
+      .then(() => setToast({ type: 'success', message: `✓ S${sn}E${en} and previous marked as watched` }))
+      .catch(() => setToast({ type: 'error', message: 'Failed to save watched state' }));
+  }, [user, watchedSet, titleKey, markLocallyWatched, markEpisodeWatched, getAllEpisodes, allSeasonsData, fetchAllSeasonDetails, isWatched, isWatchlisted, mediaItemForLists]);
+
+  // --- Unwatch entire series handler ---
+  const handleConfirmUnwatch = useCallback(async () => {
+    if (!user) return;
+    clearAllLocal();
+    setShowUnwatchModal(false);
+    try {
+      await unwatchSeries({ titleKey });
+      setToast({ type: 'success', message: '✓ Series progress reset' });
+    } catch {
+      setToast({ type: 'error', message: 'Failed to reset series progress' });
+    }
+  }, [user, titleKey, clearAllLocal, unwatchSeries]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+
+  useEffect(() => {
+    if (user) {
+      dispatch(fetchLists(user.uid));
+    }
+  }, [dispatch, user]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+        setShowPopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeout) clearTimeout(hoverTimeout);
+    };
+  }, [hoverTimeout]);
 
   const handleToggleWatchlist = async () => {
     if (!user) {
@@ -580,12 +674,17 @@ const TVShowDetailsPage = () => {
             </div>
 
             <div className="lg:col-span-9">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
                   Episodes
                 </h2>
                 <EpisodeViewToggle viewMode={viewMode} setViewMode={setViewMode} />
               </div>
+
+              {/* Series Progress Bar */}
+              {user && (
+                <SeriesProgressBar userId={user.uid} titleKey={titleKey} realtime={true} className="mb-6" />
+              )}
 
               {viewMode !== 'matrix' && (
                 <SeasonTabs
@@ -632,7 +731,14 @@ const TVShowDetailsPage = () => {
                       <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
                       <div className="grid grid-cols-1 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
                         {seasonData.episodes.map((episode) => (
-                          <EpisodeListItem key={episode.id} episode={episode} onClick={() => handleEpisodeClick(episode)} />
+                          <EpisodeListItem
+                            key={episode.id}
+                            episode={episode}
+                            onClick={() => handleEpisodeClick(episode)}
+                            isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                            onToggleWatched={handleToggleEpisodeWatched}
+                            watchLoading={markWatchedLoading}
+                          />
                         ))}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
@@ -642,7 +748,14 @@ const TVShowDetailsPage = () => {
                       <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
                         {seasonData.episodes.map((episode) => (
-                          <EpisodeCard key={episode.id} episode={episode} onClick={() => handleEpisodeClick(episode)} />
+                          <EpisodeCard
+                            key={episode.id}
+                            episode={episode}
+                            onClick={() => handleEpisodeClick(episode)}
+                            isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                            onToggleWatched={handleToggleEpisodeWatched}
+                            watchLoading={markWatchedLoading}
+                          />
                         ))}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
@@ -672,7 +785,10 @@ const TVShowDetailsPage = () => {
         <EpisodeOverlay
           episode={selectedEpisode}
           showDetails={showDetails}
-          allEpisodes={getAllEpisodes()} onClose={() => {
+          allEpisodes={getAllEpisodes()}
+          isWatched={watchedSet.has(`${Number(selectedEpisode?.seasonNumber ?? selectedEpisode?.season_number)}:${Number(selectedEpisode?.episodeNumber ?? selectedEpisode?.episode_number)}`)}
+          onWatchedChange={() => {}}
+          onClose={() => {
             setShowEpisodeOverlay(false);
             setSelectedEpisode(null);
           }}
@@ -684,6 +800,51 @@ const TVShowDetailsPage = () => {
         onClose={() => setShowCreateModal(false)}
         userId={user?.uid}
       />
+
+      {/* Unwatch Series Confirmation Modal */}
+      {showUnwatchModal && (
+        <div className="unwatch-modal-overlay" onClick={() => setShowUnwatchModal(false)}>
+          <div className="unwatch-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                Unwatch Entire Series?
+              </h3>
+            </div>
+            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              This will reset <strong>all</strong> watched episodes for <strong>{showDetails?.name}</strong>. 
+              Your tracking progress will be set to zero and the status will change to <em>Plan to Watch</em>.
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowUnwatchModal(false)}
+                disabled={unwatchLoading}
+                className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmUnwatch}
+                disabled={unwatchLoading}
+                className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm bg-red-600 text-white cursor-pointer hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {unwatchLoading ? 'Resetting...' : 'Yes, Unwatch All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className={`episode-toast ${toast.type === 'error' ? 'episode-toast--error' : ''}`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 };

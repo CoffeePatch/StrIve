@@ -3,5 +3,6 @@ export { getTvDetails, getTvSeasons, getTvSeasonEpisodes, getTvVideos } from './
 export { markEpisodeWatched } from './markEpisodeWatched';
 export { onEpisodeStateWritten } from './onEpisodeStateWritten';
 export { recomputeSeriesProgress } from './recomputeSeriesProgress';
+export { unwatchSeries } from './unwatchSeries';
 export { runPhase2BackfillMigration } from './migrationBackfill';
 export { cleanupLibraryDatabase, previewDatabaseCleanup } from '../services/databaseCleanup';

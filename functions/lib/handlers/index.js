@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.previewDatabaseCleanup = exports.cleanupLibraryDatabase = exports.runPhase2BackfillMigration = exports.recomputeSeriesProgress = exports.onEpisodeStateWritten = exports.markEpisodeWatched = exports.getTvVideos = exports.getTvSeasonEpisodes = exports.getTvSeasons = exports.getTvDetails = exports.enrichList = exports.confirmListImport = exports.analyzeListImport = exports.listsExport = void 0;
+exports.previewDatabaseCleanup = exports.cleanupLibraryDatabase = exports.runPhase2BackfillMigration = exports.unwatchSeries = exports.recomputeSeriesProgress = exports.onEpisodeStateWritten = exports.markEpisodeWatched = exports.getTvVideos = exports.getTvSeasonEpisodes = exports.getTvSeasons = exports.getTvDetails = exports.enrichList = exports.confirmListImport = exports.analyzeListImport = exports.listsExport = void 0;
 var lists_1 = require("./lists");
 Object.defineProperty(exports, "listsExport", { enumerable: true, get: function () { return lists_1.listsExport; } });
 Object.defineProperty(exports, "analyzeListImport", { enumerable: true, get: function () { return lists_1.analyzeListImport; } });
@@ -17,6 +17,8 @@ var onEpisodeStateWritten_1 = require("./onEpisodeStateWritten");
 Object.defineProperty(exports, "onEpisodeStateWritten", { enumerable: true, get: function () { return onEpisodeStateWritten_1.onEpisodeStateWritten; } });
 var recomputeSeriesProgress_1 = require("./recomputeSeriesProgress");
 Object.defineProperty(exports, "recomputeSeriesProgress", { enumerable: true, get: function () { return recomputeSeriesProgress_1.recomputeSeriesProgress; } });
+var unwatchSeries_1 = require("./unwatchSeries");
+Object.defineProperty(exports, "unwatchSeries", { enumerable: true, get: function () { return unwatchSeries_1.unwatchSeries; } });
 var migrationBackfill_1 = require("./migrationBackfill");
 Object.defineProperty(exports, "runPhase2BackfillMigration", { enumerable: true, get: function () { return migrationBackfill_1.runPhase2BackfillMigration; } });
 var databaseCleanup_1 = require("../services/databaseCleanup");

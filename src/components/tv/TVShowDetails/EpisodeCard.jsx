@@ -1,9 +1,17 @@
 import React from "react";
-import { Play, Clock } from "lucide-react";
+import { Play, Clock, Check } from "lucide-react";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
-const EpisodeCard = ({ episode, onClick }) => {
+const EpisodeCard = ({ episode, onClick, isWatched = false, onToggleWatched, watchLoading = false }) => {
+  const handleWatchedClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onToggleWatched && !watchLoading) {
+      onToggleWatched(episode);
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -37,6 +45,22 @@ const EpisodeCard = ({ episode, onClick }) => {
             <Play className="w-12 h-12 text-gray-600" />
           </div>
         )}
+
+        {/* Watched state overlay for watched episodes */}
+        {isWatched && (
+          <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+        )}
+
+        {/* Watched toggle badge */}
+        <button
+          onClick={handleWatchedClick}
+          disabled={watchLoading}
+          className={`episode-watched-badge ${isWatched ? 'episode-watched-badge--active' : 'episode-watched-badge--idle'}`}
+          aria-label={isWatched ? `${episode.name} is watched` : `Mark ${episode.name} as watched`}
+          title={isWatched ? "Watched" : "Mark as watched"}
+        >
+          <Check className="w-4 h-4" strokeWidth={3} />
+        </button>
       </div>
 
       <div className="p-4">

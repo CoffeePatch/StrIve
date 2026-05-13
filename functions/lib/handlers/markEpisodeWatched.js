@@ -115,6 +115,29 @@ exports.markEpisodeWatched = (0, https_1.onCall)(async (request) => {
         const titleRef = db.collection('catalog_titles').doc(titleKey);
         const allEpisodes = await (0, watchMutation_1.loadEpisodesForMutation)(titleRef, inputEpisodeCatalog);
         const { selected } = (0, watchMutation_1.selectEpisodesForMode)(allEpisodes, mode, seasonNumber, episodeNumber);
+        // Auto-seed the catalog if it was empty, using the fallback payload
+        if (inputEpisodeCatalog && inputEpisodeCatalog.length > 0) {
+            const episodesSnap = await titleRef.collection('episodes').limit(1).get();
+            if (episodesSnap.empty) {
+                const seedWrites = [];
+                seedWrites.push({
+                    ref: titleRef,
+                    data: {
+                        titleKey,
+                        mediaType: 'tv',
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }
+                });
+                for (const ep of allEpisodes) {
+                    const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
+                    seedWrites.push({
+                        ref: titleRef.collection('episodes').doc(epId),
+                        data: ep
+                    });
+                }
+                await (0, watchMutation_1.commitMergeWritesInChunks)(db, seedWrites, 500);
+            }
+        }
         // Preload existing states so we can avoid unnecessary writes.
         const stateRefs = selected.map((e) => {
             const stateId = (0, watchMutation_1.buildEpisodeStateId)(titleKey, e.seasonNumber, e.episodeNumber);

@@ -119,6 +119,35 @@ export const markEpisodeWatched = onCall(async (request) => {
     const allEpisodes = await loadEpisodesForMutation(titleRef, inputEpisodeCatalog);
     const { selected } = selectEpisodesForMode(allEpisodes, mode, seasonNumber, episodeNumber);
 
+    type PendingWrite = {
+      ref: FirebaseFirestore.DocumentReference;
+      data: FirebaseFirestore.DocumentData;
+    };
+
+    // Auto-seed the catalog if it was empty, using the fallback payload
+    if (inputEpisodeCatalog && inputEpisodeCatalog.length > 0) {
+      const episodesSnap = await titleRef.collection('episodes').limit(1).get();
+      if (episodesSnap.empty) {
+        const seedWrites: PendingWrite[] = [];
+        seedWrites.push({
+          ref: titleRef,
+          data: {
+            titleKey,
+            mediaType: 'tv',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }
+        });
+        for (const ep of allEpisodes) {
+          const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
+          seedWrites.push({
+            ref: titleRef.collection('episodes').doc(epId),
+            data: ep
+          });
+        }
+        await commitMergeWritesInChunks(db, seedWrites, 500);
+      }
+    }
+
     // Preload existing states so we can avoid unnecessary writes.
     const stateRefs = selected.map((e) => {
       const stateId = buildEpisodeStateId(titleKey, e.seasonNumber, e.episodeNumber);
@@ -127,10 +156,7 @@ export const markEpisodeWatched = onCall(async (request) => {
 
     const existingSnaps = await db.getAll(...stateRefs);
 
-    type PendingWrite = {
-      ref: FirebaseFirestore.DocumentReference;
-      data: FirebaseFirestore.DocumentData;
-    };
+
     const writes: PendingWrite[] = [];
 
     for (let i = 0; i < selected.length; i++) {
