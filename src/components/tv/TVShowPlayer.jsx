@@ -46,6 +46,8 @@ const TVShowPlayer = ({ tvShow, episode, season, onClose }) => {
         first_air_date: tvShow.first_air_date,
         vote_average: tvShow.vote_average,
         vote_count: tvShow.vote_count,
+        genres: Array.isArray(tvShow.genres) ? tvShow.genres : [],
+        number_of_episodes: tvShow.number_of_episodes ?? tvShow.numberOfEpisodes ?? null,
         media_type: "tv",
       };
 

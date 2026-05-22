@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,6 +7,8 @@ import {
   getLibraryItemListIds,
   setLibraryItemListIds,
   setLibraryItemStatus,
+  updateLibraryItem,
+  toggleCustomListTag,
   addItemToCustomList,
   removeItemFromCustomList,
   fetchUserLists,
@@ -18,9 +20,6 @@ import '../../styles/LibraryMasterPage.css';
 import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
 import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
-import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
-import LibraryAdvancedFilters from './LibraryAdvancedFilters';
-import LibraryGrid from './LibraryGrid';
 
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
@@ -31,15 +30,15 @@ const LibraryMasterPage = () => {
   const [customLists, setCustomLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating-desc');
-  const libraryFilters = useLibraryFilters(items);
-  const {
-    searchQuery, setSearchQuery,
-    filtersOpen, setFiltersOpen,
-    filteredItems,
-    getImdbRating,
-    getImdbVotes
-  } = libraryFilters;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [imdbFilter, setImdbFilter] = useState('all');
+  const [imdbVotesFilter, setImdbVotesFilter] = useState('all');
+  const [tmdbFilter, setTmdbFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [genreFilter, setGenreFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [listMenuOpen, setListMenuOpen] = useState(false);
@@ -214,10 +213,6 @@ const LibraryMasterPage = () => {
     return sorted;
   };
 
-  useEffect(() => {
-    libraryFilters.clearAdvancedFilters();
-  }, [activeTab, selectedListId, libraryFilters]);
-
   const handleItemClick = (item) => {
     const mediaType = item.media_type || item.mediaType;
     const titleKey = item.titleKey || '';
@@ -324,6 +319,7 @@ const LibraryMasterPage = () => {
     [user?.uid, activeTab, selectedListId, getTabLabel, sortBy]
   );
 
+  const filteredItems = getFilteredItems();
 
   return (
     <div className="min-h-screen premium-page flex flex-col">
@@ -678,9 +674,7 @@ const LibraryMasterPage = () => {
             </div>
           )}
 
-          {activeTab !== 'custom' && filtersOpen && (
-            <LibraryAdvancedFilters filters={libraryFilters} inline={false} />
-          )}
+          {activeTab !== 'custom' && filtersOpen && <LibraryAdvancedFilters filters={libraryFilters} inline={false} />}
 
           {/* Search Filter */}
           <div className="glass-effect rounded-xl px-4 py-3 flex items-center gap-3 bg-white/5 border border-white/10">
@@ -741,14 +735,90 @@ const LibraryMasterPage = () => {
 
           {/* Items Grid */}
           {!loading && filteredItems.length > 0 && (
-            <LibraryGrid 
-              items={filteredItems}
-              viewMode={viewMode}
-              handleItemClick={handleItemClick}
-              handleRemove={handleRemove}
-              getImdbRating={getImdbRating}
-              getImdbVotes={getImdbVotes}
-            />
+            <div
+              className={
+                viewMode === 'bookshelf'
+                  ? 'space-y-8'
+                  : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6'
+              }
+            >
+              {viewMode === 'bookshelf' ? (
+                <div className="space-y-6">
+                  {filteredItems.map((item) => (
+                    <div
+                      key={`${item.media_type}-${item.id}`}
+                      onClick={() => handleItemClick(item)}
+                      className="cursor-pointer group"
+                    >
+                      <div className="flex items-start gap-6 glass-effect rounded-xl p-4 hover:bg-white/10 transition-all relative">
+                        {item.poster_path && (
+                          <div className="flex-shrink-0 w-24 h-36 rounded-lg overflow-hidden border border-white/10 relative group">
+                            <img
+                              src={
+                                item.poster_path.startsWith('http')
+                                  ? item.poster_path
+                                  : `https://image.tmdb.org/t/p/w342${item.poster_path}`
+                              }
+                              alt={item.title || item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            {/* Trash button on bookshelf view */}
+                            <button
+                              className="absolute top-1 left-1 p-1 opacity-100 text-yellow-400 hover:text-red-500 transition-colors z-10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemove(item);
+                              }}
+                              aria-label="Remove from list"
+                            >
+                              <span className="material-symbols-outlined text-xs">delete</span>
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <h3 className="text-white font-semibold text-lg font-secondary group-hover:text-red-600 transition-colors">
+                            {item.title || item.name}
+                          </h3>
+                          <p className="text-white/60 text-sm mt-1">
+                            {(item.release_date || item.first_air_date)?.split('-')[0]} •{' '}
+                            {item.media_type === 'tv' ? 'Series' : 'Film'}
+                          </p>
+                          {getImdbRating(item) && (
+                            <div className="flex items-center gap-2 mt-3">
+                              <span className="material-symbols-outlined text-yellow-400 text-sm">
+                                star
+                              </span>
+                              <span className="text-yellow-400 font-semibold">
+                                {getImdbRating(item).toFixed(1)}
+                              </span>
+                              {getImdbVotes(item) && (
+                                <span className="text-white/40 text-sm">
+                                  {(getImdbVotes(item) / 1000000).toFixed(1)}M votes
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                filteredItems.map((item) => (
+                  <div
+                    key={`${item.media_type}-${item.id}`}
+                    onClick={() => handleItemClick(item)}
+                    className="cursor-pointer group"
+                  >
+                    {item.media_type === 'tv' ? (
+                      <TVShowCard show={item} vaultMode={true} onRemove={() => handleRemove(item)} />
+                    ) : (
+                      <MovieCard movie={item} vaultMode={true} onRemove={() => handleRemove(item)} />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           )}
         </div>
       </main>

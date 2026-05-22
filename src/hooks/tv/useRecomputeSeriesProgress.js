@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { auth } from "../../util/firebase/firebase";
 
-const MARK_EPISODE_WATCHED_ENDPOINT = "/api/markEpisodeWatched";
+const RECOMPUTE_SERIES_PROGRESS_ENDPOINT = "/api/recomputeSeriesProgress";
 
 const toErrorMessage = (error) => {
   if (!error) return "Unknown error";
@@ -15,13 +15,13 @@ const toErrorMessage = (error) => {
 };
 
 /**
- * Calls the markEpisodeWatched callable with loading/error state.
+ * Calls recomputeSeriesProgress callable with loading/error state.
  */
-export const useMarkEpisodeWatched = () => {
+export const useRecomputeSeriesProgress = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const markEpisodeWatched = useCallback(async ({ titleKey, seasonNumber, episodeNumber, mode, episodeCatalog = [] }) => {
+  const recomputeSeriesProgress = useCallback(async ({ titleKey }) => {
     setLoading(true);
     setError(null);
 
@@ -30,22 +30,13 @@ export const useMarkEpisodeWatched = () => {
       if (!user) throw new Error("unauthenticated");
       const token = await user.getIdToken();
 
-      const requestId = `${titleKey}_${seasonNumber}_${episodeNumber}_${mode}_${Date.now()}`;
-      
-      const res = await fetch(MARK_EPISODE_WATCHED_ENDPOINT, {
+      const res = await fetch(RECOMPUTE_SERIES_PROGRESS_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          titleKey,
-          seasonNumber,
-          episodeNumber,
-          mode,
-          requestId,
-          episodeCatalog,
-        })
+        body: JSON.stringify({ titleKey })
       });
 
       if (!res.ok) {
@@ -57,20 +48,19 @@ export const useMarkEpisodeWatched = () => {
       return data;
     } catch (err) {
       const message = toErrorMessage(err);
-      const fullMessage = `[api] ${message}`;
-      setError(fullMessage);
-      throw new Error(fullMessage);
+      setError(message);
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   return {
-    markEpisodeWatched,
+    recomputeSeriesProgress,
     loading,
     error,
     clearError: () => setError(null),
   };
 };
 
-export default useMarkEpisodeWatched;
+export default useRecomputeSeriesProgress;

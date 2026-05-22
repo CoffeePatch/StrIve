@@ -1,8 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 
 // Firebase configuration using environment variables
 const firebaseConfig = {
@@ -20,14 +19,10 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const functions = getFunctions(
-  app,
-  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1"
-);
 
-const useFunctionsEmulator = String(import.meta.env.VITE_USE_FUNCTIONS_EMULATOR || "").toLowerCase() === "true";
-if (useFunctionsEmulator) {
-  const host = import.meta.env.VITE_FUNCTIONS_EMULATOR_HOST || "127.0.0.1";
-  const port = Number(import.meta.env.VITE_FUNCTIONS_EMULATOR_PORT || 5101);
-  connectFunctionsEmulator(functions, host, port);
+const useFirestoreEmulator = String(import.meta.env.VITE_USE_FIRESTORE_EMULATOR || "").toLowerCase() === "true";
+if (useFirestoreEmulator) {
+  const host = import.meta.env.VITE_FIRESTORE_EMULATOR_HOST || "127.0.0.1";
+  const port = Number(import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || 8080);
+  connectFirestoreEmulator(db, host, port);
 }

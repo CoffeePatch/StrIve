@@ -8,8 +8,7 @@ import {
   limit,
   query,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "../../util/firebase/firebase";
+import { db, auth } from "../../util/firebase/firebase";
 
 const CALLABLE_NAME = "markEpisodeWatched";
 
@@ -83,38 +82,45 @@ export const useLibraryHealth = (userId) => {
     }
 
     try {
-      const functions = getFunctions();
-      const callable = httpsCallable(functions, CALLABLE_NAME);
+      const user = auth.currentUser;
+      if (!user) throw new Error("unauthenticated");
+      const token = await user.getIdToken();
 
-      // Intentionally invalid payload should return invalid-argument if callable is deployed and reachable.
-      await callable({ titleKey: "invalid", seasonNumber: 0, episodeNumber: 0, mode: "single" });
+      const res = await fetch("/api/markEpisodeWatched", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ titleKey: "invalid", seasonNumber: 0, episodeNumber: 0, mode: "single" })
+      });
 
-      next.callable = {
-        ok: false,
-        message: "Callable returned success for invalid payload (unexpected).",
-      };
-    } catch (err) {
-      const code = String(err?.code || "").replace("functions/", "");
-      const acceptable = [
-        "invalid-argument",
-        "failed-precondition",
-        "not-found",
-        "aborted",
-        "permission-denied",
-        "internal",
-      ];
-
-      if (acceptable.includes(code)) {
-        next.callable = {
-          ok: true,
-          message: `Callable reachable (${code || "error"})`,
-        };
-      } else {
+      if (res.ok) {
         next.callable = {
           ok: false,
-          message: formatError(err),
+          message: "Callable returned success for invalid payload (unexpected).",
         };
+      } else {
+        const status = res.status;
+        const acceptable = [400, 404, 500];
+
+        if (acceptable.includes(status)) {
+          next.callable = {
+            ok: true,
+            message: `Callable reachable (HTTP ${status})`,
+          };
+        } else {
+          next.callable = {
+            ok: false,
+            message: `Unexpected HTTP status: ${status}`,
+          };
+        }
       }
+    } catch (err) {
+      next.callable = {
+        ok: false,
+        message: formatError(err),
+      };
     }
 
     // Optional direct read sanity check for a known migration report path.

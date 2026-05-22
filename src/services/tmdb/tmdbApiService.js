@@ -3,21 +3,16 @@
  * Interact with api.themoviedb.org to fetch movie/show details
  */
 
-const API_BASE_URL = "https://api.themoviedb.org/3";
-const API_KEY = import.meta.env.VITE_TMDB_KEY;
+const PROXY_URL = "/api/tmdb";
 
 class TmdbApiService {
   constructor() {
-    if (!API_KEY) {
-      console.warn("TMDB API Key is missing! Check your .env file.");
-    }
+    // No longer need client-side API key check
   }
 
   async _fetch(endpoint, params = {}) {
-    if (!API_KEY) return null;
-
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
-    url.searchParams.append("api_key", API_KEY);
+    const url = new URL(PROXY_URL, window.location.origin);
+    url.searchParams.append("endpoint", endpoint);
     Object.keys(params).forEach((key) =>
       url.searchParams.append(key, params[key])
     );
@@ -27,13 +22,12 @@ class TmdbApiService {
       if (!response.ok) {
         if (response.status === 429) {
           console.warn("TMDB Rate Limit Exceeded. Backing off.");
-          // In a real production app, we might handle retry logic here
         }
-        throw new Error(`TMDB API Error: ${response.status}`);
+        throw new Error(`Proxy API Error: ${response.status}`);
       }
       return await response.json();
     } catch (error) {
-      console.error(`Failed to fetch from TMDB (${endpoint}):`, error);
+      console.error(`Failed to fetch from proxy (${endpoint}):`, error);
       return null;
     }
   }

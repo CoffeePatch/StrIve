@@ -12,6 +12,8 @@ import useLibraryItemStatus from "../../hooks/media/useLibraryItemStatus";
 import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
 import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
 import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
+import useSeriesProgress from "../../hooks/tv/useSeriesProgress";
+import useRecomputeSeriesProgress from "../../hooks/tv/useRecomputeSeriesProgress";
 import SeriesProgressBar from "../media/SeriesProgressBar";
 import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
@@ -44,6 +46,7 @@ const TVShowDetailsPage = () => {
   const user = useRequireAuth();
   const dispatch = useDispatch();
   const popoverRef = useRef(null);
+  const recomputeKeyRef = useRef(null);
 
   const { data: showDetails, loading: detailsLoading, error: detailsError } = useTvShowDetails(tvId);
   const { data: videos } = useTvVideos(tvId);
@@ -73,6 +76,8 @@ const TVShowDetailsPage = () => {
   const { watchedSet, markLocallyWatched, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
   const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
+  const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
+  const { recomputeSeriesProgress, loading: recomputeLoading } = useRecomputeSeriesProgress();
 
   // Fetch library item status from Firestore (hydrate UI state on mount)
   const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsWatched } = useLibraryItemStatus({
@@ -86,6 +91,41 @@ const TVShowDetailsPage = () => {
     setIsWatchlisted(Boolean(firestoreIsWatchlisted));
     setIsWatched(Boolean(firestoreIsWatched));
   }, [firestoreIsWatchlisted, firestoreIsWatched]);
+
+  useEffect(() => {
+    if (!user?.uid || !titleKey) return;
+
+    const totalFromShow = Number(
+      showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0
+    );
+    const progressTotal = Number(seriesProgress?.totalEpisodesCount ?? 0);
+    const needsRecompute = Boolean(seriesProgress?.progressNeedsRecompute)
+      || (Number.isFinite(totalFromShow)
+        && totalFromShow > 0
+        && progressTotal > 0
+        && totalFromShow !== progressTotal)
+      || (watchedSet.size > 0 && !seriesProgress);
+
+    if (!needsRecompute || recomputeLoading) return;
+
+    const key = `${titleKey}:${progressTotal}:${totalFromShow}:${seriesProgress?.progressNeedsRecompute ? "stale" : "mismatch"}`;
+    if (recomputeKeyRef.current === key) return;
+    recomputeKeyRef.current = key;
+
+    recomputeSeriesProgress({ titleKey }).catch((err) => {
+      console.warn("recomputeSeriesProgress failed:", err?.message || err);
+    });
+  }, [
+    user?.uid,
+    titleKey,
+    showDetails?.numberOfEpisodes,
+    showDetails?.number_of_episodes,
+    seriesProgress?.totalEpisodesCount,
+    seriesProgress?.progressNeedsRecompute,
+    watchedSet.size,
+    recomputeLoading,
+    recomputeSeriesProgress,
+  ]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -252,9 +292,13 @@ const TVShowDetailsPage = () => {
       })).filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
     }
 
-    markEpisodeWatched({ titleKey, seasonNumber: sn, episodeNumber: en, mode: 'backfill_to_episode', episodeCatalog: catalog })
-      .then(() => setToast({ type: 'success', message: `✓ S${sn}E${en} and previous marked as watched` }))
-      .catch(() => setToast({ type: 'error', message: 'Failed to save watched state' }));
+    try {
+      await markEpisodeWatched({ titleKey, seasonNumber: sn, episodeNumber: en, mode: 'backfill_to_episode', episodeCatalog: catalog });
+      setToast({ type: 'success', message: `✓ S${sn}E${en} and previous marked as watched` });
+    } catch (err) {
+      const message = err?.message || 'Failed to save watched state';
+      setToast({ type: 'error', message });
+    }
   }, [user, watchedSet, titleKey, markLocallyWatched, markEpisodeWatched, getAllEpisodes, allSeasonsData, fetchAllSeasonDetails, isWatched, isWatchlisted, mediaItemForLists]);
 
   // --- Unwatch entire series handler ---

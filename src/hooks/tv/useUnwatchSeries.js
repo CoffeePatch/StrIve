@@ -1,8 +1,7 @@
 import { useCallback, useState } from "react";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "../../util/firebase/firebase";
+import { auth } from "../../util/firebase/firebase";
 
-const UNWATCH_SERIES_FN = "unwatchSeries";
+const UNWATCH_SERIES_ENDPOINT = "/api/unwatchSeries";
 
 const toErrorMessage = (error) => {
   if (!error) return "Unknown error";
@@ -23,9 +22,26 @@ export const useUnwatchSeries = () => {
     setError(null);
 
     try {
-      const callable = httpsCallable(functions, UNWATCH_SERIES_FN);
-      const response = await callable({ titleKey });
-      return response?.data || null;
+      const user = auth.currentUser;
+      if (!user) throw new Error("unauthenticated");
+      const token = await user.getIdToken();
+
+      const res = await fetch(UNWATCH_SERIES_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ titleKey })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || \`HTTP \${res.status}\`);
+      }
+
+      const data = await res.json();
+      return data;
     } catch (err) {
       const message = toErrorMessage(err);
       setError(message);

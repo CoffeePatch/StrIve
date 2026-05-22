@@ -6,13 +6,9 @@ import Login from "../auth/Login";
 import TVShows from "../tv/TVShows";
 import MoviesPage from "../movie/Listing/MoviesPage";
 import MovieDetails from "../movie/MovieDetails/MovieDetails";
-import MoviePlayer from "../movie/Player/MoviePlayer";
-import TVShowDetails from "../tv/TVShowDetails";
 import TVShowDetailsPage from "../tv/TVShowDetailsPage";
 import SearchPage from "../pages/SearchPage";
 import ProtectedRoute from "./ProtectedRoute";
-import MyListsPage from "../lists/MyListsPage";
-import ListDetailsPage from "../lists/ListDetailsPage";
 import ImportPage from "../import/ImportPage";
 import ImportReviewPage from "../import/ImportReviewPage";
 import LibraryMasterPage from "../library/LibraryMasterPage";
@@ -89,22 +85,6 @@ const Body = () => {
           ),
         },
         {
-          path: "/my-lists",
-          element: <Navigate to="/library" replace />,
-        },
-        {
-          path: "/my-lists/:listId",
-          element: <Navigate to="/library" replace />,
-        },
-        {
-          path: "/library/lists/:listId",
-          element: (
-            <ProtectedRoute>
-              <ListDetailsPage />
-            </ProtectedRoute>
-          ),
-        },
-        {
           path: "/settings",
           element: (
             <ProtectedRoute>
@@ -142,7 +122,11 @@ const Body = () => {
         },
         {
           path: "/movie/:movieId",
-          element: <MovieDetails />,
+          element: (
+            <ProtectedRoute>
+              <MovieDetails />
+            </ProtectedRoute>
+          ),
         },
 
         {
@@ -150,14 +134,6 @@ const Body = () => {
           element: (
             <ProtectedRoute>
               <TVShowDetailsPage />
-            </ProtectedRoute>
-          ),
-        },
-        {
-          path: "/tv/:tvId/:season/:episode",
-          element: (
-            <ProtectedRoute>
-              <TVShowDetails />
             </ProtectedRoute>
           ),
         },
