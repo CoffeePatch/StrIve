@@ -4,8 +4,8 @@ import {
   setDoc,
   getDocs
 } from 'firebase/firestore';
-import { db } from '../../util/firebase/firebase';
-import { firstNumber, fetchImdbData, getLibraryByListId } from '../../util/firebase/firestoreService';
+import { db } from '../util/firebase/firebase';
+import { firstNumber, fetchImdbData, getLibraryByListId } from '../util/firebase/firestoreService';
 
 // PHASE 2: ENRICHMENT BRIDGE - Refresh Metadata Utilities
 // ============================================================================
@@ -404,4 +404,4 @@ export const getMetadataStatistics = async (userId) => {
     console.error("Error getting metadata statistics:", error);
     throw error;
   }
-};
+};

@@ -107,41 +107,6 @@ Custom list membership is stored on the canonical item document in `tracking.lis
 
 Reads such as [SettingsPage.jsx](../src/components/settings/SettingsPage.jsx) query canonical library status rather than relying on the old collection layout.
 
-## Cleanup Pipeline
-
-The cleanup scripts in [functions/services/databaseCleanup](../functions/services/databaseCleanup) operate on the same canonical `library_items` collection and are meant to correct older malformed documents.
-
-### Phase 1: Analyze
-
-[functions/services/databaseCleanup/analyzeDatabase.ts](../functions/services/databaseCleanup/analyzeDatabase.ts) scans the collection and reports drift such as:
-
-- top-level`imdbRating` /`imdbVotes`
-- missing`releaseDate`
-- missing or malformed TV progress
-- unexpected`tvProgress.lastWatchedAt`
-
-### Phase 2: Enrich Release Dates
-
-[functions/services/databaseCleanup/enrichReleaseDates.ts](../functions/services/databaseCleanup/enrichReleaseDates.ts) fetches `releaseDate` from TMDB when it is missing.
-
-It also removes `releaseYear` when a valid `releaseDate` exists.
-
-### Phase 3: Consolidate Redundant Fields
-
-[functions/services/databaseCleanup/consolidateRedundantFields.ts](../functions/services/databaseCleanup/consolidateRedundantFields.ts) removes:
-
-- top-level`imdbRating`
-- top-level`imdbVotes`
-- `releaseYear` once`releaseDate` is present
-
-### Phase 4: Normalize Tracking
-
-[functions/services/databaseCleanup/normalizeTracking.ts](../functions/services/databaseCleanup/normalizeTracking.ts) ensures the `tracking` map exists and fills in missing values such as `updatedAt` and `lastWatchedAt`.
-
-### Phase 5: Validate TV Progress
-
-[functions/services/databaseCleanup/validateTvProgress.ts](../functions/services/databaseCleanup/validateTvProgress.ts) creates or repairs `tvProgress`, including the structured `nextToWatch` map.
-
 ## What Is Saved, And What Is Not
 
 ### Saved
@@ -180,8 +145,3 @@ The current architecture is:
 - [src/components/movie/Player/MoviePlayer.jsx](../src/components/movie/Player/MoviePlayer.jsx)
 - [src/components/tv/TVShowDetails.jsx](../src/components/tv/TVShowDetails.jsx)
 - [src/components/tv/TVShowPlayer.jsx](../src/components/tv/TVShowPlayer.jsx)
-- [functions/services/databaseCleanup/analyzeDatabase.ts](../functions/services/databaseCleanup/analyzeDatabase.ts)
-- [functions/services/databaseCleanup/enrichReleaseDates.ts](../functions/services/databaseCleanup/enrichReleaseDates.ts)
-- [functions/services/databaseCleanup/consolidateRedundantFields.ts](../functions/services/databaseCleanup/consolidateRedundantFields.ts)
-- [functions/services/databaseCleanup/normalizeTracking.ts](../functions/services/databaseCleanup/normalizeTracking.ts)
-- [functions/services/databaseCleanup/validateTvProgress.ts](../functions/services/databaseCleanup/validateTvProgress.ts)

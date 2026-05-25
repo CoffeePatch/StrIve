@@ -44,25 +44,26 @@ export default async function handler(req, res) {
           const item = doc.data();
           if (item.enrichmentStatus === "enriched") return;
 
+          const mediaType = item.mediaType === "tv" || item.media_type === "tv" ? "tv" : "movie";
+
           const updates = {};
           let hasTmdbData = false;
           let hasImdbData = false;
 
-          if (item.tmdbId) {
+          if (item.tmdbId || item.id) {
             try {
-              const mediaType = item.media_type === "tv" ? "tv" : "movie";
               const tmdbData = await fetchTmdbDetails(
                 mediaType,
-                item.tmdbId,
+                item.tmdbId || item.id,
                 tmdbToken,
               );
 
               if (tmdbData) {
                 hasTmdbData = true;
-                updates.tmdb_rating = tmdbData.vote_average || null;
-                updates.tmdb_vote_count = tmdbData.vote_count || null;
-                updates.overview = tmdbData.overview || null;
-                updates.backdrop_path = tmdbData.backdrop_path || null;
+                updates["ratings.tmdbScore"] = typeof tmdbData.vote_average === "number" ? tmdbData.vote_average : null;
+                updates["ratings.tmdbVotes"] = typeof tmdbData.vote_count === "number" ? tmdbData.vote_count : null;
+                updates["images.tmdbPoster"] = tmdbData.poster_path || item?.images?.tmdbPoster || null;
+                updates.releaseDate = tmdbData.release_date || tmdbData.first_air_date || item.releaseDate || null;
               }
             } catch (error) {
               console.error(`TMDB fetch failed for ${item.title}:`, error);
@@ -74,8 +75,8 @@ export default async function handler(req, res) {
               const imdbData = await fetchImdbRatings(item.imdbId);
               if (imdbData?.rating) {
                 hasImdbData = true;
-                updates.imdb_rating = imdbData.rating;
-                updates.imdb_vote_count = imdbData.votes || null;
+                updates["ratings.imdbScore"] = imdbData.rating;
+                updates["ratings.imdbVotes"] = imdbData.votes || null;
               }
             } catch (error) {
               console.error(`IMDb fetch failed for ${item.title}:`, error);
@@ -83,11 +84,8 @@ export default async function handler(req, res) {
           }
 
           if (hasTmdbData || hasImdbData) {
-            updates.vote_average =
-              updates.imdb_rating || updates.tmdb_rating || null;
-            updates.vote_count =
-              updates.imdb_vote_count || updates.tmdb_vote_count || null;
             updates.enrichmentStatus = "enriched";
+            updates["tracking.updatedAt"] = admin.firestore.FieldValue.serverTimestamp();
             updates.lastEnriched = admin.firestore.FieldValue.serverTimestamp();
 
             await doc.ref.update(updates);

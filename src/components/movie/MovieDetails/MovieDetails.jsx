@@ -7,7 +7,6 @@ import Header from "../../layout/Header";
 import useRequireAuth from "../../../hooks/common/useRequireAuth";
 import useImdbTitle from "../../../hooks/media/useImdbTitle";
 import useLibraryItemStatus from "../../../hooks/media/useLibraryItemStatus";
-import MoviePlayer from "../../movie/Player/MoviePlayer";
 import AddToListPopover from "../../lists/AddToListPopover";
 import CreateListModal from "../../lists/CreateListModal";
 import { Star } from "lucide-react";
@@ -24,7 +23,6 @@ const MovieDetails = () => {
   const { movieId, imdbId } = useParams();
   const [movieDetails, setMovieDetails] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showPlayer, setShowPlayer] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
@@ -98,7 +96,7 @@ const MovieDetails = () => {
       navigate("/login");
       return;
     }
-    setShowPlayer(true);
+    alert("Playback is not available in the current app. This version focuses on tracking and library management.");
   };
 
   const handleCreateNew = () => {
@@ -503,13 +501,6 @@ const MovieDetails = () => {
           )}
         </div>
       </div>
-
-      {showPlayer && (
-        <MoviePlayer
-          movieId={movieId}
-          onClose={() => setShowPlayer(false)}
-        />
-      )}
 
       <CreateListModal
         isOpen={showCreateModal}

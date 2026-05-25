@@ -7,10 +7,6 @@ import {
   getMetadataStatistics,
   getLibraryByStatus,
 } from "../../util/firebase/firestoreService";
-import {
-  migrateUserData,
-  checkMigrationNeeded,
-} from "../../util/firebase/migrationService";
 import { downloadTemplateCsv } from "../../util/export/csvTemplate";
 import Header from "../layout/Header";
 import LibraryHealthPanel from "../library/LibraryHealthPanel";
@@ -24,8 +20,6 @@ const SettingsPage = () => {
   const [metadata, setMetadata] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
-  const [migrationStatus, setMigrationStatus] = useState(null);
-  const [isMigrating, setIsMigrating] = useState(false);
   const [exportingFormat, setExportingFormat] = useState(null);
 
   const messageUi = useMemo(() => {
@@ -58,26 +52,14 @@ const SettingsPage = () => {
       },
     };
 
-    const v = variants[message.type] || variants.info;
-    return v;
+    return variants[message.type] || variants.info;
   }, [message]);
 
-  // Load metadata statistics on mount
   useEffect(() => {
     if (user?.uid) {
       loadMetadataStats();
-      checkMigration();
     }
   }, [user?.uid]);
-
-  const checkMigration = async () => {
-    try {
-      const status = await checkMigrationNeeded(user.uid);
-      setMigrationStatus(status);
-    } catch (error) {
-      console.error("Error checking migration status:", error);
-    }
-  };
 
   const loadMetadataStats = async () => {
     try {
@@ -111,7 +93,6 @@ const SettingsPage = () => {
         },
       });
 
-      // Reload statistics after refresh
       await loadMetadataStats();
 
       setMessage({
@@ -140,13 +121,12 @@ const SettingsPage = () => {
 
       const summary = await refreshLibraryMetadata(user.uid, {
         batchSize: 100,
-        forceRefresh: true, // Force refresh ALL items
+        forceRefresh: true,
         onProgress: (progress) => {
           setRefreshProgress(progress);
         },
       });
 
-      // Reload statistics after refresh
       await loadMetadataStats();
 
       setMessage({
@@ -172,7 +152,6 @@ const SettingsPage = () => {
       setExportingFormat("json");
       setMessage(null);
 
-      // Fetch all items from library
       const [watchlist, watched] = await Promise.all([
         getLibraryByStatus(user.uid, "plan_to_watch", {
           hydrate: false,
@@ -182,7 +161,6 @@ const SettingsPage = () => {
         }),
       ]);
 
-      // Combine into export format
       const exportData = {
         exportDate: new Date().toISOString(),
         userId: user.uid,
@@ -223,12 +201,10 @@ const SettingsPage = () => {
         },
       };
 
-      // Create JSON blob
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: "application/json" });
       const url = URL.createObjectURL(blob);
 
-      // Trigger download
       const link = document.createElement("a");
       link.href = url;
       link.download = `movie-tracker-export-${new Date().toISOString().split("T")[0]}.json`;
@@ -294,10 +270,10 @@ const SettingsPage = () => {
       setMessage(null);
 
       const [watchlist, watched] = await Promise.all([
-        getLibraryByStatus(user.uid, "Plan to Watch", {
+        getLibraryByStatus(user.uid, "plan_to_watch", {
           hydrate: false,
         }),
-        getLibraryByStatus(user.uid, "Completed", {
+        getLibraryByStatus(user.uid, "completed", {
           hydrate: false,
         }),
       ]);
@@ -307,8 +283,8 @@ const SettingsPage = () => {
           status: "Plan to Watch",
           title: item.title || item.name || "",
           mediaType: item.media_type || item.mediaType || "movie",
-          year: extractYear(item.release_date || item.first_air_date),
-          tmdbId: item.id || "",
+          year: extractYear(item.release_date || item.first_air_date || item.releaseDate),
+          tmdbId: item.id || item.tmdbId || "",
           imdbId: item.imdbId || "",
           tmdbRating: formatNumber(item.vote_average, 1),
           tmdbVotes: formatInt(item.vote_count),
@@ -324,8 +300,8 @@ const SettingsPage = () => {
           status: "Completed",
           title: item.title || item.name || "",
           mediaType: item.media_type || item.mediaType || "movie",
-          year: extractYear(item.release_date || item.first_air_date),
-          tmdbId: item.id || "",
+          year: extractYear(item.release_date || item.first_air_date || item.releaseDate),
+          tmdbId: item.id || item.tmdbId || "",
           imdbId: item.imdbId || "",
           tmdbRating: formatNumber(item.vote_average, 1),
           tmdbVotes: formatInt(item.vote_count),
@@ -365,9 +341,7 @@ const SettingsPage = () => {
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `movie-tracker-export-${new Date()
-        .toISOString()
-        .split("T")[0]}.csv`;
+      link.download = `movie-tracker-export-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -388,52 +362,6 @@ const SettingsPage = () => {
     }
   };
 
-  const handleMigrateData = async () => {
-    if (!user?.uid) return;
-
-    const pendingCount = migrationStatus?.totalToBeMigrated || 0;
-    const confirmMessage = pendingCount > 0
-      ? `Migrate ${pendingCount} items to the unified library format?\n\nThis includes watchlist, watched, and custom list entries.`
-      : `No pending migration was detected.\n\nRun reconciliation anyway to ensure custom lists and library items are fully synchronized?`;
-
-    if (
-      !window.confirm(confirmMessage)
-    ) {
-      return;
-    }
-
-    try {
-      setIsMigrating(true);
-      setMessage(null);
-
-      const summary = await migrateUserData(user.uid);
-
-      // Reload library data after migration
-      await loadMetadataStats();
-      await checkMigration();
-
-      if (summary.errors.length === 0) {
-        setMessage({
-          type: "success",
-          text: `✅ Migration complete! Moved ${summary.watchlistMigrated} watchlist + ${summary.watchedMigrated} watched + ${summary.customListItemsMigrated} custom-list items into unified library in ${(summary.durationMs / 1000).toFixed(1)}s.`,
-        });
-      } else {
-        setMessage({
-          type: "warning",
-          text: `⚠️ Migration completed with errors. Check console for details. Migrated ${summary.libraryItemsTouched} items.`,
-        });
-      }
-    } catch (error) {
-      console.error("Error migrating data:", error);
-      setMessage({
-        type: "error",
-        text: `Failed to migrate data: ${error.message}`,
-      });
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   return (
     <div className="min-h-screen premium-page flex flex-col">
       <Header />
@@ -451,7 +379,7 @@ const SettingsPage = () => {
                 </h1>
               </div>
               <p className="text-white/60 font-secondary text-lg">
-                Manage metadata, imports/exports, and migration tools
+                Manage metadata, imports/exports, and library maintenance
               </p>
             </div>
           </div>
@@ -470,8 +398,29 @@ const SettingsPage = () => {
             </div>
           )}
 
+          {refreshProgress && isRefreshing && (
+            <div className="mt-6 glass-effect rounded-2xl p-4 border border-white/10">
+              <div className="flex items-center justify-between text-sm text-white/70 mb-2">
+                <span>Refreshing metadata...</span>
+                <span>
+                  {refreshProgress.current || 0}/{refreshProgress.total || 0}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all"
+                  style={{
+                    width:
+                      refreshProgress.total > 0
+                        ? `${Math.round((refreshProgress.current / refreshProgress.total) * 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="mt-8 space-y-6 max-w-6xl mx-auto">
-            {/* Library Metadata */}
             <section className="glass-effect rounded-2xl p-8">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -482,7 +431,7 @@ const SettingsPage = () => {
                     Library Metadata
                   </h2>
                   <p className="text-white/60 text-sm font-secondary mt-1">
-                    Stats + maintenance tools for ratings and vote counts.
+                    Stats and maintenance tools for ratings and vote counts.
                   </p>
                 </div>
 
@@ -500,94 +449,29 @@ const SettingsPage = () => {
               {loading ? (
                 <div className="text-white/60 text-sm font-secondary mt-6 flex items-center gap-3">
                   <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
-                  Loading metadata statistics...
                 </div>
               ) : metadata ? (
-                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div
-                    className="rounded-xl p-4 border"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">Total Items</p>
-                    <p className="text-2xl font-bold text-white mt-1">{metadata.totalItems}</p>
-                  </div>
-                  <div
-                    className="rounded-xl p-4 border"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">Items with IMDb Data</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">
-                      {metadata.itemsWithMetadata}
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
+                    <p className="text-white/60 text-xs font-secondary">Library items</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                      {metadata.libraryItems || 0}
                     </p>
                   </div>
-                  <div
-                    className="rounded-xl p-4 border"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">Items Missing Data</p>
-                    <p className="text-2xl font-bold text-amber-400 mt-1">
-                      {metadata.itemsWithoutMetadata}
+                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
+                    <p className="text-white/60 text-xs font-secondary">Watchlist</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                      {metadata.watchlist || 0}
                     </p>
                   </div>
-                  <div
-                    className="rounded-xl p-4 border"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">Data Completeness</p>
-                    <p className="text-2xl font-bold text-sky-400 mt-1">{metadata.completeness}</p>
-                  </div>
-                  <div
-                    className="rounded-xl p-4 border sm:col-span-2 lg:col-span-1"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">Average IMDb Rating</p>
-                    <p
-                      className="text-2xl font-bold mt-1"
-                      style={{ color: "var(--color-accent-secondary)" }}
-                    >
-                      {metadata.averageImdbRating}
+                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
+                    <p className="text-white/60 text-xs font-secondary">Completed</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                      {metadata.completed || 0}
                     </p>
                   </div>
                 </div>
               ) : null}
-
-              {isRefreshing && refreshProgress && (
-                <div
-                  className="mt-6 rounded-xl p-4 border"
-                  style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-white/70">
-                    <div>
-                      Refreshing: {refreshProgress.current}/{refreshProgress.total}
-                    </div>
-                    {refreshProgress.itemTitle && (
-                      <div className="text-white/60 italic truncate">
-                        {refreshProgress.itemTitle}
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-3 h-2 w-full rounded-full overflow-hidden bg-white/10">
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${
-                          refreshProgress.total > 0
-                            ? Math.min(
-                                100,
-                                Math.round(
-                                  (refreshProgress.current / refreshProgress.total) * 100
-                                )
-                              )
-                            : 0
-                        }%`,
-                        background:
-                          "linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-secondary))",
-                        transition: "width var(--transition-base)",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
@@ -630,111 +514,13 @@ const SettingsPage = () => {
 
               <p className="text-white/60 text-sm leading-relaxed mt-5">
                 <span className="text-white/80 font-semibold">Refresh Missing Metadata:</span>{" "}
-                Updates items that don’t have IMDb ratings/votes (or TMDB vote counts) across your Library and
-                Custom Lists.
+                Updates items that do not have IMDb ratings, votes, or TMDB vote counts across your library.
                 <br />
                 <span className="text-white/80 font-semibold">Force Refresh All:</span>{" "}
-                Re-fetches IMDb data for your entire library and custom list records (useful for stale ratings or
-                repairs).
+                Re-fetches IMDb data for your entire library and can be used for stale ratings or repairs.
               </p>
             </section>
 
-            {/* Data Migration */}
-            <section
-              className={`glass-effect rounded-2xl p-8 border ${
-                migrationStatus?.needed ? "border-red-500/30" : "border-white/10"
-              }`}
-            >
-              <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
-                <span className="material-symbols-outlined text-3xl text-white/80">
-                  move_up
-                </span>
-                {migrationStatus?.needed
-                  ? "Data Migration Required"
-                  : "Data Migration & Reconciliation"}
-              </h2>
-
-              {migrationStatus?.error ? (
-                <p className="text-red-400 text-sm font-secondary mt-3">
-                  Migration scan failed: {migrationStatus.error}
-                </p>
-              ) : migrationStatus?.needed ? (
-                <p className="text-white/70 text-sm font-secondary mt-3">
-                  We detected library entries that still need migration into the unified format.
-                </p>
-              ) : (
-                <p className="text-white/70 text-sm font-secondary mt-3">
-                  No pending migration detected. You can still run reconciliation to ensure custom list items are
-                  linked to unified library records.
-                </p>
-              )}
-
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                  {
-                    label: "Watchlist to migrate",
-                    value: migrationStatus?.watchlistCount || 0,
-                  },
-                  {
-                    label: "Watched to migrate",
-                    value: migrationStatus?.watchedCount || 0,
-                  },
-                  {
-                    label: "Custom list items",
-                    value: migrationStatus?.customListItemsNeedingMigration || 0,
-                  },
-                  {
-                    label: "Total pending",
-                    value: migrationStatus?.totalToBeMigrated || 0,
-                  },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="rounded-xl p-4 border"
-                    style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
-                  >
-                    <p className="text-white/60 text-xs font-secondary">{s.label}</p>
-                    <p
-                      className="text-2xl font-bold mt-1"
-                      style={{ color: "var(--color-accent-secondary)" }}
-                    >
-                      {s.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <p className="text-white/60 text-sm leading-relaxed mt-5">
-                This operation is idempotent and safe to re-run. It merges legacy watchlist/watched/custom-list
-                records into unified library items and preserves existing metadata.
-              </p>
-
-              <div className="mt-6">
-                <button
-                  className={`${
-                    migrationStatus?.needed ? "btn-primary" : "btn-secondary"
-                  } flex items-center gap-2`}
-                  onClick={handleMigrateData}
-                  disabled={isMigrating || !user?.uid}
-                >
-                  {isMigrating ? (
-                    <>
-                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
-                      <span>Migrating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined">sync_alt</span>
-                      <span>
-                        {migrationStatus?.needed ? "Migrate Data Now" : "Run Reconciliation"}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </section>
-
-            {/* Import & Export */}
             <section className="glass-effect rounded-2xl p-8">
               <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
                 <span className="material-symbols-outlined text-3xl text-white/80">
@@ -842,10 +628,8 @@ const SettingsPage = () => {
               </div>
             </section>
 
-            {/* Dev Diagnostics */}
             {isDev && <LibraryHealthPanel userId={user?.uid} />}
 
-            {/* About */}
             <section className="glass-effect rounded-2xl p-8">
               <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
                 <span className="material-symbols-outlined text-3xl text-white/80">

@@ -10,9 +10,38 @@ export class HttpRequestError extends Error {
   }
 }
 
+function normalizeListId(listId) {
+  return listId === "watchlist" ? "watchlist" : String(listId || "").trim();
+}
+
+function getUserListRef(uid, listId) {
+  return db.collection("users").doc(uid).collection("lists").doc(listId);
+}
+
+function getLibraryItemsRef(uid) {
+  return db.collection("users").doc(uid).collection("library_items");
+}
+
+function createListItemsAccessor(uid, listId) {
+  const normalizedListId = normalizeListId(listId);
+  const collectionRef = getLibraryItemsRef(uid);
+  const queryRef = collectionRef.where(
+    "tracking.listIds",
+    "array-contains",
+    normalizedListId,
+  );
+
+  return {
+    collectionRef,
+    queryRef,
+    listId: normalizedListId,
+    get: () => queryRef.get(),
+    doc: (docId) => collectionRef.doc(String(docId)),
+  };
+}
+
 export async function resolveAuthorizedCustomList(uid, listId) {
-  const userRef = db.collection("users").doc(uid);
-  let listRef = userRef.collection("custom_lists").doc(listId);
+  const listRef = getUserListRef(uid, listId);
 
   const listDoc = await listRef.get();
   if (!listDoc.exists) {
@@ -31,34 +60,21 @@ export async function resolveAuthorizedCustomList(uid, listId) {
 }
 
 export async function resolveListExportContext(uid, listId) {
-  if (listId === "watchlist") {
-    const itemsCollectionRef = db
-      .collection("users")
-      .doc(uid)
-      .collection("watchlist")
-      .doc("metadata")
-      .collection("items");
-    // Actually, watchlist items are just at `users/{uid}/watchlist/items` maybe?
-    // Let's assume users/{uid}/watchlist/items but wait, `common.ts` says `resolveCollectionRef(userRef, 'watchlist')`.
-    // Let's use the explicit db.collection('users').doc(uid).collection('watchlist') as itemsCollectionRef?
-    // In `common.ts`: resolveCollectionRef(userRef, 'watchlist') returns `users/{uid}/watchlist` collection.
-    // Wait, the items are the documents inside `users/{uid}/watchlist`. Let's assume that.
+  const normalizedListId = normalizeListId(listId);
+  if (normalizedListId === "watchlist") {
     return {
-      itemsCollectionRef: db
-        .collection("users")
-        .doc(uid)
-        .collection("watchlist"),
+      itemsCollectionRef: createListItemsAccessor(uid, normalizedListId),
       listName: "Watchlist",
     };
   }
 
-  const { listRef, listData } = await resolveAuthorizedCustomList(uid, listId);
-  const itemsCollectionRef = listRef.collection("items");
+  const { listData } = await resolveAuthorizedCustomList(uid, normalizedListId);
+  const itemsCollectionRef = createListItemsAccessor(uid, normalizedListId);
 
   const listName =
     typeof listData.name === "string" && listData.name.trim()
       ? listData.name.trim()
-      : listId;
+      : normalizedListId;
   return {
     itemsCollectionRef,
     listName,
@@ -66,12 +82,12 @@ export async function resolveListExportContext(uid, listId) {
 }
 
 export async function resolveListItemsCollection(uid, listId) {
-  if (listId === "watchlist") {
-    return db.collection("users").doc(uid).collection("watchlist");
+  const normalizedListId = normalizeListId(listId);
+  if (normalizedListId !== "watchlist") {
+    await resolveAuthorizedCustomList(uid, normalizedListId);
   }
 
-  const { listRef } = await resolveAuthorizedCustomList(uid, listId);
-  return listRef.collection("items");
+  return createListItemsAccessor(uid, normalizedListId);
 }
 
 export async function fetchTmdbExternalIds(mediaType, tmdbId, tmdbToken) {
@@ -150,9 +166,9 @@ export async function fetchImdbRatings(imdbId) {
 }
 
 function deriveMediaType(item) {
-  if (item?.media_type === "tv") return "tv";
-  if (item?.media_type === "movie") return "movie";
-  if (item?.first_air_date) return "tv";
+  if (item?.mediaType === "tv" || item?.media_type === "tv") return "tv";
+  if (item?.mediaType === "movie" || item?.media_type === "movie") return "movie";
+  if (item?.first_air_date || item?.firstAirDate) return "tv";
   return "movie";
 }
 
@@ -165,15 +181,15 @@ function deriveName(item, mediaType) {
 function deriveYear(item, mediaType) {
   const dateStr =
     mediaType === "movie"
-      ? item?.release_date || item?.first_air_date
-      : item?.first_air_date || item?.release_date;
+      ? item?.releaseDate || item?.release_date || item?.first_air_date
+      : item?.first_air_date || item?.releaseDate || item?.release_date;
   if (!dateStr) return "";
-  const d = new Date(dateStr);
+  const d = new Date(dateStr?.toDate ? dateStr.toDate() : dateStr);
   return isNaN(d.getTime()) ? "" : String(d.getUTCFullYear());
 }
 
 export async function enrichItem(item, tmdbToken) {
-  const tmdbId = item?.id ?? item?.tmdbId ?? item?.tmdb_id;
+  const tmdbId = item?.tmdbId ?? item?.id ?? item?.tmdb_id;
   const mediaType = deriveMediaType(item);
   const name = deriveName(item, mediaType);
   const year = deriveYear(item, mediaType);

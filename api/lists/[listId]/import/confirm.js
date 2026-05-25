@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
     const existingSnapshot = await itemsCollectionRef.get();
     const existing = new Set(
-      existingSnapshot.docs.map((d) => String((d.data() || {}).id)),
+      existingSnapshot.docs.map((d) => String((d.data() || {}).tmdbId ?? (d.data() || {}).id)),
     );
     const tmdbToken = process.env.TMDB_READ_ACCESS_TOKEN;
 
@@ -84,17 +84,39 @@ export default async function handler(req, res) {
       const det = await fetchDetailsTryBoth(id);
       if (!det.ok || !det.data?.id) continue;
 
+      const titleKey = `tmdb_${det.media_type}_${det.data.id}`;
+      const docRef = itemsCollectionRef.doc(titleKey);
+      const currentSnap = await docRef.get();
+      const currentData = currentSnap.exists ? currentSnap.data() || {} : {};
+      const existingListIds = Array.isArray(currentData?.tracking?.listIds)
+        ? currentData.tracking.listIds
+        : [];
+      const releaseDate = det.data.release_date || det.data.first_air_date || null;
+
       const payload = {
-        id: det.data.id,
-        title: det.data.title || det.data.name,
-        poster_path: det.data.poster_path,
-        release_date: det.data.release_date || det.data.first_air_date,
-        vote_average: det.data.vote_average,
-        media_type: det.media_type,
-        dateAdded: admin.firestore.FieldValue.serverTimestamp(),
+        titleKey,
+        mediaType: det.media_type,
+        tmdbId: det.data.id,
+        title: det.data.title || det.data.name || "",
+        images: {
+          tmdbPoster: det.data.poster_path || null,
+          imdbPoster: null,
+        },
+        releaseDate,
+        ratings: {
+          tmdbScore: typeof det.data.vote_average === "number" ? det.data.vote_average : null,
+          tmdbVotes: typeof det.data.vote_count === "number" ? det.data.vote_count : null,
+          imdbScore: null,
+          imdbVotes: null,
+        },
+        tracking: {
+          listIds: Array.from(new Set([...existingListIds, listId])),
+          addedAt: currentData?.tracking?.addedAt || admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastWatchedAt: currentData?.tracking?.lastWatchedAt || null,
+        },
       };
 
-      const docRef = itemsCollectionRef.doc(String(det.data.id));
       batch.set(docRef, payload, { merge: true });
       moviesAdded++;
     }

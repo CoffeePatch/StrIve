@@ -114,11 +114,28 @@ export default async function handler(req, res) {
         const existingSnapshot = await itemsCollectionRef.get();
         const existingById = new Map();
         const existingByNameYear = new Set();
+
+        const toYear = (value) => {
+          if (!value) return "";
+          const normalized = typeof value?.toDate === "function" ? value.toDate() : value;
+          return String(normalized).slice(0, 4);
+        };
+
+        const toPreviewMovie = (data) => ({
+          id: data?.tmdbId ?? data?.id ?? "",
+          title: data?.title || data?.name || "",
+          release_date: data?.releaseDate || data?.release_date || "",
+          first_air_date: data?.releaseDate || data?.first_air_date || "",
+          media_type: data?.mediaType || data?.media_type || "movie",
+          poster_path: data?.images?.tmdbPoster || data?.poster_path || "",
+        });
+
         existingSnapshot.docs.forEach((d) => {
           const it = d.data();
-          if (it?.id) existingById.set(String(it.id), it);
+          const tmdbId = String(it?.tmdbId ?? it?.id ?? "").trim();
+          if (tmdbId) existingById.set(tmdbId, it);
           const n = (it?.title || it?.name || "").trim();
-          const y = (it?.release_date || it?.first_air_date || "").slice(0, 4);
+          const y = toYear(it?.releaseDate || it?.release_date || it?.first_air_date || "");
           if (n && y) existingByNameYear.add(`${n}::${y}`);
         });
 
@@ -198,14 +215,7 @@ export default async function handler(req, res) {
               if (tmdbIdRaw && existingById.has(tmdbIdRaw)) {
                 const it = existingById.get(tmdbIdRaw);
                 result.duplicates.push({
-                  movie: {
-                    id: it.id,
-                    title: it.title || it.name,
-                    release_date: it.release_date,
-                    first_air_date: it.first_air_date,
-                    media_type: it.media_type,
-                    poster_path: it.poster_path,
-                  },
+                  movie: toPreviewMovie(it),
                   originalRow: row,
                 });
                 return;
@@ -220,18 +230,11 @@ export default async function handler(req, res) {
                 const it = [...existingById.values()].find(
                   (v) =>
                     (v.title || v.name) === name &&
-                    (v.release_date || v.first_air_date || "").startsWith(year),
+                    toYear(v.releaseDate || v.release_date || v.first_air_date || "") === year,
                 );
                 if (it) {
                   result.duplicates.push({
-                    movie: {
-                      id: it.id,
-                      title: it.title || it.name,
-                      release_date: it.release_date,
-                      first_air_date: it.first_air_date,
-                      media_type: it.media_type,
-                      poster_path: it.poster_path,
-                    },
+                    movie: toPreviewMovie(it),
                     originalRow: row,
                   });
                   return;

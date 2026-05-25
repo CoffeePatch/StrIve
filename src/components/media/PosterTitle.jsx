@@ -1,15 +1,13 @@
 // src/components/PosterTitle.jsx - UPDATED
-import React, { useState } from "react";
+import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { upsertLibraryItem } from "../../util/firebase/firestoreService";
-import MoviePlayer from "../movie/Player/MoviePlayer";
 import { Play, Plus } from "lucide-react";
 
 const PosterTitle = ({ movie }) => {
   const user = useSelector((store) => store.user.user);
   const { id, original_title, overview, poster_path } = movie;
-  const [showPlayer, setShowPlayer] = useState(false);
   const navigate = useNavigate();
 
   const handleAddToWatchlist = async () => {
@@ -46,8 +44,7 @@ const PosterTitle = ({ movie }) => {
       alert("Please log in to watch movies.");
       return;
     }
-    console.log(`Starting playback: ${original_title} (TMDB ID: ${id})`);
-    setShowPlayer(true);
+    alert("Playback is not available in the current app. This version focuses on tracking and library management.");
   };
 
   return (
@@ -86,10 +83,6 @@ const PosterTitle = ({ movie }) => {
         </div>
       </div>
 
-      {/* Movie Player Modal */}
-      {showPlayer && (
-        <MoviePlayer movie={movie} onClose={() => setShowPlayer(false)} />
-      )}
     </>
   );
 };

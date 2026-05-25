@@ -1,6 +1,6 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../util/firebase/firebase';
-import { firstNumber } from '../../util/firebase/firestoreService';
+import { db } from '../util/firebase/firebase';
+import { firstNumber } from '../util/firebase/firestoreService';
 
 export const normalizeLibraryItem = (docId, data = {}) => {
   const titleKey = data.titleKey || docId;
@@ -171,4 +171,4 @@ export const hydrateItemsFromTmdb = async (items) => {
       isFallbackTitle: false,
     };
   });
-};
+};

@@ -15,8 +15,8 @@ import {
   Timestamp,
   arrayRemove
 } from 'firebase/firestore';
-import { db } from '../../util/firebase/firebase';
-import { setLibraryItemListIds, getLibraryItemListIds } from '../../util/firebase/firestoreService';
+import { db } from '../util/firebase/firebase';
+import { setLibraryItemListIds, getLibraryItemListIds } from '../util/firebase/firestoreService';
 
 /**
  * Creates a new custom list for a user in Firestore.
@@ -388,4 +388,4 @@ export const getPendingItemsInList = async (userId, listId, limitCount = 5) => {
     console.error("Error fetching items in list:", error);
     return [];
   }
-};
+};

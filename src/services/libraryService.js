@@ -7,8 +7,8 @@ import {
   deleteField,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '../../util/firebase/firebase';
-import { firstNumber, fetchImdbData } from '../../util/firebase/firestoreService';
+import { db } from '../util/firebase/firebase';
+import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
 import { hydrateItemsFromCatalog, hydrateItemsFromTmdb, normalizeLibraryItem } from './tmdbHydrationService';
 
 const normalizeGenres = (genres) => {
