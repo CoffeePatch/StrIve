@@ -30,6 +30,7 @@ import AddToListPopover from "../lists/AddToListPopover";
 import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
+const SYNCING_TIMEOUT_MS = 12000;
 
 const formatCount = (num) => {
   if (num === null || num === undefined) return null;
@@ -65,6 +66,9 @@ const TVShowDetailsPage = () => {
   const [isWatched, setIsWatched] = useState(false);
   const [showUnwatchModal, setShowUnwatchModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showWatchChoiceModal, setShowWatchChoiceModal] = useState(false);
+  const [watchChoiceEpisode, setWatchChoiceEpisode] = useState(null);
+  const [pendingProgress, setPendingProgress] = useState(null);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
     tvId,
@@ -73,7 +77,7 @@ const TVShowDetailsPage = () => {
 
   // Episode tracking hooks
   const titleKey = `tmdb_tv_${tvId}`;
-  const { watchedSet, markLocallyWatched, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
+  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
   const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
   const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
@@ -127,6 +131,26 @@ const TVShowDetailsPage = () => {
     recomputeSeriesProgress,
   ]);
 
+  useEffect(() => {
+    if (!pendingProgress || !seriesProgress) return;
+    const serverWatched = Number(seriesProgress.watchedEpisodesCount ?? 0);
+    if (serverWatched >= pendingProgress.watchedCount) {
+      setPendingProgress(null);
+    }
+  }, [pendingProgress, seriesProgress]);
+
+  useEffect(() => {
+    if (!pendingProgress?.isSyncing) return;
+    const timer = setTimeout(() => {
+      setPendingProgress((prev) => {
+        if (!prev || !prev.isSyncing) return prev;
+        return { ...prev, isSyncing: false };
+      });
+    }, SYNCING_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
+  }, [pendingProgress?.isSyncing]);
+
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [tvId]);
@@ -159,9 +183,11 @@ const TVShowDetailsPage = () => {
 
       const seasonsData = await Promise.all(seasonPromises);
       setAllSeasonsData(seasonsData);
+      return seasonsData;
     } catch (error) {
       console.error("Error fetching all seasons data:", error);
       setAllSeasonsData([]);
+      return [];
     } finally {
       setIsLoadingMatrix(false);
     }
@@ -176,6 +202,25 @@ const TVShowDetailsPage = () => {
   const trailer = videos?.find(
     (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
   ) || videos?.find((v) => v.site === "YouTube" && v.type === "Trailer");
+
+  const progressOverride = pendingProgress
+    ? {
+        watchedEpisodesCount: pendingProgress.watchedCount,
+        airedEpisodesCount: pendingProgress.airedCount,
+        completionRatioAired:
+          pendingProgress.airedCount > 0
+            ? pendingProgress.watchedCount / pendingProgress.airedCount
+            : 0,
+        isSyncing: pendingProgress.isSyncing,
+      }
+    : null;
+
+  const watchChoiceSeason = watchChoiceEpisode
+    ? Number(watchChoiceEpisode.seasonNumber ?? watchChoiceEpisode.season_number)
+    : null;
+  const watchChoiceNumber = watchChoiceEpisode
+    ? Number(watchChoiceEpisode.episodeNumber ?? watchChoiceEpisode.episode_number)
+    : null;
 
   const handlePlayNow = () => {
     if (!seasonData?.episodes || seasonData.episodes.length === 0) return;
@@ -237,29 +282,122 @@ const TVShowDetailsPage = () => {
       }
     : null;
 
-  // --- Episode watched toggle handler (inline single-click) ---
-  const handleToggleEpisodeWatched = useCallback(async (episode) => {
-    if (!user) return;
-    const sn = Number(episode.seasonNumber ?? episode.season_number);
-    const en = Number(episode.episodeNumber ?? episode.episode_number);
-    const key = `${sn}:${en}`;
-
-    // If already watched, show unwatch-series confirmation
-    if (watchedSet.has(key)) {
-      setShowUnwatchModal(true);
-      return;
-    }
-
-    // Optimistic UI
-    markLocallyWatched(sn, en);
-
-    // Ensure we have all seasons loaded so we can build a full catalog for backfilling
+  const buildEpisodeCatalog = useCallback(async () => {
     let fullCatalogData = allSeasonsData;
     if (!fullCatalogData || fullCatalogData.length === 0) {
       fullCatalogData = await fetchAllSeasonDetails();
     }
 
-    // If this is the first interaction, ensure the library item is created with metadata
+    if (fullCatalogData && fullCatalogData.length > 0) {
+      return fullCatalogData
+        .flatMap((season) =>
+          season.episodes?.map((ep) => ({
+            ...ep,
+            seasonNumber: season.season_number,
+          })) || []
+        )
+        .map((ep, idx) => ({
+          seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
+          episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
+          absoluteOrder:
+            Number(ep.absoluteOrder) ||
+            (Number(ep.seasonNumber ?? ep.season_number) * 1000 +
+              Number(ep.episodeNumber ?? ep.episode_number)) ||
+            idx + 1,
+          isAired: ep.air_date ? new Date(ep.air_date) <= new Date() : true,
+        }))
+        .filter(
+          (ep) =>
+            Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber)
+        );
+    }
+
+    return getAllEpisodes()
+      .map((ep, idx) => ({
+        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
+        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
+        absoluteOrder:
+          Number(ep.absoluteOrder) ||
+          (Number(ep.seasonNumber ?? ep.season_number) * 1000 +
+            Number(ep.episodeNumber ?? ep.episode_number)) ||
+          idx + 1,
+        isAired: ep.isAired !== false,
+      }))
+      .filter(
+        (ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber)
+      );
+  }, [allSeasonsData, fetchAllSeasonDetails, getAllEpisodes]);
+
+  const selectEpisodesForMode = (catalog, mode, sn, en) => {
+    const target = catalog.find(
+      (ep) => ep.seasonNumber === sn && ep.episodeNumber === en
+    );
+
+    if (!target) {
+      throw new Error(`Episode S${sn}E${en} not found in catalog.`);
+    }
+
+    if (mode === "single") {
+      if (!target.isAired) {
+        throw new Error("Target episode has not aired yet.");
+      }
+      return [target];
+    }
+
+    if (mode === "backfill_to_episode") {
+      return catalog
+        .filter((ep) => ep.isAired && ep.absoluteOrder <= target.absoluteOrder)
+        .sort((a, b) => a.absoluteOrder - b.absoluteOrder);
+    }
+
+    return [target];
+  };
+
+  const applyWatchMode = useCallback(async (episode, mode) => {
+    if (!user) return;
+
+    const sn = Number(episode.seasonNumber ?? episode.season_number);
+    const en = Number(episode.episodeNumber ?? episode.episode_number);
+
+    if (!Number.isInteger(sn) || !Number.isInteger(en)) {
+      setToast({ type: 'error', message: 'Episode metadata is invalid.' });
+      return;
+    }
+
+    const catalog = await buildEpisodeCatalog();
+    if (!catalog.length) {
+      setToast({ type: 'error', message: 'Episode metadata is unavailable.' });
+      return;
+    }
+
+    let selected = [];
+    try {
+      selected = selectEpisodesForMode(catalog, mode, sn, en);
+    } catch (err) {
+      setToast({ type: 'error', message: err?.message || 'Episode selection failed.' });
+      return;
+    }
+
+    const optimisticSet = new Set(watchedSet);
+    selected.forEach((ep) => {
+      optimisticSet.add(`${ep.seasonNumber}:${ep.episodeNumber}`);
+    });
+
+    if (selected.length === 1) {
+      markLocallyWatched(sn, en);
+    } else {
+      markLocallyWatchedBulk(selected);
+    }
+
+    const airedCount = catalog.filter((ep) => ep.isAired).length
+      || Number(seriesProgress?.airedEpisodesCount ?? showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0);
+
+    setPendingProgress({
+      watchedCount: optimisticSet.size,
+      airedCount,
+      isSyncing: true,
+    });
+
     if (!isWatched && !isWatchlisted) {
       try {
         await upsertLibraryItem(user.uid, mediaItemForLists, { status: "watching" });
@@ -269,43 +407,76 @@ const TVShowDetailsPage = () => {
       }
     }
 
-    // Build episode catalog containing all episodes for the callable
-    let catalog = [];
-    if (fullCatalogData && fullCatalogData.length > 0) {
-      catalog = fullCatalogData.flatMap(season => 
-        season.episodes?.map(ep => ({
-          ...ep,
-          seasonNumber: season.season_number,
-        })) || []
-      ).map((ep, idx) => ({
-        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
-        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
-        absoluteOrder: Number(ep.absoluteOrder) || (Number(ep.seasonNumber ?? ep.season_number) * 1000 + Number(ep.episodeNumber ?? ep.episode_number)) || idx + 1,
-        isAired: ep.air_date ? new Date(ep.air_date) <= new Date() : true,
-      })).filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
-    } else {
-      catalog = getAllEpisodes().map((ep, idx) => ({
-        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
-        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
-        absoluteOrder: Number(ep.absoluteOrder) || (Number(ep.seasonNumber ?? ep.season_number) * 1000 + Number(ep.episodeNumber ?? ep.episode_number)) || idx + 1,
-        isAired: ep.isAired !== false,
-      })).filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
-    }
-
     try {
-      await markEpisodeWatched({ titleKey, seasonNumber: sn, episodeNumber: en, mode: 'backfill_to_episode', episodeCatalog: catalog });
-      setToast({ type: 'success', message: `✓ S${sn}E${en} and previous marked as watched` });
+      await markEpisodeWatched({
+        titleKey,
+        seasonNumber: sn,
+        episodeNumber: en,
+        mode,
+        episodeCatalog: catalog,
+      });
+
+      const message = mode === "single"
+        ? `✓ S${sn}E${en} marked as watched`
+        : `✓ S${sn}E${en} and previous marked as watched`;
+      setToast({ type: 'success', message });
+
     } catch (err) {
+      setPendingProgress(null);
       const message = err?.message || 'Failed to save watched state';
       setToast({ type: 'error', message });
     }
-  }, [user, watchedSet, titleKey, markLocallyWatched, markEpisodeWatched, getAllEpisodes, allSeasonsData, fetchAllSeasonDetails, isWatched, isWatchlisted, mediaItemForLists]);
+  }, [
+    user,
+    watchedSet,
+    buildEpisodeCatalog,
+    markLocallyWatched,
+    markLocallyWatchedBulk,
+    seriesProgress?.airedEpisodesCount,
+    showDetails?.numberOfEpisodes,
+    showDetails?.number_of_episodes,
+    isWatched,
+    isWatchlisted,
+    mediaItemForLists,
+    markEpisodeWatched,
+    titleKey,
+  ]);
+
+  const handleConfirmWatchChoice = useCallback((mode) => {
+    if (!watchChoiceEpisode) return;
+    setShowWatchChoiceModal(false);
+    setWatchChoiceEpisode(null);
+    applyWatchMode(watchChoiceEpisode, mode);
+  }, [applyWatchMode, watchChoiceEpisode]);
+
+  // --- Episode watched toggle handler (requires choice) ---
+  const handleToggleEpisodeWatched = useCallback((episode) => {
+    if (!user) return;
+    const sn = Number(episode.seasonNumber ?? episode.season_number);
+    const en = Number(episode.episodeNumber ?? episode.episode_number);
+    const key = `${sn}:${en}`;
+
+    if (!Number.isInteger(sn) || !Number.isInteger(en)) {
+      setToast({ type: 'error', message: 'Episode metadata is invalid.' });
+      return;
+    }
+
+    // If already watched, show unwatch-series confirmation
+    if (watchedSet.has(key)) {
+      setShowUnwatchModal(true);
+      return;
+    }
+
+    setWatchChoiceEpisode(episode);
+    setShowWatchChoiceModal(true);
+  }, [user, watchedSet]);
 
   // --- Unwatch entire series handler ---
   const handleConfirmUnwatch = useCallback(async () => {
     if (!user) return;
     clearAllLocal();
     setShowUnwatchModal(false);
+    setPendingProgress(null);
     try {
       await unwatchSeries({ titleKey });
       setToast({ type: 'success', message: '✓ Series progress reset' });
@@ -727,7 +898,13 @@ const TVShowDetailsPage = () => {
 
               {/* Series Progress Bar */}
               {user && (
-                <SeriesProgressBar userId={user.uid} titleKey={titleKey} realtime={true} className="mb-6" />
+                <SeriesProgressBar
+                  userId={user.uid}
+                  titleKey={titleKey}
+                  realtime={true}
+                  className="mb-6"
+                  override={progressOverride}
+                />
               )}
 
               {viewMode !== 'matrix' && (
@@ -844,6 +1021,49 @@ const TVShowDetailsPage = () => {
         onClose={() => setShowCreateModal(false)}
         userId={user?.uid}
       />
+
+      {/* Watch Choice Modal */}
+      {showWatchChoiceModal && watchChoiceEpisode && (
+        <div className="unwatch-modal-overlay" onClick={() => { setShowWatchChoiceModal(false); setWatchChoiceEpisode(null); }}>
+          <div className="unwatch-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-green-400">done</span>
+              </div>
+              <h3 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                Mark Episode Watched
+              </h3>
+            </div>
+            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              Choose how to mark S{watchChoiceSeason}E{watchChoiceNumber}.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleConfirmWatchChoice('single')}
+                disabled={markWatchedLoading}
+                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              >
+                {markWatchedLoading ? 'Saving...' : 'Only This Episode'}
+              </button>
+              <button
+                onClick={() => handleConfirmWatchChoice('backfill_to_episode')}
+                disabled={markWatchedLoading}
+                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {markWatchedLoading ? 'Saving...' : 'This + All Previous Aired'}
+              </button>
+              <button
+                onClick={() => { setShowWatchChoiceModal(false); setWatchChoiceEpisode(null); }}
+                disabled={markWatchedLoading}
+                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Unwatch Series Confirmation Modal */}
       {showUnwatchModal && (

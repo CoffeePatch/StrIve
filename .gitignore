@@ -32,3 +32,4 @@ serviceAccountKey.json
 functions/serviceAccount.json
 functions/lib/**/*.map
 
+.vercel

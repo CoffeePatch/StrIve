@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
+import { normalizeWatchStatus, toDisplayWatchStatus } from "../../util/library/watchStatus";
 
 /**
  * Hook to fetch and sync library item status (Watchlist, Completed, etc.)
@@ -36,7 +37,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 				(snap) => {
 					if (snap.exists()) {
 						const trackingStatus = readWatchStatus(snap.data());
-						setStatus(trackingStatus);
+						setStatus(toDisplayWatchStatus(trackingStatus));
 					} else {
 						setStatus(null);
 					}
@@ -55,7 +56,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			.then((snap) => {
 				if (snap.exists()) {
 					const trackingStatus = readWatchStatus(snap.data());
-					setStatus(trackingStatus);
+					setStatus(toDisplayWatchStatus(trackingStatus));
 				} else {
 					setStatus(null);
 				}
@@ -67,10 +68,11 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			.finally(() => setLoading(false));
 	}, [userId, mediaItem?.id, mediaItem?.media_type, realtime]);
 
-	const isWatchlisted = status === "Plan to Watch";
-	const isWatching = status === "Watching";
-	const isCompleted = status === "Completed";
-	const isDropped = status === "Dropped";
+	const normalizedStatus = normalizeWatchStatus(status);
+	const isWatchlisted = normalizedStatus === "plan_to_watch";
+	const isWatching = normalizedStatus === "watching";
+	const isCompleted = normalizedStatus === "completed";
+	const isDropped = normalizedStatus === "dropped";
 
 	return {
 		status,

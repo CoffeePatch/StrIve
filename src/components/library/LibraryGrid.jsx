@@ -1,6 +1,7 @@
 import React from 'react';
 import MovieCard from '../movie/Cards/MovieCard';
 import TVShowCard from '../tv/TVShowCard';
+import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
 const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRating, getImdbVotes }) => {
   return (
@@ -52,6 +53,23 @@ const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRa
                     {(item.release_date || item.first_air_date)?.split('-')[0]} •{' '}
                     {item.media_type === 'tv' ? 'Series' : 'Film'}
                   </p>
+                  {item.media_type === 'tv' && (() => {
+                    const nextToWatch = item?.tvProgress?.nextToWatch || null;
+                    const sn = Number(nextToWatch?.seasonNumber);
+                    const en = Number(nextToWatch?.episodeNumber);
+                    const hasNext = Number.isInteger(sn) && Number.isInteger(en);
+                    const status = normalizeWatchStatus(
+                      item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
+                    );
+                    const fallback = !hasNext && (status === 'plan_to_watch' || status === 'watching' || !status);
+                    const label = hasNext ? `S${sn}E${en}` : (fallback ? 'S1E1' : null);
+                    if (!label) return null;
+                    return (
+                      <p className="text-white/60 text-xs mt-2">
+                        Next: {label}
+                      </p>
+                    );
+                  })()}
                   {getImdbRating(item) && (
                     <div className="flex items-center gap-2 mt-3">
                       <span className="material-symbols-outlined text-yellow-400 text-sm">

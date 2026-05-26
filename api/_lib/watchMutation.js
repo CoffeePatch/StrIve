@@ -33,6 +33,7 @@ export async function loadEpisodesForMutation(
   inputEpisodeCatalog = [],
 ) {
   const allEpisodes = [];
+  const episodeKeys = new Set();
 
   // Primary source: global catalog
   try {
@@ -62,6 +63,7 @@ export async function loadEpisodesForMutation(
           absoluteOrder: ao,
           isAired,
         });
+        episodeKeys.add(`${sn}:${en}`);
       }
     }
   } catch (catalogErr) {
@@ -71,8 +73,8 @@ export async function loadEpisodesForMutation(
     );
   }
 
-  // Fallback source: client-provided episode catalog
-  if (allEpisodes.length === 0 && inputEpisodeCatalog.length > 0) {
+  // Fallback/merge source: client-provided episode catalog
+  if (inputEpisodeCatalog.length > 0) {
     for (let i = 0; i < inputEpisodeCatalog.length; i++) {
       const ep = inputEpisodeCatalog[i] || {};
       const sn = Number(ep.seasonNumber);
@@ -88,12 +90,18 @@ export async function loadEpisodesForMutation(
         continue;
       }
 
+      const key = `${sn}:${en}`;
+      if (episodeKeys.has(key)) {
+        continue;
+      }
+
       allEpisodes.push({
         seasonNumber: sn,
         episodeNumber: en,
         absoluteOrder: ao,
         isAired,
       });
+      episodeKeys.add(key);
     }
   }
 

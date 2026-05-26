@@ -10,6 +10,7 @@ import {
 import { db } from '../util/firebase/firebase';
 import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
 import { hydrateItemsFromCatalog, hydrateItemsFromTmdb, normalizeLibraryItem } from './tmdbHydrationService';
+import { normalizeWatchStatus } from '../util/library/watchStatus';
 
 const normalizeGenres = (genres) => {
   if (!Array.isArray(genres)) return [];
@@ -91,6 +92,10 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
     }
   }
 
+  const normalizedStatus = status == null
+    ? undefined
+    : (normalizeWatchStatus(status) ?? status);
+
   const payload = {
     titleKey,
     mediaType,
@@ -121,7 +126,7 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
       tmdbVotes,
     },
     tracking: {
-      watchStatus: status ?? existingData?.tracking?.watchStatus ?? null,
+      watchStatus: normalizedStatus ?? existingData?.tracking?.watchStatus ?? null,
       listIds: mergedListIds,
       addedAt: existingData?.tracking?.addedAt || now,
       updatedAt: now,
@@ -251,7 +256,9 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   if (!userId) throw new Error("Missing userId");
   if (!mediaItem?.id) throw new Error("Missing media item id");
 
-  const normalizedStatus = status === undefined ? null : status;
+  const normalizedStatus = status === undefined
+    ? null
+    : (normalizeWatchStatus(status) ?? status);
 
   const { ref, titleKey } = resolveLibraryItemRef(userId, mediaItem);
   const snap = await getDoc(ref);
@@ -405,14 +412,21 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
   try {
     const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
+    const targetStatus = normalizeWatchStatus(status);
+
     const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()))
       .filter((item) => {
-        if (status == null) {
-          return !item?.tracking?.watchStatus;
+        const itemStatus = normalizeWatchStatus(
+          item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
+        );
+
+        if (targetStatus == null) {
+          return !itemStatus;
         }
-        return item?.tracking?.watchStatus === status;
+
+        return itemStatus === targetStatus;
       });
 
     const sortValue = (item) => {

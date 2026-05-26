@@ -8,6 +8,10 @@ import {
   resolveExpiresAtMs,
   selectEpisodesForMode,
 } from "./_lib/watchMutation.js";
+import {
+  deriveLibraryStatus,
+  upsertSeriesProgressAndLibrary,
+} from "./_lib/seriesProgress.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -166,11 +170,13 @@ export default async function handler(req, res) {
       episodeNumber,
     );
 
-    // Auto-seed the catalog if it was empty, using the fallback payload
+    // Upsert missing catalog episodes when the client provides a catalog payload
     if (inputEpisodeCatalog && inputEpisodeCatalog.length > 0) {
-      const episodesSnap = await titleRef.collection("episodes").limit(1).get();
-      if (episodesSnap.empty) {
-        const seedWrites = [];
+      const episodesSnap = await titleRef.collection("episodes").get();
+      const existingKeys = new Set(episodesSnap.docs.map((doc) => doc.id));
+      const seedWrites = [];
+
+      if (episodesSnap.empty || allEpisodes.length > existingKeys.size) {
         seedWrites.push({
           ref: titleRef,
           data: {
@@ -179,14 +185,19 @@ export default async function handler(req, res) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
         });
+
         for (const ep of allEpisodes) {
           const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
+          if (existingKeys.has(epId)) continue;
           seedWrites.push({
             ref: titleRef.collection("episodes").doc(epId),
             data: ep,
           });
         }
-        await commitMergeWritesInChunks(db, seedWrites, 500);
+
+        if (seedWrites.length > 0) {
+          await commitMergeWritesInChunks(db, seedWrites, 500);
+        }
       }
     }
 
@@ -238,19 +249,150 @@ export default async function handler(req, res) {
       await commitMergeWritesInChunks(db, writes, 500);
     }
 
-    // Mark title-level progress as stale; dedicated recompute logic can process it later.
-    await db
+    const episodeKeyToMeta = new Map();
+    let totalEpisodesCount = 0;
+    let airedEpisodesCount = 0;
+
+    for (const ep of allEpisodes) {
+      const sn = Number(ep.seasonNumber);
+      const en = Number(ep.episodeNumber);
+      const ao = Number(ep.absoluteOrder);
+      const isAired = ep.isAired !== false;
+
+      if (
+        !Number.isInteger(sn) ||
+        !Number.isInteger(en) ||
+        !Number.isFinite(ao)
+      ) {
+        continue;
+      }
+
+      const meta = {
+        seasonNumber: sn,
+        episodeNumber: en,
+        absoluteOrder: ao,
+        isAired,
+        airDate: ep.airDate || null,
+      };
+
+      episodeKeyToMeta.set(`${sn}:${en}`, meta);
+      totalEpisodesCount++;
+      if (isAired) airedEpisodesCount++;
+    }
+
+    const watchedStatesSnap = await db
+      .collection("users")
+      .doc(uid)
+      .collection("episode_states")
+      .where("titleKey", "==", titleKey)
+      .where("state", "==", "watched")
+      .get();
+
+    const watchedSet = new Set();
+    let watchedEpisodesCount = 0;
+    let watchedAiredCount = 0;
+    let lastWatchedEpisode = null;
+    let highestAbsolute = -1;
+
+    for (const doc of watchedStatesSnap.docs) {
+      const d = doc.data() || {};
+      const sn = Number(d.seasonNumber);
+      const en = Number(d.episodeNumber);
+      const ao = Number(d.absoluteOrder);
+      const watchedAt = d.watchedAt || now;
+
+      if (!Number.isInteger(sn) || !Number.isInteger(en) || !Number.isFinite(ao)) {
+        continue;
+      }
+
+      const key = `${sn}:${en}`;
+      if (watchedSet.has(key)) continue;
+
+      watchedSet.add(key);
+      watchedEpisodesCount++;
+
+      const meta = episodeKeyToMeta.get(key);
+      if (meta?.isAired) watchedAiredCount++;
+
+      if (ao > highestAbsolute) {
+        highestAbsolute = ao;
+        lastWatchedEpisode = {
+          seasonNumber: sn,
+          episodeNumber: en,
+          absoluteOrder: ao,
+          watchedAt,
+        };
+      }
+    }
+
+    const completionRatioAired =
+      airedEpisodesCount > 0
+        ? Math.min(1, watchedAiredCount / airedEpisodesCount)
+        : 0;
+    const completionRatioTotal =
+      totalEpisodesCount > 0
+        ? Math.min(1, watchedEpisodesCount / totalEpisodesCount)
+        : 0;
+
+    const catalogEpisodes = Array.from(episodeKeyToMeta.values()).sort(
+      (a, b) => a.absoluteOrder - b.absoluteOrder,
+    );
+
+    const nextEpisodeCandidate = catalogEpisodes.find(
+      (e) => e.isAired && !watchedSet.has(`${e.seasonNumber}:${e.episodeNumber}`),
+    );
+
+    const nextEpisode = nextEpisodeCandidate
+      ? {
+          seasonNumber: nextEpisodeCandidate.seasonNumber,
+          episodeNumber: nextEpisodeCandidate.episodeNumber,
+          absoluteOrder: nextEpisodeCandidate.absoluteOrder,
+          airDate: nextEpisodeCandidate.airDate || null,
+        }
+      : null;
+
+    const progressRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("series_progress")
+      .doc(titleKey);
+    const libraryRef = db
       .collection("users")
       .doc(uid)
       .collection("library_items")
-      .doc(titleKey)
-      .set(
-        {
-          updatedAt: now,
-          progressNeedsRecompute: true,
-        },
-        { merge: true },
+      .doc(titleKey);
+
+    await db.runTransaction(async (tx) => {
+      const librarySnap = await tx.get(libraryRef);
+      const libraryData = librarySnap.exists ? librarySnap.data() || {} : {};
+      const existingStatus =
+        typeof libraryData.status === "string" ? libraryData.status : null;
+      const status = deriveLibraryStatus(
+        existingStatus,
+        watchedAiredCount,
+        airedEpisodesCount,
       );
+      const fallbackLastWatchedAt =
+        libraryData?.tracking?.lastWatchedAt || libraryData.lastWatchedAt || null;
+
+      upsertSeriesProgressAndLibrary(tx, {
+        progressRef,
+        libraryRef,
+        titleKey,
+        status,
+        watchedEpisodesCount,
+        airedEpisodesCount,
+        totalEpisodesCount,
+        completionRatioAired,
+        completionRatioTotal,
+        lastWatchedEpisode,
+        nextEpisode,
+        progressNeedsRecompute: false,
+        lastWatchedAt: lastWatchedEpisode?.watchedAt || fallbackLastWatchedAt,
+        updatedAt: now,
+        tracking: libraryData.tracking || null,
+      });
+    });
 
     // Transaction 2: complete action + release lock
     await db.runTransaction(async (tx) => {

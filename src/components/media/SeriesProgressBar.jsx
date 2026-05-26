@@ -8,7 +8,7 @@ const percentLabel = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
  * Renders progress from a single denormalized series_progress doc.
  * Premium design with gradient bar, glow on progress, and smart empty state.
  */
-const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "" }) => {
+const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "", override = null }) => {
   const {
     loading,
     error,
@@ -17,6 +17,20 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "" }
     airedEpisodesCount,
     completionRatioAired,
   } = useSeriesProgress({ userId, titleKey, realtime });
+
+  const displayWatched =
+    typeof override?.watchedEpisodesCount === "number"
+      ? override.watchedEpisodesCount
+      : watchedEpisodesCount;
+  const displayAired =
+    typeof override?.airedEpisodesCount === "number"
+      ? override.airedEpisodesCount
+      : airedEpisodesCount;
+  const displayRatio =
+    typeof override?.completionRatioAired === "number"
+      ? override.completionRatioAired
+      : (displayAired > 0 ? displayWatched / displayAired : completionRatioAired);
+  const isSyncing = Boolean(override?.isSyncing);
 
   if (!userId || !titleKey) return null;
 
@@ -33,9 +47,9 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "" }
   if (error) return null;
 
   // Smart empty state: show minimal bar when no progress exists yet
-  const hasProgress = progress && watchedEpisodesCount > 0;
-  const isComplete = completionRatioAired >= 1 && airedEpisodesCount > 0;
-  const pct = percentLabel(completionRatioAired);
+  const hasProgress = (progress || override) && displayWatched > 0;
+  const isComplete = displayRatio >= 1 && displayAired > 0;
+  const pct = percentLabel(displayRatio);
 
   return (
     <div className={`w-full ${className}`}>
@@ -46,9 +60,14 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "" }
             <TrendingUp className="w-3.5 h-3.5" style={{ color: hasProgress ? '#4ade80' : 'var(--color-text-tertiary)' }} />
             <span className="text-xs font-medium" style={{ color: hasProgress ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}>
               {hasProgress
-                ? `${watchedEpisodesCount} of ${airedEpisodesCount} aired episodes watched`
+                ? `${displayWatched} of ${displayAired} aired episodes watched`
                 : 'No episodes tracked yet'}
             </span>
+            {hasProgress && isSyncing && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-300 border border-yellow-400/30">
+                Syncing...
+              </span>
+            )}
           </div>
           {hasProgress && (
             <span className={`text-xs font-bold ${isComplete ? 'text-green-400' : 'text-white/70'}`}>
@@ -63,7 +82,7 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "" }
             className={`series-progress-fill ${isComplete ? 'series-progress-fill--complete' : ''}`}
             style={{ width: hasProgress ? pct : '0%' }}
             role="progressbar"
-            aria-valuenow={Math.round(completionRatioAired * 100)}
+            aria-valuenow={Math.round(displayRatio * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-label="Series watch progress"

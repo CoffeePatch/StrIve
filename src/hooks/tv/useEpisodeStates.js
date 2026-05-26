@@ -63,12 +63,28 @@ export const useEpisodeStates = ({ userId, titleKey }) => {
     });
   }, []);
 
+  /** Optimistically add multiple episodes to the watched set. */
+  const markLocallyWatchedBulk = useCallback((episodes = []) => {
+    if (!Array.isArray(episodes) || episodes.length === 0) return;
+    setWatchedSet((prev) => {
+      const next = new Set(prev);
+      episodes.forEach((ep) => {
+        const s = Number(ep?.seasonNumber ?? ep?.season_number);
+        const e = Number(ep?.episodeNumber ?? ep?.episode_number);
+        if (Number.isInteger(s) && Number.isInteger(e)) {
+          next.add(`${s}:${e}`);
+        }
+      });
+      return next;
+    });
+  }, []);
+
   /** Optimistically clear all watched episodes (for unwatch-series flow). */
   const clearAllLocal = useCallback(() => {
     setWatchedSet(new Set());
   }, []);
 
-  return { watchedSet, loading, error, markLocallyWatched, clearAllLocal };
+  return { watchedSet, loading, error, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal };
 };
 
 export default useEpisodeStates;

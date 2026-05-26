@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { IMG_CDN_URL } from "../../util/core/constants";
+import { normalizeWatchStatus } from "../../util/library/watchStatus";
 
 const TVShowCard = ({
   tvShow,
@@ -23,6 +24,18 @@ const TVShowCard = ({
   const imdbScore = Number(data?.ratings?.imdbScore);
   const imdbVotes = Number(data?.ratings?.imdbVotes || 0);
   const hasImdbScore = Number.isFinite(imdbScore) && imdbScore > 0;
+
+  const nextToWatch = data?.tvProgress?.nextToWatch || null;
+  const nextSeasonNumber = Number(nextToWatch?.seasonNumber);
+  const nextEpisodeNumber = Number(nextToWatch?.episodeNumber);
+  const hasNextEpisode = Number.isInteger(nextSeasonNumber) && Number.isInteger(nextEpisodeNumber);
+  const normalizedStatus = normalizeWatchStatus(
+    data?.tracking?.watchStatus ?? data?.watchStatus ?? data?.status
+  );
+  const shouldDefaultNext = !hasNextEpisode && (normalizedStatus === "plan_to_watch" || normalizedStatus === "watching" || !normalizedStatus);
+  const nextEpisodeLabel = hasNextEpisode
+    ? `S${nextSeasonNumber}E${nextEpisodeNumber}`
+    : (shouldDefaultNext ? "S1E1" : null);
 
   const displayRating = enableImdb && hasImdbScore
     ? {
@@ -90,6 +103,14 @@ const TVShowCard = ({
             >
               <span className="material-symbols-outlined text-xs">delete</span>
             </button>
+          )}
+
+          {nextEpisodeLabel && (
+            <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="bg-black/75 border border-white/10 rounded px-2 py-1 text-[11px] text-white/90">
+                Next: {nextEpisodeLabel}
+              </div>
+            </div>
           )}
 
           <div className="absolute inset-0 border-2 border-transparent group-hover:border-white/30 rounded-sm transition-all duration-200 pointer-events-none"></div>

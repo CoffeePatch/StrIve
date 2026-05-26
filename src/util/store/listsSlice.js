@@ -35,6 +35,24 @@ export const fetchLists = createAsyncThunk(
             .toISOString();
         }
 
+        if (
+          processedList.updatedAt &&
+          typeof processedList.updatedAt.toDate === "function"
+        ) {
+          processedList.updatedAt = processedList.updatedAt
+            .toDate()
+            .toISOString();
+        }
+
+        if (
+          processedList.pinnedAt &&
+          typeof processedList.pinnedAt.toDate === "function"
+        ) {
+          processedList.pinnedAt = processedList.pinnedAt
+            .toDate()
+            .toISOString();
+        }
+
         // Process items in the list if they exist
         if (processedList.items && Array.isArray(processedList.items)) {
           processedList.items = processedList.items.map((item) => {
