@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { ArrowLeft, Play, Star, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Play, AlertTriangle } from "lucide-react";
 import Header from "../layout/Header";
 import useTvShowDetails from "../../hooks/tv/useTvShowDetails";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
@@ -19,7 +19,6 @@ import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
 import SeasonTabs from "../media/SeasonTabs";
-import QuickInfoPanel from "../media/QuickInfoPanel";
 import EpisodeViewToggle from "./TVShowDetails/EpisodeViewToggle";
 import EpisodeListItem from "./TVShowDetails/EpisodeListItem";
 import EpisodeCard from "./TVShowDetails/EpisodeCard";
@@ -69,6 +68,7 @@ const TVShowDetailsPage = () => {
   const [showWatchChoiceModal, setShowWatchChoiceModal] = useState(false);
   const [watchChoiceEpisode, setWatchChoiceEpisode] = useState(null);
   const [pendingProgress, setPendingProgress] = useState(null);
+  const [cast, setCast] = useState([]);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
     tvId,
@@ -163,6 +163,45 @@ const TVShowDetailsPage = () => {
       }
     }
   }, [showDetails]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchCast = async () => {
+      if (!tvId) return;
+
+      try {
+        const response = await fetch(
+          `https://api.themoviedb.org/3/tv/${tvId}/credits?language=en-US`,
+          options
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch cast: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!isActive) return;
+
+        const normalizedCast = Array.isArray(data?.cast)
+          ? data.cast.filter((person) => person?.name).slice(0, 18)
+          : [];
+
+        setCast(normalizedCast);
+      } catch (error) {
+        if (isActive) {
+          console.warn("Failed to fetch cast:", error);
+          setCast([]);
+        }
+      }
+    };
+
+    fetchCast();
+
+    return () => {
+      isActive = false;
+    };
+  }, [tvId]);
 
   const fetchAllSeasonDetails = async () => {
     if (!showDetails || !showDetails.numberOfSeasons) return;
@@ -620,15 +659,15 @@ const TVShowDetailsPage = () => {
       <Header />
       <div className="amoled-page">
         {/* Hero Section with Backdrop */}
-        <div className="relative h-[70vh] bg-cover bg-center"
+        <div className="relative min-h-[60vh] bg-cover bg-center"
           style={{
             backgroundImage: showDetails.backdropPath
               ? `url(${IMG_CDN_URL}/original${showDetails.backdropPath})`
               : 'none',
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/40"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/55 to-black/20"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
 
           <button
             onClick={() => navigate("/shows")}
@@ -639,196 +678,191 @@ const TVShowDetailsPage = () => {
             <ArrowLeft className="w-6 h-6" style={{ color: 'var(--color-text-primary)' }} />
           </button>
 
-          <div className="absolute bottom-0 left-0 right-0 p-12 z-10">
-            <div className="amoled-container">
-              <div className="max-w-4xl">
-                {/* Title Logo or Text */}
-                {showDetails.logos && showDetails.logos.length > 0 ? (
-                  <div className="mb-4">
-                    <img
-                      src={`${IMG_CDN_URL}/w500${showDetails.logos[0].filePath}`}
-                      alt={`${showDetails.name} Logo`}
-                      className="max-w-full h-auto max-h-32 object-contain"
-                      style={{ maxWidth: '500px' }}
-                    />
-                  </div>
-                ) : (
-                  <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight"
-                    style={{ color: 'var(--color-text-primary)' }}>
-                    {showDetails.name}
-                  </h1>
-                )}
-
-                {/* Meta Info Row */}
-                <div className="flex flex-wrap items-center gap-4 mb-6 text-lg">
-                  <span style={{ color: 'var(--color-accent-primary)' }} className="font-semibold">
-                    {showDetails.firstAirDate?.split("-")[0]}
-                  </span>
-                  <span style={{ color: 'var(--color-text-primary)' }}>
-                    {showDetails.numberOfSeasons} Season{showDetails.numberOfSeasons !== 1 ? 's' : ''}
-                  </span>
-                  <span className="px-3 py-1 rounded text-sm font-medium"
-                    style={{ backgroundColor: 'var(--color-accent-primary)', color: '#000' }}>
-                    {showDetails.status}
-                  </span>
-
-                  <div className="flex items-center gap-3">
-                    <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-yellow-500/50 shadow-lg">
-                      <span className="text-yellow-400 text-xs font-bold">
-                        IMDb
-                      </span>
-                      {imdbLoading ? (
-                        <div className="h-4 w-16 rounded animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}></div>
-                      ) : imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue ? (
-                        <>
-                          <span className="text-white text-sm font-bold">
-                            {imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
-                          </span>
-                          {(() => {
-                            const votes = imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount;
-                            const formatted = formatCount(votes);
-                            return formatted ? (
-                              <>
-                                <span className="text-white/40 text-xs">•</span>
-                                <span className="text-white/70 text-xs">{formatted}</span>
-                              </>
-                            ) : null;
-                          })()}
-                        </>
-                      ) : (
-                        <span className="text-white/40 text-xs">
-                          N/A
-                        </span>
-                      )}
+          <div className="relative z-10 min-h-[60vh] flex items-center">
+            <div className="premium-container w-full">
+              <div className="mx-auto max-w-[1600px] py-6 lg:py-10">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-center lg:justify-center">
+                  {showDetails.posterPath && (
+                    <div className="w-32 sm:w-40 md:w-48 lg:w-56 flex-shrink-0 self-center lg:self-auto">
+                      <div className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-black/40">
+                        <img
+                          src={`${IMG_CDN_URL}/w500${showDetails.posterPath}`}
+                          alt={showDetails.name}
+                          className="w-full h-auto object-cover"
+                          loading="lazy"
+                        />
+                      </div>
                     </div>
-
-                    <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-blue-500/40 shadow-lg">
-                      <span className="text-blue-400 text-xs font-bold">
-                        TMDB
-                      </span>
-                      {showDetails.voteAverage ? (
-                        <>
-                          <span className="text-white text-sm font-bold">
-                            {showDetails.voteAverage.toFixed(1)}
-                          </span>
-                          {(() => {
-                            const formatted = formatCount(showDetails.voteCount);
-                            return formatted ? (
-                              <>
-                                <span className="text-white/40 text-xs">•</span>
-                                <span className="text-white/70 text-xs">{formatted}</span>
-                              </>
-                            ) : null;
-                          })()}
-                        </>
-                      ) : (
-                        <span className="text-white/40 text-xs">
-                          N/A
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Overview */}
-                <p className="text-lg leading-relaxed mb-6 max-w-3xl"
-                  style={{ color: 'var(--color-text-secondary)' }}>
-                  {showDetails.overview}
-                </p>
-
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-                  {(() => {
-                    const actionButtonBaseClass =
-                      "group inline-flex h-11 w-11 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
-                    const actionButtonPrimaryClass =
-                      `${actionButtonBaseClass} bg-white text-black hover:w-[148px] hover:bg-white hover:px-4`;
-                    const actionButtonSecondaryClass =
-                      `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[140px] hover:bg-white/10 hover:px-4 hover:text-white`;
-                    const actionButtonNeutralClass =
-                      `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[154px] hover:bg-white/10 hover:px-4 hover:text-white`;
-                    const watchlistButtonClass = isWatchlisted
-                      ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[154px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
-                      : actionButtonNeutralClass;
-                    const watchedButtonClass = isWatched
-                      ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[154px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
-                      : actionButtonNeutralClass;
-                    const actionButtonLabelClass =
-                      "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
-
-                    return (
-                      <>
-                  {seasonData?.episodes && seasonData.episodes.length > 0 && (
-                    <button
-                      onClick={handlePlayNow}
-                      className={actionButtonPrimaryClass}
-                    >
-                      <Play className="w-5 h-5 shrink-0" />
-                      <span className={actionButtonLabelClass}>Play Now</span>
-                    </button>
                   )}
 
-                  {trailer && (
-                    <a
-                      href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={actionButtonSecondaryClass}
-                    >
-                      <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
-                      <span className={actionButtonLabelClass}>Trailer</span>
-                    </a>
-                  )}
+                  <div className="w-full max-w-3xl lg:w-auto">
+                    {/* Title Logo or Text */}
+                    {showDetails.logos && showDetails.logos.length > 0 ? (
+                      <div className="mb-4">
+                        <img
+                          src={`${IMG_CDN_URL}/w500${showDetails.logos[0].filePath}`}
+                          alt={`${showDetails.name} Logo`}
+                          className="max-w-full h-auto max-h-24 object-contain"
+                          style={{ maxWidth: '420px' }}
+                        />
+                      </div>
+                    ) : (
+                      <h1 className="text-5xl md:text-6xl font-bold mb-3 tracking-tight"
+                        style={{ color: 'var(--color-text-primary)' }}>
+                        {showDetails.name}
+                      </h1>
+                    )}
 
-                  <button
-                    onClick={handleToggleWatchlist}
-                    className={watchlistButtonClass}
-                    title="Watchlist"
-                  >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
-                      bookmark
-                    </span>
-                    <span className={actionButtonLabelClass}>Watchlist</span>
-                  </button>
-
-                  <button
-                    onClick={handleToggleWatched}
-                    className={watchedButtonClass}
-                    title="Watched"
-                  >
-                    <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
-                      check_circle
-                    </span>
-                    <span className={actionButtonLabelClass}>Watched</span>
-                  </button>
-
-                  <div 
-                    ref={popoverRef}
-                    className="relative"
-                    onMouseEnter={() => {
-                      if (hoverTimeout) clearTimeout(hoverTimeout);
-                      const timeout = setTimeout(() => setShowPopover(true), 500);
-                      setHoverTimeout(timeout);
-                    }}
-                    onMouseLeave={() => {
-                      if (hoverTimeout) clearTimeout(hoverTimeout);
-                      const timeout = setTimeout(() => setShowPopover(false), 300);
-                      setHoverTimeout(timeout);
-                    }}
-                  >
-                    <button
-                      className={actionButtonNeutralClass}
-                    >
-                      <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
-                        playlist_add
+                    {/* Meta Info Row */}
+                    <div className="flex flex-wrap items-center gap-3 mb-4 text-lg">
+                      <span style={{ color: 'var(--color-accent-primary)' }} className="font-semibold">
+                        {showDetails.firstAirDate?.split("-")[0]}
                       </span>
-                      <span className={actionButtonLabelClass}>Lists</span>
-                    </button>
+                      <span style={{ color: 'var(--color-text-primary)' }}>
+                        {showDetails.numberOfSeasons} Season{showDetails.numberOfSeasons !== 1 ? 's' : ''}
+                      </span>
+                      <span className="px-2.5 py-1 rounded text-xs font-medium"
+                        style={{ backgroundColor: 'var(--color-accent-primary)', color: '#000' }}>
+                        {showDetails.status}
+                      </span>
 
-                    {showPopover && (
-                      <div
+                      <div className="flex items-center gap-3">
+                        <div className="bg-black/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-2 border border-yellow-500/50 shadow-lg">
+                          <span className="text-yellow-400 text-xs font-bold">
+                            IMDb
+                          </span>
+                          {imdbLoading ? (
+                            <div className="h-4 w-16 rounded animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}></div>
+                          ) : imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue ? (
+                            <>
+                              <span className="text-white text-sm font-bold">
+                                {imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
+                              </span>
+                              {(() => {
+                                const votes = imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount;
+                                const formatted = formatCount(votes);
+                                return formatted ? (
+                                  <>
+                                    <span className="text-white/40 text-xs">•</span>
+                                    <span className="text-white/70 text-xs">{formatted}</span>
+                                  </>
+                                ) : null;
+                              })()}
+                            </>
+                          ) : (
+                            <span className="text-white/40 text-xs">
+                              N/A
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="bg-black/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-2 border border-blue-500/40 shadow-lg">
+                          <span className="text-blue-400 text-xs font-bold">
+                            TMDB
+                          </span>
+                          {showDetails.voteAverage ? (
+                            <>
+                              <span className="text-white text-sm font-bold">
+                                {showDetails.voteAverage.toFixed(1)}
+                              </span>
+                              {(() => {
+                                const formatted = formatCount(showDetails.voteCount);
+                                return formatted ? (
+                                  <>
+                                    <span className="text-white/40 text-xs">•</span>
+                                    <span className="text-white/70 text-xs">{formatted}</span>
+                                  </>
+                                ) : null;
+                              })()}
+                            </>
+                          ) : (
+                            <span className="text-white/40 text-xs">
+                              N/A
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Overview */}
+                    <p className="text-lg leading-relaxed mb-5 max-w-3xl"
+                      style={{ color: 'var(--color-text-secondary)' }}>
+                      {showDetails.overview}
+                    </p>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-3 lg:gap-4">
+                      {(() => {
+                        const actionButtonBaseClass =
+                          "group inline-flex h-10 w-10 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
+                        const actionButtonPrimaryClass =
+                          `${actionButtonBaseClass} bg-white text-black hover:w-[132px] hover:bg-white hover:px-4`;
+                        const actionButtonSecondaryClass =
+                          `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[120px] hover:bg-white/10 hover:px-4 hover:text-white`;
+                        const actionButtonNeutralClass =
+                          `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[136px] hover:bg-white/10 hover:px-4 hover:text-white`;
+                        const watchlistButtonClass = isWatchlisted
+                          ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[136px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
+                          : actionButtonNeutralClass;
+                        const watchedButtonClass = isWatched
+                          ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[136px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
+                          : actionButtonNeutralClass;
+                        const actionButtonLabelClass =
+                          "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
+
+                        return (
+                          <>
+                      {seasonData?.episodes && seasonData.episodes.length > 0 && (
+                        <button
+                          onClick={handlePlayNow}
+                          className={actionButtonPrimaryClass}
+                        >
+                          <Play className="w-5 h-5 shrink-0" />
+                          <span className={actionButtonLabelClass}>Play Now</span>
+                        </button>
+                      )}
+
+                      {trailer && (
+                        <a
+                          href={`https://www.youtube.com/watch?v=${trailer.key}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={actionButtonSecondaryClass}
+                        >
+                          <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
+                          <span className={actionButtonLabelClass}>Trailer</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={handleToggleWatchlist}
+                        className={watchlistButtonClass}
+                        title="Watchlist"
+                      >
+                        <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
+                          bookmark
+                        </span>
+                        <span className={actionButtonLabelClass}>Watchlist</span>
+                      </button>
+
+                      <button
+                        onClick={handleToggleWatched}
+                        className={watchedButtonClass}
+                        title="Watched"
+                      >
+                        <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
+                          check_circle
+                        </span>
+                        <span className={actionButtonLabelClass}>Watched</span>
+                      </button>
+
+                      <div 
+                        ref={popoverRef}
+                        className="relative"
                         onMouseEnter={() => {
                           if (hoverTimeout) clearTimeout(hoverTimeout);
+                          const timeout = setTimeout(() => setShowPopover(true), 500);
+                          setHoverTimeout(timeout);
                         }}
                         onMouseLeave={() => {
                           if (hoverTimeout) clearTimeout(hoverTimeout);
@@ -836,59 +870,106 @@ const TVShowDetailsPage = () => {
                           setHoverTimeout(timeout);
                         }}
                       >
-                        <AddToListPopover
-                          isOpen={showPopover}
-                          onCreateNew={handleCreateNew}
-                          userId={user?.uid}
-                          mediaItem={mediaItemForLists}
-                        />
+                        <button
+                          className={actionButtonNeutralClass}
+                        >
+                          <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
+                            playlist_add
+                          </span>
+                          <span className={actionButtonLabelClass}>Lists</span>
+                        </button>
+
+                        {showPopover && (
+                          <div
+                            onMouseEnter={() => {
+                              if (hoverTimeout) clearTimeout(hoverTimeout);
+                            }}
+                            onMouseLeave={() => {
+                              if (hoverTimeout) clearTimeout(hoverTimeout);
+                              const timeout = setTimeout(() => setShowPopover(false), 300);
+                              setHoverTimeout(timeout);
+                            }}
+                          >
+                            <AddToListPopover
+                              isOpen={showPopover}
+                              onCreateNew={handleCreateNew}
+                              userId={user?.uid}
+                              mediaItem={mediaItemForLists}
+                            />
+                          </div>
+                        )}
+                      </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {showDetails.genres && showDetails.genres.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-5">
+                        {showDetails.genres.map((genre) => (
+                          <span
+                            key={genre.id}
+                            className="px-2.5 py-1 rounded-full text-sm"
+                            style={{
+                              backgroundColor: 'var(--color-bg-elevated)',
+                              color: 'var(--color-text-secondary)'
+                            }}
+                          >
+                            {genre.name}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
-                      </>
-                    );
-                  })()}
                 </div>
-
-                {showDetails.genres && showDetails.genres.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-6">
-                    {showDetails.genres.map((genre) => (
-                      <span
-                        key={genre.id}
-                        className="px-3 py-1 rounded-full text-sm"
-                        style={{
-                          backgroundColor: 'var(--color-bg-elevated)',
-                          color: 'var(--color-text-secondary)'
-                        }}
-                      >
-                        {genre.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
-
-        <div className="amoled-container py-12">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-3">
-              {showDetails.posterPath && (
-                <div className="mb-6 rounded-lg overflow-hidden shadow-2xl">
-                  <img
-                    src={`${IMG_CDN_URL}/w500${showDetails.posterPath}`}
-                    alt={showDetails.name}
-                    className="w-full h-auto"
-                    loading="lazy"
-                  />
+        <div className="premium-container py-10">
+          <div className="mx-auto max-w-[1600px]">
+            {cast.length > 0 && (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                    Cast
+                  </h2>
                 </div>
-              )}
+                <div
+                  className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide hide-horizontal-scrollbar"
+                  data-horizontal-scroll="true"
+                >
+                  {cast.map((person) => (
+                    <div key={person.credit_id || person.id} className="flex-none w-28 sm:w-32 text-center">
+                      <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden border border-white/10 bg-white/5">
+                        {person.profile_path ? (
+                          <img
+                            src={`${IMG_CDN_URL}/w185${person.profile_path}`}
+                            alt={person.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <span className="material-symbols-outlined text-2xl text-white/40">person</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                        {person.name}
+                      </p>
+                      {person.character && (
+                        <p className="text-xs truncate" style={{ color: 'var(--color-text-tertiary)' }}>
+                          {person.character}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-              <QuickInfoPanel showDetails={showDetails} />
-            </div>
-
-            <div className="lg:col-span-9">
+            <div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
                   Episodes
@@ -991,13 +1072,13 @@ const TVShowDetailsPage = () => {
                 )}
               </div>
             </div>
-          </div>
 
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>
-              You might also like
-            </h2>
-            <SimilarShowsPanel tvId={tvId} />
+            <div className="mt-10">
+              <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>
+                You might also like
+              </h2>
+              <SimilarShowsPanel tvId={tvId} />
+            </div>
           </div>
         </div>
       </div>
