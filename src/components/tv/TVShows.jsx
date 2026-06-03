@@ -1,7 +1,9 @@
 import React from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import Header from "../layout/Header";
-import TVShowCard from "./TVShowCard";
+import { tmdbAdapter } from "../../domain/media";
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../media/MediaCard";
 import usePopularTVShows from "../../hooks/tv/usePopularTVShows";
 import useTopRatedTVShows from "../../hooks/tv/useTopRatedTVShows";
 import useOnTheAirTVShows from "../../hooks/tv/useOnTheAirTVShows";
@@ -9,6 +11,7 @@ import useTVShowsByGenre from "../../hooks/tv/useTVShowsByGenre";
 
 const TVShows = () => {
   const tvShows = useSelector((store) => store.tvShows);
+  const navigate = useNavigate();
 
   usePopularTVShows();
   useTopRatedTVShows();
@@ -30,9 +33,23 @@ const TVShows = () => {
           </h2>
         </div>
         <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4">
-          {shows.map((tvShow) => (
-            <TVShowCard key={tvShow.id} tvShow={tvShow} enableImdb={false} cardSize="compact" />
-          ))}
+          {shows.map((tvShow) => {
+            const media = tmdbAdapter(tvShow);
+            if (!media) return null;
+            return (
+              <MediaCard 
+                key={media.id} 
+                media={media} 
+                cardSize="compact"
+                onClick={() => navigate(`/shows/${media.id}`)}
+              >
+                <MediaPoster media={media}>
+                  <MediaBadges media={media} enableImdb={false} />
+                </MediaPoster>
+                <MediaMetadata media={media} />
+              </MediaCard>
+            );
+          })}
         </div>
       </div>
     );

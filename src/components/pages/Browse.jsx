@@ -9,10 +9,13 @@ import useMoviesByGenre from "../../hooks/movie/useMoviesByGenre";
 import useTVShowsByGenre from "../../hooks/tv/useTVShowsByGenre";
 import Header from "../layout/Header";
 import MainContainer from "../layout/MainContainer";
-import MovieCard from "../movie/Cards/MovieCard";
+import { tmdbAdapter } from "../../domain/media";
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../media/MediaCard";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
 const Browse = () => {
+  const navigate = useNavigate();
   useAddMovies();
   usePopularMovies();
   useTopRatedMovies();
@@ -55,7 +58,21 @@ const Browse = () => {
               vote_average: item.vote_average,
               media_type: type
             };
-            return <MovieCard key={item.id} movie={movie} enableImdb={false} cardSize="compact" />;
+            const media = tmdbAdapter(movie);
+            if (!media) return null;
+            return (
+              <MediaCard 
+                key={media.id} 
+                media={media} 
+                cardSize="compact"
+                onClick={() => navigate(media.mediaType === 'tv' ? `/shows/${media.id}` : `/movie/${media.id}`)}
+              >
+                <MediaPoster media={media}>
+                  <MediaBadges media={media} enableImdb={false} />
+                </MediaPoster>
+                <MediaMetadata media={media} />
+              </MediaCard>
+            );
           })}
         </div>
       </div>

@@ -2,10 +2,13 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { Star, Flame, Play, Calendar } from "lucide-react";
 
-import MovieCard from "../movie/Cards/MovieCard";
+import { tmdbAdapter } from "../../domain/media";
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../media/MediaCard";
+import { useNavigate } from "react-router-dom";
 
 const SecondaryContainer = () => {
   const movies = useSelector((store) => store.movies);
+  const navigate = useNavigate();
 
   // If no movies, don't render anything
   if (!movies.nowPlayingMovies) return null;
@@ -35,9 +38,22 @@ const SecondaryContainer = () => {
 
         
         <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide px-12 pb-4">
-          {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
+          {movies.map((movie) => {
+            const media = tmdbAdapter(movie);
+            if (!media) return null;
+            return (
+              <MediaCard 
+                key={media.id} 
+                media={media}
+                onClick={() => navigate(`/movie/${media.id}`)}
+              >
+                <MediaPoster media={media}>
+                  <MediaBadges media={media} />
+                </MediaPoster>
+                <MediaMetadata media={media} />
+              </MediaCard>
+            );
+          })}
         </div>
       </div>
     );

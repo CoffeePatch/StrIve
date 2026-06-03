@@ -1,7 +1,9 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import Header from "../../layout/Header";
-import MovieCard from "../Cards/MovieCard";
+import { tmdbAdapter } from "../../../domain/media";
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../../media/MediaCard";
+import { useNavigate } from "react-router-dom";
 import usePopularMovies from "../../../hooks/movie/usePopularMovies";
 import useTopRatedMovies from "../../../hooks/movie/useTopRatedMovies";
 import useUpcomingMovies from "../../../hooks/movie/useUpcomingMovies";
@@ -9,6 +11,7 @@ import useMoviesByGenre from "../../../hooks/movie/useMoviesByGenre";
 
 const MoviesPage = () => {
   const movies = useSelector((store) => store.movies);
+  const navigate = useNavigate();
 
   usePopularMovies();
   useTopRatedMovies();
@@ -30,14 +33,23 @@ const MoviesPage = () => {
           </h2>
         </div>
         <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4">
-          {movies.map((movie) => (
-            <MovieCard
-              key={movie.id}
-              movie={movie}
-              enableImdb={false}
-              cardSize="compact"
-            />
-          ))}
+          {movies.map((movie) => {
+            const media = tmdbAdapter(movie);
+            if (!media) return null;
+            return (
+              <MediaCard
+                key={media.id}
+                media={media}
+                cardSize="compact"
+                onClick={() => navigate(`/movie/${media.id}`)}
+              >
+                <MediaPoster media={media}>
+                  <MediaBadges media={media} enableImdb={false} />
+                </MediaPoster>
+                <MediaMetadata media={media} />
+              </MediaCard>
+            );
+          })}
         </div>
       </div>
     );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MovieCard from '../movie/Cards/MovieCard';
+import { tmdbAdapter } from '../../domain/media';
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from '../media/MediaCard';
 import useSearch from '../../hooks/common/useSearch';
 import { triggerGlobalRefetch } from '../../hooks/media/useImdbRating';
 
@@ -157,20 +158,21 @@ const SearchPage = () => {
             ) : results.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {results.map((result) => {
-                  const mediaType = result.media_type;
-                  const movie = {
-                    id: result.id,
-                    poster_path: result.poster_path,
-                    title: result.title,
-                    name: result.name,
-                    original_title: result.title || result.name,
-                    release_date: result.release_date,
-                    first_air_date: result.first_air_date,
-                    vote_average: result.vote_average,
-                    media_type: mediaType
-                  };
+                  const media = tmdbAdapter(result);
+                  if (!media) return null;
 
-                  return <MovieCard key={result.id} movie={movie} />;
+                  return (
+                    <MediaCard 
+                      key={media.id} 
+                      media={media}
+                      onClick={() => navigate(media.mediaType === 'tv' ? `/shows/${media.id}` : `/movie/${media.id}`)}
+                    >
+                      <MediaPoster media={media}>
+                         <MediaBadges media={media} />
+                      </MediaPoster>
+                      <MediaMetadata media={media} />
+                    </MediaCard>
+                  );
                 })}
               </div>
             ) : (
