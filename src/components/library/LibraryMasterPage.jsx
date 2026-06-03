@@ -11,8 +11,6 @@ import {
   removeItemFromCustomList,
   fetchUserLists,
 } from '../../util/firebase/firestoreService';
-import MovieCard from '../movie/Cards/MovieCard';
-import TVShowCard from '../tv/TVShowCard';
 import Header from '../layout/Header';
 import '../../styles/LibraryMasterPage.css';
 import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';

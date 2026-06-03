@@ -13,9 +13,9 @@ import {
   removeItemFromCustomList,
   fetchUserLists,
 } from '../../util/firebase/firestoreService';
-import MovieCard from '../movie/Cards/MovieCard';
-import TVShowCard from '../tv/TVShowCard';
 import Header from '../layout/Header';
+import { tmdbAdapter } from '../../domain/media';
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata, MediaProgress } from '../media/MediaCard';
 import '../../styles/LibraryMasterPage.css';
 import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
 import { exportListCsv } from '../../util/export/exportDownload';
@@ -804,19 +804,24 @@ const LibraryMasterPage = () => {
                   ))}
                 </div>
               ) : (
-                filteredItems.map((item) => (
-                  <div
-                    key={`${item.media_type}-${item.id}`}
-                    onClick={() => handleItemClick(item)}
-                    className="cursor-pointer group"
-                  >
-                    {item.media_type === 'tv' ? (
-                      <TVShowCard show={item} vaultMode={true} onRemove={() => handleRemove(item)} />
-                    ) : (
-                      <MovieCard movie={item} vaultMode={true} onRemove={() => handleRemove(item)} />
-                    )}
-                  </div>
-                ))
+                filteredItems.map((item) => {
+                  const media = tmdbAdapter(item);
+                  if (!media) return null;
+                  return (
+                    <MediaCard 
+                      key={`${media.mediaType}-${media.id}`}
+                      media={media} 
+                      vaultMode={true}
+                      onClick={() => handleItemClick(item)}
+                    >
+                      <MediaPoster media={media} vaultMode={true} onRemove={() => handleRemove(item)}>
+                        <MediaBadges media={media} vaultMode={true} />
+                        <MediaProgress media={media} vaultMode={true} />
+                      </MediaPoster>
+                      <MediaMetadata media={media} vaultMode={true} />
+                    </MediaCard>
+                  );
+                })
               )}
             </div>
           )}

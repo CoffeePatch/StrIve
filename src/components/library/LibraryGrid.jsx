@@ -1,6 +1,6 @@
 import React from 'react';
-import MovieCard from '../movie/Cards/MovieCard';
-import TVShowCard from '../tv/TVShowCard';
+import { tmdbAdapter } from '../../domain/media';
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata, MediaProgress } from '../media/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
 const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRating, getImdbVotes }) => {
@@ -91,19 +91,24 @@ const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRa
           ))}
         </div>
       ) : (
-        items.map((item) => (
-          <div
-            key={`${item.media_type}-${item.id}`}
-            onClick={() => handleItemClick(item)}
-            className="cursor-pointer group"
-          >
-            {item.media_type === 'tv' ? (
-              <TVShowCard show={item} vaultMode={true} onRemove={() => handleRemove(item)} />
-            ) : (
-              <MovieCard movie={item} vaultMode={true} onRemove={() => handleRemove(item)} />
-            )}
-          </div>
-        ))
+        items.map((item) => {
+          const media = tmdbAdapter(item);
+          if (!media) return null;
+          return (
+            <MediaCard 
+              key={`${media.mediaType}-${media.id}`}
+              media={media} 
+              vaultMode={true}
+              onClick={() => handleItemClick(item)}
+            >
+              <MediaPoster media={media} vaultMode={true} onRemove={() => handleRemove(item)}>
+                <MediaBadges media={media} vaultMode={true} />
+                <MediaProgress media={media} vaultMode={true} />
+              </MediaPoster>
+              <MediaMetadata media={media} vaultMode={true} />
+            </MediaCard>
+          );
+        })
       )}
     </div>
   );

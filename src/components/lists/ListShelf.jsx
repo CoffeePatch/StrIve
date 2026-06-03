@@ -1,10 +1,13 @@
 import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import MovieCard from '../movie/Cards/MovieCard';
+import { tmdbAdapter } from '../../domain/media';
+import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from '../media/MediaCard';
+import { useNavigate } from 'react-router-dom';
 
 const ListShelf = ({ title, items, mapsTo, onRemove, onDelete }) => {
   const scrollRef = useRef(null);
+  const navigate = useNavigate();
 
   return (
     <div className="mb-8">
@@ -28,14 +31,23 @@ const ListShelf = ({ title, items, mapsTo, onRemove, onDelete }) => {
         )}
       </div>
       <div ref={scrollRef} data-horizontal-scroll="true" className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide">
-        {items && items.map((item) => (
-          <div key={item.id} className="flex-shrink-0">
-            <MovieCard 
-              movie={item} 
-              onRemove={onRemove} 
-            />
-          </div>
-        ))}
+        {items && items.map((item) => {
+          const media = tmdbAdapter(item);
+          if (!media) return null;
+          return (
+            <div key={media.id} className="flex-shrink-0">
+              <MediaCard 
+                media={media} 
+                onClick={() => navigate(media.mediaType === 'tv' ? `/shows/${media.id}` : `/movie/${media.id}`)}
+              >
+                <MediaPoster media={media} onRemove={onRemove ? () => onRemove(item) : undefined}>
+                  <MediaBadges media={media} />
+                </MediaPoster>
+                <MediaMetadata media={media} />
+              </MediaCard>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
