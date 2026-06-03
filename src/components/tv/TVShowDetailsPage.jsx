@@ -20,12 +20,15 @@ import { options } from "../../util/core/constants";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
 import SeasonTabs from "../media/SeasonTabs";
 import EpisodeViewToggle from "./TVShowDetails/EpisodeViewToggle";
-import EpisodeListItem from "./TVShowDetails/EpisodeListItem";
-import EpisodeCard from "./TVShowDetails/EpisodeCard";
-import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
 import EpisodeMatrixView from "./TVShowDetails/EpisodeMatrixView";
 import CreateListModal from "../lists/CreateListModal";
 import AddToListPopover from "../lists/AddToListPopover";
+import MediaHero from "../media/MediaDetails/MediaHero";
+import MediaRatings from "../media/MediaDetails/MediaRatings";
+import MediaActions from "../media/MediaDetails/MediaActions";
+import MediaGenres from "../media/MediaDetails/MediaGenres";
+import MediaCast from "../media/MediaDetails/MediaCast";
+import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
 import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
@@ -658,316 +661,46 @@ const TVShowDetailsPage = () => {
     <div className="min-h-screen premium-page pt-20">
       <Header />
       <div className="amoled-page">
-        {/* Hero Section with Backdrop */}
-        <div className="relative min-h-[60vh] bg-cover bg-center"
-          style={{
-            backgroundImage: showDetails.backdropPath
-              ? `url(${IMG_CDN_URL}/original${showDetails.backdropPath})`
-              : 'none',
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/55 to-black/20"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
-
-          <button
-            onClick={() => navigate("/shows")}
-            className="absolute top-6 left-6 z-20 p-3 rounded-full focus-accent transition-all cursor-pointer"
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-            aria-label="Back to shows"
-          >
-            <ArrowLeft className="w-6 h-6" style={{ color: 'var(--color-text-primary)' }} />
-          </button>
-
-          <div className="relative z-10 min-h-[60vh] flex items-center">
-            <div className="premium-container w-full">
-              <div className="mx-auto max-w-[1600px] py-6 lg:py-10">
-                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-center lg:justify-center">
-                  {showDetails.posterPath && (
-                    <div className="w-32 sm:w-40 md:w-48 lg:w-56 flex-shrink-0 self-center lg:self-auto">
-                      <div className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-black/40">
-                        <img
-                          src={`${IMG_CDN_URL}/w500${showDetails.posterPath}`}
-                          alt={showDetails.name}
-                          className="w-full h-auto object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="w-full max-w-3xl lg:w-auto">
-                    {/* Title Logo or Text */}
-                    {showDetails.logos && showDetails.logos.length > 0 ? (
-                      <div className="mb-4">
-                        <img
-                          src={`${IMG_CDN_URL}/w500${showDetails.logos[0].filePath}`}
-                          alt={`${showDetails.name} Logo`}
-                          className="max-w-full h-auto max-h-24 object-contain"
-                          style={{ maxWidth: '420px' }}
-                        />
-                      </div>
-                    ) : (
-                      <h1 className="text-5xl md:text-6xl font-bold mb-3 tracking-tight"
-                        style={{ color: 'var(--color-text-primary)' }}>
-                        {showDetails.name}
-                      </h1>
-                    )}
-
-                    {/* Meta Info Row */}
-                    <div className="flex flex-wrap items-center gap-3 mb-4 text-lg">
-                      <span style={{ color: 'var(--color-accent-primary)' }} className="font-semibold">
-                        {showDetails.firstAirDate?.split("-")[0]}
-                      </span>
-                      <span style={{ color: 'var(--color-text-primary)' }}>
-                        {showDetails.numberOfSeasons} Season{showDetails.numberOfSeasons !== 1 ? 's' : ''}
-                      </span>
-                      <span className="px-2.5 py-1 rounded text-xs font-medium"
-                        style={{ backgroundColor: 'var(--color-accent-primary)', color: '#000' }}>
-                        {showDetails.status}
-                      </span>
-
-                      <div className="flex items-center gap-3">
-                        <div className="bg-black/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-2 border border-yellow-500/50 shadow-lg">
-                          <span className="text-yellow-400 text-xs font-bold">
-                            IMDb
-                          </span>
-                          {imdbLoading ? (
-                            <div className="h-4 w-16 rounded animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}></div>
-                          ) : imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue ? (
-                            <>
-                              <span className="text-white text-sm font-bold">
-                                {imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
-                              </span>
-                              {(() => {
-                                const votes = imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount;
-                                const formatted = formatCount(votes);
-                                return formatted ? (
-                                  <>
-                                    <span className="text-white/40 text-xs">•</span>
-                                    <span className="text-white/70 text-xs">{formatted}</span>
-                                  </>
-                                ) : null;
-                              })()}
-                            </>
-                          ) : (
-                            <span className="text-white/40 text-xs">
-                              N/A
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="bg-black/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-2 border border-blue-500/40 shadow-lg">
-                          <span className="text-blue-400 text-xs font-bold">
-                            TMDB
-                          </span>
-                          {showDetails.voteAverage ? (
-                            <>
-                              <span className="text-white text-sm font-bold">
-                                {showDetails.voteAverage.toFixed(1)}
-                              </span>
-                              {(() => {
-                                const formatted = formatCount(showDetails.voteCount);
-                                return formatted ? (
-                                  <>
-                                    <span className="text-white/40 text-xs">•</span>
-                                    <span className="text-white/70 text-xs">{formatted}</span>
-                                  </>
-                                ) : null;
-                              })()}
-                            </>
-                          ) : (
-                            <span className="text-white/40 text-xs">
-                              N/A
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Overview */}
-                    <p className="text-lg leading-relaxed mb-5 max-w-3xl"
-                      style={{ color: 'var(--color-text-secondary)' }}>
-                      {showDetails.overview}
-                    </p>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-                      {(() => {
-                        const actionButtonBaseClass =
-                          "group inline-flex h-10 w-10 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
-                        const actionButtonPrimaryClass =
-                          `${actionButtonBaseClass} bg-white text-black hover:w-[132px] hover:bg-white hover:px-4`;
-                        const actionButtonSecondaryClass =
-                          `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[120px] hover:bg-white/10 hover:px-4 hover:text-white`;
-                        const actionButtonNeutralClass =
-                          `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[136px] hover:bg-white/10 hover:px-4 hover:text-white`;
-                        const watchlistButtonClass = isWatchlisted
-                          ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[136px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
-                          : actionButtonNeutralClass;
-                        const watchedButtonClass = isWatched
-                          ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[136px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
-                          : actionButtonNeutralClass;
-                        const actionButtonLabelClass =
-                          "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
-
-                        return (
-                          <>
-                      {seasonData?.episodes && seasonData.episodes.length > 0 && (
-                        <button
-                          onClick={handlePlayNow}
-                          className={actionButtonPrimaryClass}
-                        >
-                          <Play className="w-5 h-5 shrink-0" />
-                          <span className={actionButtonLabelClass}>Play Now</span>
-                        </button>
-                      )}
-
-                      {trailer && (
-                        <a
-                          href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={actionButtonSecondaryClass}
-                        >
-                          <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
-                          <span className={actionButtonLabelClass}>Trailer</span>
-                        </a>
-                      )}
-
-                      <button
-                        onClick={handleToggleWatchlist}
-                        className={watchlistButtonClass}
-                        title="Watchlist"
-                      >
-                        <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
-                          bookmark
-                        </span>
-                        <span className={actionButtonLabelClass}>Watchlist</span>
-                      </button>
-
-                      <button
-                        onClick={handleToggleWatched}
-                        className={watchedButtonClass}
-                        title="Watched"
-                      >
-                        <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
-                          check_circle
-                        </span>
-                        <span className={actionButtonLabelClass}>Watched</span>
-                      </button>
-
-                      <div 
-                        ref={popoverRef}
-                        className="relative"
-                        onMouseEnter={() => {
-                          if (hoverTimeout) clearTimeout(hoverTimeout);
-                          const timeout = setTimeout(() => setShowPopover(true), 500);
-                          setHoverTimeout(timeout);
-                        }}
-                        onMouseLeave={() => {
-                          if (hoverTimeout) clearTimeout(hoverTimeout);
-                          const timeout = setTimeout(() => setShowPopover(false), 300);
-                          setHoverTimeout(timeout);
-                        }}
-                      >
-                        <button
-                          className={actionButtonNeutralClass}
-                        >
-                          <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
-                            playlist_add
-                          </span>
-                          <span className={actionButtonLabelClass}>Lists</span>
-                        </button>
-
-                        {showPopover && (
-                          <div
-                            onMouseEnter={() => {
-                              if (hoverTimeout) clearTimeout(hoverTimeout);
-                            }}
-                            onMouseLeave={() => {
-                              if (hoverTimeout) clearTimeout(hoverTimeout);
-                              const timeout = setTimeout(() => setShowPopover(false), 300);
-                              setHoverTimeout(timeout);
-                            }}
-                          >
-                            <AddToListPopover
-                              isOpen={showPopover}
-                              onCreateNew={handleCreateNew}
-                              userId={user?.uid}
-                              mediaItem={mediaItemForLists}
-                            />
-                          </div>
-                        )}
-                      </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-
-                    {showDetails.genres && showDetails.genres.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-5">
-                        {showDetails.genres.map((genre) => (
-                          <span
-                            key={genre.id}
-                            className="px-2.5 py-1 rounded-full text-sm"
-                            style={{
-                              backgroundColor: 'var(--color-bg-elevated)',
-                              color: 'var(--color-text-secondary)'
-                            }}
-                          >
-                            {genre.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MediaHero
+          backdropPath={showDetails.backdropPath}
+          layoutType="tv"
+          posterPath={showDetails.posterPath}
+          logos={showDetails.logos}
+          title={showDetails.name}
+          releaseYear={showDetails.firstAirDate?.split("-")[0]}
+          durationOrSeasons={`${showDetails.numberOfSeasons} Season${showDetails.numberOfSeasons !== 1 ? 's' : ''}`}
+          status={showDetails.status}
+          overview={showDetails.overview}
+          onBack={() => navigate("/shows")}
+          ratingsComponent={
+            <MediaRatings
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount}
+              imdbLoading={imdbLoading}
+              tmdbScore={showDetails.voteAverage}
+              tmdbVotes={showDetails.voteCount}
+            />
+          }
+          actionsComponent={
+            <MediaActions
+              onPlay={seasonData?.episodes && seasonData.episodes.length > 0 ? handlePlayNow : null}
+              trailerKey={trailer?.key}
+              isWatchlisted={isWatchlisted}
+              onToggleWatchlist={handleToggleWatchlist}
+              isWatched={isWatched}
+              onToggleWatched={handleToggleWatched}
+              userId={user?.uid}
+              mediaItem={mediaItemForLists}
+              onCreateNewList={handleCreateNew}
+            />
+          }
+          genresComponent={
+            <MediaGenres genres={showDetails.genres} />
+          }
+        />
         <div className="premium-container py-10">
           <div className="mx-auto max-w-[1600px]">
-            {cast.length > 0 && (
-              <div className="mb-10">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                    Cast
-                  </h2>
-                </div>
-                <div
-                  className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide hide-horizontal-scrollbar"
-                  data-horizontal-scroll="true"
-                >
-                  {cast.map((person) => (
-                    <div key={person.credit_id || person.id} className="flex-none w-28 sm:w-32 text-center">
-                      <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-full overflow-hidden border border-white/10 bg-white/5">
-                        {person.profile_path ? (
-                          <img
-                            src={`${IMG_CDN_URL}/w185${person.profile_path}`}
-                            alt={person.name}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center">
-                            <span className="material-symbols-outlined text-2xl text-white/40">person</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-2 text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
-                        {person.name}
-                      </p>
-                      {person.character && (
-                        <p className="text-xs truncate" style={{ color: 'var(--color-text-tertiary)' }}>
-                          {person.character}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <MediaCast cast={cast} />
 
             <div>
               <div className="flex justify-between items-center mb-4">
@@ -996,81 +729,19 @@ const TVShowDetailsPage = () => {
                 />
               )}
 
-              <div className="mt-6" role="region" aria-label="Episodes">
-                {viewMode === 'matrix' && (
-                  isLoadingMatrix ? (
-                    <div className="flex justify-center py-12">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-4 mx-auto" style={{ borderColor: 'var(--color-accent-primary)' }}></div>
-                        <p className="mt-4" style={{ color: 'var(--color-text-secondary)' }}>Loading all season data...</p>
-                      </div>
-                    </div>
-                  ) : allSeasonsData ? (
-                    <EpisodeMatrixView
-                      seasonsData={allSeasonsData}
-                      baseSeasonInfo={showDetails.seasons || []}
-                      onEpisodeClick={(episode, seasonNumber) => {
-                        setSelectedSeason(seasonNumber);
-                        handleEpisodeClick(episode);
-                      }}
-                    />
-                  ) : (
-                    <div className="text-center py-12">
-                      <p className="text-red-500">Could not load matrix data.</p>
-                    </div>
-                  )
-                )}
-
-                {viewMode !== 'matrix' && episodesLoading && (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-4" style={{ borderColor: 'var(--color-accent-primary)' }}></div>
-                  </div>
-                )}
-
-                {viewMode !== 'matrix' && !episodesLoading && seasonData?.episodes && seasonData.episodes.length > 0 && (
-                  viewMode === 'list' ? (
-                    <div className="relative">
-                      <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
-                      <div className="grid grid-cols-1 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
-                        {seasonData.episodes.map((episode) => (
-                          <EpisodeListItem
-                            key={episode.id}
-                            episode={episode}
-                            onClick={() => handleEpisodeClick(episode)}
-                            isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
-                            onToggleWatched={handleToggleEpisodeWatched}
-                            watchLoading={markWatchedLoading}
-                          />
-                        ))}
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
-                        {seasonData.episodes.map((episode) => (
-                          <EpisodeCard
-                            key={episode.id}
-                            episode={episode}
-                            onClick={() => handleEpisodeClick(episode)}
-                            isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
-                            onToggleWatched={handleToggleEpisodeWatched}
-                            watchLoading={markWatchedLoading}
-                          />
-                        ))}
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
-                    </div>
-                  )
-                )}
-
-                {viewMode !== 'matrix' && !episodesLoading && (!seasonData?.episodes || seasonData.episodes.length === 0) && (
-                  <div className="text-center py-12">
-                    <p style={{ color: 'var(--color-text-secondary)' }}>No episodes available for this season</p>
-                  </div>
-                )}
-              </div>
+              <EpisodeList
+                viewMode={viewMode}
+                isLoadingMatrix={isLoadingMatrix}
+                allSeasonsData={allSeasonsData}
+                showDetails={showDetails}
+                setSelectedSeason={setSelectedSeason}
+                handleEpisodeClick={handleEpisodeClick}
+                episodesLoading={episodesLoading}
+                seasonData={seasonData}
+                watchedSet={watchedSet}
+                handleToggleEpisodeWatched={handleToggleEpisodeWatched}
+                markWatchedLoading={markWatchedLoading}
+              />
             </div>
 
             <div className="mt-10">

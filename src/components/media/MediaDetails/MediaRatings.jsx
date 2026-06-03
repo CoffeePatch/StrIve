@@ -1,0 +1,60 @@
+import React from 'react';
+
+const formatCount = (num) => {
+  if (num === null || num === undefined) return null;
+  const value = typeof num === 'number' ? num : Number(num);
+  if (!Number.isFinite(value)) return null;
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return `${value}`;
+};
+
+const MediaRatings = ({ imdbRating, imdbVotes, imdbLoading, tmdbScore, tmdbVotes }) => {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-yellow-500/50 shadow-lg">
+        <span className="text-yellow-400 text-xs font-bold">
+          IMDb
+        </span>
+        {imdbLoading ? (
+          <div className="h-4 w-16 rounded animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}></div>
+        ) : imdbRating ? (
+          <>
+            <span className="text-white text-sm font-bold">
+              {imdbRating}
+            </span>
+            {imdbVotes ? (
+              <>
+                <span className="text-white/40 text-xs">•</span>
+                <span className="text-white/70 text-xs">{formatCount(imdbVotes)}</span>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <span className="text-xs text-white/40">N/A</span>
+        )}
+      </div>
+
+      <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-blue-500/40 shadow-lg">
+        <span className="text-blue-400 text-xs font-bold">TMDB</span>
+        {tmdbScore ? (
+          <>
+            <span className="text-white text-sm font-bold">
+              {tmdbScore.toFixed(1)}
+            </span>
+            {tmdbVotes ? (
+              <>
+                <span className="text-white/40 text-xs">•</span>
+                <span className="text-white/70 text-xs">{formatCount(tmdbVotes)}</span>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <span className="text-xs text-white/40">N/A</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default MediaRatings;
