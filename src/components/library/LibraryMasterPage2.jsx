@@ -18,6 +18,7 @@ import { tmdbAdapter } from '../../domain/media';
 import { MediaCard, MediaPoster, MediaBadges, MediaMetadata, MediaProgress } from '../media/MediaCard';
 import '../../styles/LibraryMasterPage.css';
 import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
+import { libraryAdapter } from '../../domain/library/libraryAdapter';
 import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
 
@@ -268,7 +269,7 @@ const LibraryMasterPage = () => {
           await setLibraryItemListIds(user.uid, item, nextListIds);
         } else {
           // System status tabs: clear status
-          await setLibraryItemStatus(user.uid, item, null);
+          await libraryAdapter.updateLibraryStatus(user.uid, item, null);
         }
       } catch (error) {
         console.error('Remove failed:', error);
@@ -297,7 +298,7 @@ const LibraryMasterPage = () => {
                       : [listIdAtRemove];
                     await setLibraryItemListIds(user.uid, item, restored);
                   } else {
-                    await setLibraryItemStatus(user.uid, item, statusToRestore);
+                    await libraryAdapter.updateLibraryStatus(user.uid, item, statusToRestore);
                   }
 
                   setItems((prev) => sortItems([...prev, item], sortBy));
@@ -496,7 +497,7 @@ const LibraryMasterPage = () => {
           )}
 
           {/* Tabs */}
-          <div className="flex flex-wrap gap-4 border-b border-white/10 pb-4">
+          <div className="flex gap-4 border-b border-white/10 pb-4 overflow-x-auto scrollbar-hide whitespace-nowrap">
             <button
               onClick={() => {
                 setActiveTab('watchlist');

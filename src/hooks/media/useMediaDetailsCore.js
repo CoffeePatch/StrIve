@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import useRequireAuth from "../common/useRequireAuth";
 import useImdbTitle from "./useImdbTitle";
 import useLibraryItemStatus from "./useLibraryItemStatus";
-import { setLibraryItemStatus } from "../../util/firebase/firestoreService";
+import { libraryAdapter } from "../../domain/library/libraryAdapter";
 import { options } from "../../util/core/constants";
 
 const useMediaDetailsCore = ({ mediaId, mediaType }) => {
@@ -120,10 +120,12 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
       return;
     }
     try {
-      const newStatus = isWatchlisted ? null : "Plan to Watch";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatchlisted(newStatus === "Plan to Watch");
-      if (newStatus === "Plan to Watch") {
+      if (isWatchlisted) {
+        await libraryAdapter.removeFromWatchlist(user.uid, mediaItemForLists);
+        setIsWatchlisted(false);
+      } else {
+        await libraryAdapter.addToWatchlist(user.uid, mediaItemForLists);
+        setIsWatchlisted(true);
         setIsWatched(false);
       }
     } catch (error) {
@@ -137,10 +139,12 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
       return;
     }
     try {
-      const newStatus = isWatched ? null : "Completed";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatched(newStatus === "Completed");
-      if (newStatus === "Completed") {
+      if (isWatched) {
+        await libraryAdapter.unmarkCompleted(user.uid, mediaItemForLists);
+        setIsWatched(false);
+      } else {
+        await libraryAdapter.markCompleted(user.uid, mediaItemForLists);
+        setIsWatched(true);
         setIsWatchlisted(false);
       }
     } catch (error) {

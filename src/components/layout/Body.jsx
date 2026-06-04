@@ -30,11 +30,14 @@ const ScrollToTop = () => {
   return null;
 };
 
+import BottomNav from "./BottomNav";
+
 const AppLayout = () => (
-  <>
+  <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
     <ScrollToTop />
     <Outlet />
-  </>
+    <BottomNav />
+  </div>
 );
 
 const Body = () => {

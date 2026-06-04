@@ -15,7 +15,7 @@ const EpisodeCard = ({ episode, onClick, isWatched = false, onToggleWatched, wat
   return (
     <div
       onClick={onClick}
-      className="group rounded-lg overflow-hidden cursor-pointer transition-all duration-150 hover:scale-[1.03] active:scale-[0.98] focus-accent"
+      className="group flex flex-col md:flex-row rounded-lg overflow-hidden cursor-pointer transition-all duration-150 hover:scale-[1.03] active:scale-[0.98] focus-accent"
       style={{ backgroundColor: 'var(--Color-bg-elevated)' }}
       role="button"
       tabIndex={0}
@@ -27,7 +27,7 @@ const EpisodeCard = ({ episode, onClick, isWatched = false, onToggleWatched, wat
       }}
       aria-label={`Episode ${episode.episodeNumber}: ${episode.name}`}
     >
-      <div className="relative w-full aspect-video overflow-hidden bg-gray-800">
+      <div className="relative w-full md:w-1/3 xl:w-1/4 aspect-video shrink-0 overflow-hidden bg-gray-800">
         {episode.stillPath ? (
           <>
             <img
@@ -63,7 +63,7 @@ const EpisodeCard = ({ episode, onClick, isWatched = false, onToggleWatched, wat
         </button>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 flex-1">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold" style={{ color: 'var(--color-accent-primary)' }}>
             Episode {episode.episodeNumber}

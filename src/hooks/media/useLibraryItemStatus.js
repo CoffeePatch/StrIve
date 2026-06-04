@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
 import { normalizeWatchStatus, toDisplayWatchStatus } from "../../util/library/watchStatus";
+import { libraryAdapter } from "../../domain/library/libraryAdapter";
 
 /**
  * Hook to fetch and sync library item status (Watchlist, Completed, etc.)
@@ -25,22 +24,15 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			return;
 		}
 
-		const titleKey = generateTitleKey(mediaItem.id, mediaItem.media_type || "movie");
-		const ref = doc(db, "users", userId, "library_items", titleKey);
-
 		setLoading(true);
 		setError(null);
 
 		if (realtime) {
-			const unsub = onSnapshot(
-				ref,
-				(snap) => {
-					if (snap.exists()) {
-						const trackingStatus = readWatchStatus(snap.data());
-						setStatus(toDisplayWatchStatus(trackingStatus));
-					} else {
-						setStatus(null);
-					}
+			const unsub = libraryAdapter.subscribeToLibraryStatus(
+				userId,
+				mediaItem,
+				(trackingStatus) => {
+					setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
 					setLoading(false);
 				},
 				(err) => {
@@ -52,17 +44,12 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			return () => unsub();
 		}
 
-		getDoc(ref)
-			.then((snap) => {
-				if (snap.exists()) {
-					const trackingStatus = readWatchStatus(snap.data());
-					setStatus(toDisplayWatchStatus(trackingStatus));
-				} else {
-					setStatus(null);
-				}
+		libraryAdapter.getLibraryStatus(userId, mediaItem)
+			.then((trackingStatus) => {
+				setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
 			})
 			.catch((err) => {
-				console.warn("useLibraryItemStatus getDoc error:", err);
+				console.warn("useLibraryItemStatus getLibraryStatus error:", err);
 				setError(err);
 			})
 			.finally(() => setLoading(false));
@@ -84,19 +71,5 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 		error,
 	};
 };
-
-function generateTitleKey(mediaId, mediaType = "movie") {
-	const type = mediaType === "tv" ? "tv" : "movie";
-	return `tmdb_${type}_${mediaId}`;
-}
-
-function readWatchStatus(data) {
-	return (
-		data?.tracking?.watchStatus ??
-		data?.watchStatus ??
-		data?.status ??
-		null
-	);
-}
 
 export default useLibraryItemStatus;

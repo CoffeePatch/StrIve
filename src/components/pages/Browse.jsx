@@ -42,7 +42,7 @@ const Browse = () => {
             {title}
           </h2>
         </div>
-        <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4">
+        <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4 snap-x snap-mandatory">
           {items.map((media) => {
             if (!media) return null;
             return (

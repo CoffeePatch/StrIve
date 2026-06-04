@@ -44,12 +44,34 @@ const SeasonTabs = ({ totalSeasons, selectedSeason, onSeasonChange }) => {
 
   return (
     <div>
+      {totalSeasons > 10 && (
+        <div className="md:hidden mb-4">
+          <select
+            value={selectedSeason}
+            onChange={(e) => onSeasonChange(Number(e.target.value))}
+            className="w-full p-3 rounded-lg border focus-accent cursor-pointer appearance-none"
+            style={{
+              backgroundColor: 'var(--color-bg-elevated)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-primary)'
+            }}
+            aria-label="Select Season"
+          >
+            {seasons.map((seasonNum) => (
+              <option key={seasonNum} value={seasonNum}>
+                Season {seasonNum}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div
         ref={tablistRef}
         role="tablist"
         aria-label="Season selection"
         data-horizontal-scroll="true"
-        className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"
+        className={`gap-2 overflow-x-auto pb-2 scrollbar-hide ${totalSeasons > 10 ? 'hidden md:flex' : 'flex'}`}
       >
         {seasons.map((seasonNum) => (
           <button

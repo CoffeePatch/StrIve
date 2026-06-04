@@ -47,28 +47,34 @@ const MediaActions = ({
     "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
 
   return (
-    <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-      {onPlay && (
-        <button onClick={onPlay} className={actionButtonPrimaryClass}>
-          <span className="material-symbols-outlined text-xl shrink-0 text-current hidden lg:block">play_circle</span>
-          <Play className="w-5 h-5 shrink-0 lg:hidden text-current" />
-          <span className={actionButtonLabelClass}>Play Now</span>
-        </button>
+    <div className="flex flex-col lg:flex-row lg:items-center gap-0 lg:gap-4">
+      {/* Primary Actions */}
+      {(onPlay || trailerKey) && (
+        <div className="flex items-center gap-3 mb-4 lg:mb-0">
+          {onPlay && (
+            <button onClick={onPlay} className={actionButtonPrimaryClass}>
+              <span className="material-symbols-outlined text-xl shrink-0 text-current hidden lg:block">play_circle</span>
+              <Play className="w-5 h-5 shrink-0 lg:hidden text-current" />
+              <span className={actionButtonLabelClass}>Play Now</span>
+            </button>
+          )}
+
+          {trailerKey && (
+            <a
+              href={`https://www.youtube.com/watch?v=${trailerKey}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={actionButtonSecondaryClass}
+            >
+              <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
+              <span className={actionButtonLabelClass}>Trailer</span>
+            </a>
+          )}
+        </div>
       )}
 
-      {trailerKey && (
-        <a
-          href={`https://www.youtube.com/watch?v=${trailerKey}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={actionButtonSecondaryClass}
-        >
-          <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
-          <span className={actionButtonLabelClass}>Trailer</span>
-        </a>
-      )}
-
-      <div className="flex items-center gap-2">
+      {/* Floating Action Dock (Mobile) / Inline (Desktop) */}
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2.5 rounded-full shadow-2xl lg:relative lg:bottom-auto lg:left-auto lg:translate-x-0 lg:z-auto lg:bg-transparent lg:border-none lg:p-0 lg:shadow-none lg:rounded-none">
         <button
           onClick={onToggleWatchlist}
           className={watchlistButtonClass}

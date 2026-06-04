@@ -2,7 +2,7 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { libraryAdapter } from "../../domain/library/libraryAdapter";
 import { Play, Plus } from "lucide-react";
 
 const PosterTitle = ({ movie }) => {
@@ -27,7 +27,7 @@ const PosterTitle = ({ movie }) => {
         media_type: "movie",
       };
 
-      await upsertLibraryItem(user.uid, mediaItem, { status: "Plan to Watch" });
+      await libraryAdapter.addToWatchlist(user.uid, mediaItem);
       alert(`${mediaItem.title} added to your watchlist!`);
     } catch (error) {
       console.error("Error adding to watchlist:", error);

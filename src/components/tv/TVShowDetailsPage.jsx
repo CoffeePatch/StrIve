@@ -6,11 +6,6 @@ import Header from "../layout/Header";
 import useMediaDetailsCore from "../../hooks/media/useMediaDetailsCore";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
 import useTvVideos from "../../hooks/tv/useTvVideos";
-import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
-import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
-import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
-import useSeriesProgress from "../../hooks/tv/useSeriesProgress";
-import useRecomputeSeriesProgress from "../../hooks/tv/useRecomputeSeriesProgress";
 import SeriesProgressBar from "../media/SeriesProgressBar";
 import { fetchLists } from "../../util/store/listsSlice";
 import { options } from "../../util/core/constants";
@@ -26,7 +21,7 @@ import MediaActions from "../media/MediaDetails/MediaActions";
 import MediaGenres from "../media/MediaDetails/MediaGenres";
 import MediaCast from "../media/MediaDetails/MediaCast";
 import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
-import { upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { useSeriesTracking } from "../../domain/tracking/useSeriesTracking";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
@@ -76,7 +71,6 @@ const TVShowDetailsPage = () => {
   const [toast, setToast] = useState(null);
   const [showWatchChoiceModal, setShowWatchChoiceModal] = useState(false);
   const [watchChoiceEpisode, setWatchChoiceEpisode] = useState(null);
-  const [pendingProgress, setPendingProgress] = useState(null);
   const [cast, setCast] = useState([]);
 
   const { data: seasonData, loading: episodesLoading } = useTvSeasonEpisodes(
@@ -84,68 +78,28 @@ const TVShowDetailsPage = () => {
     selectedSeason
   );
 
-  // Episode tracking hooks
   const titleKey = `tmdb_tv_${tvId}`;
-  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
-  const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
-  const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
-  const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
-  const { recomputeSeriesProgress, loading: recomputeLoading } = useRecomputeSeriesProgress();
 
-  useEffect(() => {
-    if (!user?.uid || !titleKey) return;
-
-    const totalFromShow = Number(
-      showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0
-    );
-    const progressTotal = Number(seriesProgress?.totalEpisodesCount ?? 0);
-    const needsRecompute = Boolean(seriesProgress?.progressNeedsRecompute)
-      || (Number.isFinite(totalFromShow)
-        && totalFromShow > 0
-        && progressTotal > 0
-        && totalFromShow !== progressTotal)
-      || (watchedSet.size > 0 && !seriesProgress);
-
-    if (!needsRecompute || recomputeLoading) return;
-
-    const key = `${titleKey}:${progressTotal}:${totalFromShow}:${seriesProgress?.progressNeedsRecompute ? "stale" : "mismatch"}`;
-    if (recomputeKeyRef.current === key) return;
-    recomputeKeyRef.current = key;
-
-    recomputeSeriesProgress({ titleKey }).catch((err) => {
-      console.warn("recomputeSeriesProgress failed:", err?.message || err);
-    });
-  }, [
-    user?.uid,
-    titleKey,
-    showDetails?.numberOfEpisodes,
-    showDetails?.number_of_episodes,
-    seriesProgress?.totalEpisodesCount,
-    seriesProgress?.progressNeedsRecompute,
-    watchedSet.size,
-    recomputeLoading,
-    recomputeSeriesProgress,
-  ]);
-
-  useEffect(() => {
-    if (!pendingProgress || !seriesProgress) return;
-    const serverWatched = Number(seriesProgress.watchedEpisodesCount ?? 0);
-    if (serverWatched >= pendingProgress.watchedCount) {
-      setPendingProgress(null);
-    }
-  }, [pendingProgress, seriesProgress]);
-
-  useEffect(() => {
-    if (!pendingProgress?.isSyncing) return;
-    const timer = setTimeout(() => {
-      setPendingProgress((prev) => {
-        if (!prev || !prev.isSyncing) return prev;
-        return { ...prev, isSyncing: false };
-      });
-    }, SYNCING_TIMEOUT_MS);
-
-    return () => clearTimeout(timer);
-  }, [pendingProgress?.isSyncing]);
+  // Domain Tracking Hook
+  const {
+    watchedSet,
+    seriesProgress,
+    pendingProgress,
+    applyWatchMode,
+    handleUnwatchSeries,
+    markWatchedLoading,
+    unwatchLoading,
+  } = useSeriesTracking({
+    user,
+    tvId,
+    showDetails,
+    allSeasonsData,
+    currentSeasonEpisodes: seasonData?.episodes || [],
+    fetchAllSeasonDetails,
+    mediaItemForLists,
+    isWatched,
+    isWatchlisted
+  });
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -288,173 +242,22 @@ const TVShowDetailsPage = () => {
     return currentSeasonEps;
   };
 
-
-
-  const buildEpisodeCatalog = useCallback(async () => {
-    let fullCatalogData = allSeasonsData;
-    if (!fullCatalogData || fullCatalogData.length === 0) {
-      fullCatalogData = await fetchAllSeasonDetails();
-    }
-
-    if (fullCatalogData && fullCatalogData.length > 0) {
-      return fullCatalogData
-        .flatMap((season) =>
-          season.episodes?.map((ep) => ({
-            ...ep,
-            seasonNumber: season.season_number,
-          })) || []
-        )
-        .map((ep, idx) => ({
-          seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
-          episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
-          absoluteOrder:
-            Number(ep.absoluteOrder) ||
-            (Number(ep.seasonNumber ?? ep.season_number) * 1000 +
-              Number(ep.episodeNumber ?? ep.episode_number)) ||
-            idx + 1,
-          isAired: ep.air_date ? new Date(ep.air_date) <= new Date() : true,
-        }))
-        .filter(
-          (ep) =>
-            Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber)
-        );
-    }
-
-    return getAllEpisodes()
-      .map((ep, idx) => ({
-        seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
-        episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
-        absoluteOrder:
-          Number(ep.absoluteOrder) ||
-          (Number(ep.seasonNumber ?? ep.season_number) * 1000 +
-            Number(ep.episodeNumber ?? ep.episode_number)) ||
-          idx + 1,
-        isAired: ep.isAired !== false,
-      }))
-      .filter(
-        (ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber)
-      );
-  }, [allSeasonsData, fetchAllSeasonDetails, getAllEpisodes]);
-
-  const selectEpisodesForMode = (catalog, mode, sn, en) => {
-    const target = catalog.find(
-      (ep) => ep.seasonNumber === sn && ep.episodeNumber === en
-    );
-
-    if (!target) {
-      throw new Error(`Episode S${sn}E${en} not found in catalog.`);
-    }
-
-    if (mode === "single") {
-      if (!target.isAired) {
-        throw new Error("Target episode has not aired yet.");
-      }
-      return [target];
-    }
-
-    if (mode === "backfill_to_episode") {
-      return catalog
-        .filter((ep) => ep.isAired && ep.absoluteOrder <= target.absoluteOrder)
-        .sort((a, b) => a.absoluteOrder - b.absoluteOrder);
-    }
-
-    return [target];
-  };
-
-  const applyWatchMode = useCallback(async (episode, mode) => {
-    if (!user) return;
-
-    const sn = Number(episode.seasonNumber ?? episode.season_number);
-    const en = Number(episode.episodeNumber ?? episode.episode_number);
-
-    if (!Number.isInteger(sn) || !Number.isInteger(en)) {
-      setToast({ type: 'error', message: 'Episode metadata is invalid.' });
-      return;
-    }
-
-    const catalog = await buildEpisodeCatalog();
-    if (!catalog.length) {
-      setToast({ type: 'error', message: 'Episode metadata is unavailable.' });
-      return;
-    }
-
-    let selected = [];
+  const handleConfirmWatchChoice = useCallback(async (mode) => {
+    if (!watchChoiceEpisode) return;
+    const ep = watchChoiceEpisode;
+    setShowWatchChoiceModal(false);
+    setWatchChoiceEpisode(null);
     try {
-      selected = selectEpisodesForMode(catalog, mode, sn, en);
-    } catch (err) {
-      setToast({ type: 'error', message: err?.message || 'Episode selection failed.' });
-      return;
-    }
-
-    const optimisticSet = new Set(watchedSet);
-    selected.forEach((ep) => {
-      optimisticSet.add(`${ep.seasonNumber}:${ep.episodeNumber}`);
-    });
-
-    if (selected.length === 1) {
-      markLocallyWatched(sn, en);
-    } else {
-      markLocallyWatchedBulk(selected);
-    }
-
-    const airedCount = catalog.filter((ep) => ep.isAired).length
-      || Number(seriesProgress?.airedEpisodesCount ?? showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0);
-
-    setPendingProgress({
-      watchedCount: optimisticSet.size,
-      airedCount,
-      isSyncing: true,
-    });
-
-    if (!isWatched && !isWatchlisted) {
-      try {
-        await upsertLibraryItem(user.uid, mediaItemForLists, { status: "watching" });
-        setIsWatched(true);
-      } catch (err) {
-        console.warn("Failed to upsert library item:", err);
-      }
-    }
-
-    try {
-      await markEpisodeWatched({
-        titleKey,
-        seasonNumber: sn,
-        episodeNumber: en,
-        mode,
-        episodeCatalog: catalog,
-      });
-
+      await applyWatchMode(ep, mode);
+      const sn = Number(ep.seasonNumber ?? ep.season_number);
+      const en = Number(ep.episodeNumber ?? ep.episode_number);
       const message = mode === "single"
         ? `✓ S${sn}E${en} marked as watched`
         : `✓ S${sn}E${en} and previous marked as watched`;
       setToast({ type: 'success', message });
-
     } catch (err) {
-      setPendingProgress(null);
-      const message = err?.message || 'Failed to save watched state';
-      setToast({ type: 'error', message });
+      setToast({ type: 'error', message: err.message || 'Failed to apply watch mode' });
     }
-  }, [
-    user,
-    watchedSet,
-    buildEpisodeCatalog,
-    markLocallyWatched,
-    markLocallyWatchedBulk,
-    seriesProgress?.airedEpisodesCount,
-    showDetails?.numberOfEpisodes,
-    showDetails?.number_of_episodes,
-    isWatched,
-    isWatchlisted,
-    mediaItemForLists,
-    markEpisodeWatched,
-    titleKey,
-  ]);
-
-  const handleConfirmWatchChoice = useCallback((mode) => {
-    if (!watchChoiceEpisode) return;
-    setShowWatchChoiceModal(false);
-    setWatchChoiceEpisode(null);
-    applyWatchMode(watchChoiceEpisode, mode);
   }, [applyWatchMode, watchChoiceEpisode]);
 
   // --- Episode watched toggle handler (requires choice) ---
@@ -482,16 +285,14 @@ const TVShowDetailsPage = () => {
   // --- Unwatch entire series handler ---
   const handleConfirmUnwatch = useCallback(async () => {
     if (!user) return;
-    clearAllLocal();
     setShowUnwatchModal(false);
-    setPendingProgress(null);
     try {
-      await unwatchSeries({ titleKey });
+      await handleUnwatchSeries();
       setToast({ type: 'success', message: '✓ Series progress reset' });
     } catch {
       setToast({ type: 'error', message: 'Failed to reset series progress' });
     }
-  }, [user, titleKey, clearAllLocal, unwatchSeries]);
+  }, [user, handleUnwatchSeries]);
 
   // Auto-dismiss toast
   useEffect(() => {

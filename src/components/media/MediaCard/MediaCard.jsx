@@ -30,7 +30,7 @@ export const MediaCard = ({
 
   return (
     <div
-      className={`flex-none ${cardWidthClass} cursor-pointer group transition-all duration-300`}
+      className={`flex-none ${cardWidthClass} cursor-pointer group transition-all duration-300 snap-start`}
       onClick={handleCardClick}
     >
       {children}

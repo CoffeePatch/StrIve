@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { RiveStreamingService } from "../../util/core/riveService";
-import { upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { libraryAdapter } from "../../domain/library/libraryAdapter";
 import { Star, Maximize, RotateCw, X, Lock } from "lucide-react";
 import useRequireAuth from "../../hooks/common/useRequireAuth";
 
@@ -51,7 +51,7 @@ const TVShowPlayer = ({ tvShow, episode, season, onClose }) => {
         media_type: "tv",
       };
 
-      await upsertLibraryItem(user.uid, watchedItem, { status: "Completed" });
+      await libraryAdapter.markCompleted(user.uid, watchedItem);
       setIsAddedToWatched(true);
       console.log(
         `Added ${tvShow.name} S${season}E${episode.episode_number} to watched list`

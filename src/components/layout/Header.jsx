@@ -131,7 +131,7 @@ const Header = () => {
             <button
               onClick={() => navigate("/search")}
               aria-label="Search"
-              className="text-white hover:text-red-600 transition-colors duration-300 p-2"
+              className="hidden md:block text-white hover:text-red-600 transition-colors duration-300 p-2"
             >
               <span className="material-symbols-outlined text-2xl">search</span>
             </button>
@@ -238,7 +238,7 @@ const Header = () => {
             <button
               onClick={() => navigate("/search")}
               aria-label="Search"
-              className="glass-effect hover:bg-white/20 text-white rounded-full p-3 transition-all duration-300"
+              className="hidden md:block glass-effect hover:bg-white/20 text-white rounded-full p-3 transition-all duration-300"
             >
               <span className="material-symbols-outlined">search</span>
             </button>

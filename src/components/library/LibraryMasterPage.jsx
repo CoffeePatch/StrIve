@@ -6,14 +6,16 @@ import {
   getLibraryByListId,
   getLibraryItemListIds,
   setLibraryItemListIds,
-  setLibraryItemStatus,
   addItemToCustomList,
   removeItemFromCustomList,
   fetchUserLists,
+  updateCustomList, 
+  deleteCustomList, 
+  removeListIdFromAllLibraryItems 
 } from '../../util/firebase/firestoreService';
+import { libraryAdapter } from '../../domain/library/libraryAdapter';
 import Header from '../layout/Header';
 import '../../styles/LibraryMasterPage.css';
-import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
 import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
 import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
@@ -271,7 +273,7 @@ const LibraryMasterPage = () => {
           await setLibraryItemListIds(user.uid, item, nextListIds);
         } else {
           // System status tabs: clear status
-          await setLibraryItemStatus(user.uid, item, null);
+          await libraryAdapter.updateLibraryStatus(user.uid, item, null);
         }
       } catch (error) {
         console.error('Remove failed:', error);
@@ -300,7 +302,7 @@ const LibraryMasterPage = () => {
                       : [listIdAtRemove];
                     await setLibraryItemListIds(user.uid, item, restored);
                   } else {
-                    await setLibraryItemStatus(user.uid, item, statusToRestore);
+                    await libraryAdapter.updateLibraryStatus(user.uid, item, statusToRestore);
                   }
 
                   setItems((prev) => sortItems([...prev, item], sortBy));
