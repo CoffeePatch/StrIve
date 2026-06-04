@@ -1,9 +1,12 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import useSimilarShows from "../../../hooks/tv/useSimilarShows";
-import SimilarShowsCard from "./SimilarShowsCard";
+import Carousel from "../../ui/Carousel";
+import MediaCard from "../../ui/MediaCard";
 
 const SimilarShowsPanel = ({ tvId }) => {
   const { data: similarShows, loading, error } = useSimilarShows(tvId);
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -22,17 +25,19 @@ const SimilarShowsPanel = ({ tvId }) => {
   }
 
   return (
-    <div
-      data-horizontal-scroll="true"
-      className="flex overflow-x-auto scrollbar-hide hide-horizontal-scrollbar gap-4 py-2 px-2 overflow-y-hidden max-w-full"
-      role="list"
-    >
+    <Carousel>
       {similarShows.map((show) => (
-        <div role="listitem" key={show.id} className="flex-none w-48 sm:w-56">
-          <SimilarShowsCard show={show} />
-        </div>
+        <MediaCard
+          key={show.id}
+          media={show}
+          variant="recommendation"
+          onClick={() => {
+            navigate(`/shows/${show.id}`);
+            window.scrollTo(0, 0);
+          }}
+        />
       ))}
-    </div>
+    </Carousel>
   );
 };
 

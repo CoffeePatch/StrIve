@@ -22,6 +22,8 @@ import MediaGenres from "../media/MediaDetails/MediaGenres";
 import MediaCast from "../media/MediaDetails/MediaCast";
 import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
 import { useSeriesTracking } from "../../domain/tracking/useSeriesTracking";
+import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
+import SectionHeader from "../ui/SectionHeader";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
@@ -79,6 +81,35 @@ const TVShowDetailsPage = () => {
   );
 
   const titleKey = `tmdb_tv_${tvId}`;
+
+  const fetchAllSeasonDetails = async () => {
+    if (!showDetails || !showDetails.numberOfSeasons) return;
+
+    setIsLoadingMatrix(true);
+    try {
+      const validSeasons = Array.from(
+        { length: showDetails.numberOfSeasons }, 
+        (_, i) => i + 1
+      );
+
+      const seasonPromises = validSeasons.map((seasonNum) =>
+        fetch(
+          `https://api.themoviedb.org/3/tv/${tvId}/season/${seasonNum}?language=en-US`,
+          options
+        ).then(res => res.json())
+      );
+
+      const seasonsData = await Promise.all(seasonPromises);
+      setAllSeasonsData(seasonsData);
+      return seasonsData;
+    } catch (error) {
+      console.error("Error fetching all seasons data:", error);
+      setAllSeasonsData([]);
+      return [];
+    } finally {
+      setIsLoadingMatrix(false);
+    }
+  };
 
   // Domain Tracking Hook
   const {
@@ -152,35 +183,6 @@ const TVShowDetailsPage = () => {
       isActive = false;
     };
   }, [tvId]);
-
-  const fetchAllSeasonDetails = async () => {
-    if (!showDetails || !showDetails.numberOfSeasons) return;
-
-    setIsLoadingMatrix(true);
-    try {
-      const validSeasons = Array.from(
-        { length: showDetails.numberOfSeasons }, 
-        (_, i) => i + 1
-      );
-
-      const seasonPromises = validSeasons.map((seasonNum) =>
-        fetch(
-          `https://api.themoviedb.org/3/tv/${tvId}/season/${seasonNum}?language=en-US`,
-          options
-        ).then(res => res.json())
-      );
-
-      const seasonsData = await Promise.all(seasonPromises);
-      setAllSeasonsData(seasonsData);
-      return seasonsData;
-    } catch (error) {
-      console.error("Error fetching all seasons data:", error);
-      setAllSeasonsData([]);
-      return [];
-    } finally {
-      setIsLoadingMatrix(false);
-    }
-  };
 
   useEffect(() => {
     if (viewMode === 'matrix' && allSeasonsData === null && showDetails) {
@@ -441,9 +443,10 @@ const TVShowDetailsPage = () => {
 
             <div>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                  Episodes
-                </h2>
+                <SectionHeader 
+                  title="Episodes" 
+                  className="!mb-0" // override the default mb-6 from SectionHeader since we have a custom wrapper here
+                />
                 <EpisodeViewToggle viewMode={viewMode} setViewMode={setViewMode} />
               </div>
 
@@ -482,9 +485,7 @@ const TVShowDetailsPage = () => {
             </div>
 
             <div className="mt-10">
-              <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>
-                You might also like
-              </h2>
+              <SectionHeader title="You might also like" />
               <SimilarShowsPanel tvId={tvId} />
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { tmdbAdapter } from '../../domain/media';
-import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from '../media/MediaCard';
+import MediaCard from '../ui/MediaCard';
 import useSearch from '../../hooks/common/useSearch';
 import { triggerGlobalRefetch } from '../../hooks/media/useImdbRating';
 
@@ -165,13 +165,9 @@ const SearchPage = () => {
                     <MediaCard 
                       key={media.id} 
                       media={media}
+                      variant="grid"
                       onClick={() => navigate(media.mediaType === 'tv' ? `/shows/${media.id}` : `/movie/${media.id}`)}
-                    >
-                      <MediaPoster media={media}>
-                         <MediaBadges media={media} />
-                      </MediaPoster>
-                      <MediaMetadata media={media} />
-                    </MediaCard>
+                    />
                   );
                 })}
               </div>

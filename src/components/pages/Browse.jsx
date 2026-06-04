@@ -7,7 +7,9 @@ import useMediaByGenre from "../../hooks/media/useMediaByGenre";
 
 import Header from "../layout/Header";
 import MainContainer from "../layout/MainContainer";
-import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../media/MediaCard";
+import MediaCard from "../ui/MediaCard";
+import Carousel from "../ui/Carousel";
+import SectionHeader from "../ui/SectionHeader";
 import { useNavigate } from "react-router-dom";
 
 const Browse = () => {
@@ -36,30 +38,23 @@ const Browse = () => {
 
     return (
       <div className="mb-12">
-        <div className="mb-6">
-          <h2 className="text-white text-2xl lg:text-3xl font-bold font-secondary flex items-center gap-3">
-            <span className="material-symbols-outlined text-3xl text-red-600">{icon}</span>
-            {title}
-          </h2>
-        </div>
-        <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4 snap-x snap-mandatory">
+        <SectionHeader 
+          title={title} 
+          icon={<span className="material-symbols-outlined">{icon}</span>} 
+        />
+        <Carousel>
           {items.map((media) => {
             if (!media) return null;
             return (
               <MediaCard 
                 key={media.id} 
                 media={media} 
-                cardSize="compact"
+                variant="carousel"
                 onClick={() => navigate(media.mediaType === 'tv' ? `/shows/${media.id}` : `/movie/${media.id}`)}
-              >
-                <MediaPoster media={media}>
-                  <MediaBadges media={media} enableImdb={false} />
-                </MediaPoster>
-                <MediaMetadata media={media} />
-              </MediaCard>
+              />
             );
           })}
-        </div>
+        </Carousel>
       </div>
     );
   };

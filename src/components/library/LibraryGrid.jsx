@@ -1,6 +1,6 @@
 import React from 'react';
 import { tmdbAdapter } from '../../domain/media';
-import { MediaCard, MediaPoster, MediaBadges, MediaMetadata, MediaProgress } from '../media/MediaCard';
+import MediaCard from '../ui/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
 const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRating, getImdbVotes }) => {
@@ -98,15 +98,10 @@ const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRa
             <MediaCard 
               key={`${media.mediaType}-${media.id}`}
               media={media} 
-              vaultMode={true}
+              variant="library"
               onClick={() => handleItemClick(item)}
-            >
-              <MediaPoster media={media} vaultMode={true} onRemove={() => handleRemove(item)}>
-                <MediaBadges media={media} vaultMode={true} />
-                <MediaProgress media={media} vaultMode={true} />
-              </MediaPoster>
-              <MediaMetadata media={media} vaultMode={true} />
-            </MediaCard>
+              onRemove={() => handleRemove(item)}
+            />
           );
         })
       )}

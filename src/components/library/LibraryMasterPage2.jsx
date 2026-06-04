@@ -15,7 +15,7 @@ import {
 } from '../../util/firebase/firestoreService';
 import Header from '../layout/Header';
 import { tmdbAdapter } from '../../domain/media';
-import { MediaCard, MediaPoster, MediaBadges, MediaMetadata, MediaProgress } from '../media/MediaCard';
+import MediaCard from '../ui/MediaCard';
 import '../../styles/LibraryMasterPage.css';
 import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
 import { libraryAdapter } from '../../domain/library/libraryAdapter';
@@ -812,15 +812,10 @@ const LibraryMasterPage = () => {
                     <MediaCard 
                       key={`${media.mediaType}-${media.id}`}
                       media={media} 
-                      vaultMode={true}
+                      variant="library"
                       onClick={() => handleItemClick(item)}
-                    >
-                      <MediaPoster media={media} vaultMode={true} onRemove={() => handleRemove(item)}>
-                        <MediaBadges media={media} vaultMode={true} />
-                        <MediaProgress media={media} vaultMode={true} />
-                      </MediaPoster>
-                      <MediaMetadata media={media} vaultMode={true} />
-                    </MediaCard>
+                      onRemove={() => handleRemove(item)}
+                    />
                   );
                 })
               )}

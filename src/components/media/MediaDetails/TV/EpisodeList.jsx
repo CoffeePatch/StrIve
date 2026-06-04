@@ -1,7 +1,7 @@
 import React from "react";
 import EpisodeMatrixView from "../../../tv/TVShowDetails/EpisodeMatrixView";
 import EpisodeListItem from "../../../tv/TVShowDetails/EpisodeListItem";
-import EpisodeCard from "../../../tv/TVShowDetails/EpisodeCard";
+import EpisodeCard from "../../../ui/EpisodeCard";
 
 const EpisodeList = ({
   viewMode,

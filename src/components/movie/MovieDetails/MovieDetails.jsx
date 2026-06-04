@@ -11,6 +11,9 @@ import MediaRatings from "../../media/MediaDetails/MediaRatings";
 import MediaActions from "../../media/MediaDetails/MediaActions";
 import MediaGenres from "../../media/MediaDetails/MediaGenres";
 import MediaCast from "../../media/MediaDetails/MediaCast";
+import Carousel from "../../ui/Carousel";
+import MediaCard from "../../ui/MediaCard";
+import SectionHeader from "../../ui/SectionHeader";
 import { Star } from "lucide-react";
 
 const MovieDetails = () => {
@@ -159,38 +162,21 @@ const MovieDetails = () => {
           <MediaCast cast={movieDetails.credits?.cast} />
 
           {movieDetails.similar?.results && movieDetails.similar.results.length > 0 && (
-            <div>
-              <h2 className="text-3xl font-bold font-display text-white mb-8 flex items-center gap-3">
-                <span className="material-symbols-outlined text-4xl text-red-600">movie_filter</span>
-                Similar Movies
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <div className="mt-10">
+              <SectionHeader 
+                title="Similar Movies" 
+                icon={<span className="material-symbols-outlined text-3xl">movie_filter</span>} 
+              />
+              <Carousel>
                 {movieDetails.similar.results.slice(0, 12).map((movie) => (
-                  movie.poster_path && (
-                    <div
-                      key={movie.id}
-                      onClick={() => navigate(`/movie/${movie.id}`)}
-                      className="cursor-pointer group"
-                    >
-                      <div className="premium-card overflow-hidden">
-                        <img
-                          src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
-                          alt={movie.title}
-                          className="w-full h-72 object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                        <div className="p-3">
-                          <p className="text-white font-semibold text-sm truncate font-secondary">
-                            {movie.title}
-                          </p>
-                          <p className="text-white/60 text-xs">
-                            {movie.release_date?.split("-")[0]}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
+                  <MediaCard
+                    key={movie.id}
+                    media={movie}
+                    variant="recommendation"
+                    onClick={() => navigate(`/movie/${movie.id}`)}
+                  />
                 ))}
-              </div>
+              </Carousel>
             </div>
           )}
         </div>
