@@ -1,28 +1,24 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import Header from "../layout/Header";
-import { tmdbAdapter } from "../../domain/media";
 import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../media/MediaCard";
-import usePopularTVShows from "../../hooks/tv/usePopularTVShows";
-import useTopRatedTVShows from "../../hooks/tv/useTopRatedTVShows";
-import useOnTheAirTVShows from "../../hooks/tv/useOnTheAirTVShows";
-import useTVShowsByGenre from "../../hooks/tv/useTVShowsByGenre";
-
+import useUpcomingMedia from "../../hooks/media/useUpcomingMedia";
+import usePopularMedia from "../../hooks/media/usePopularMedia";
+import useTopRatedMedia from "../../hooks/media/useTopRatedMedia";
+import useMediaByGenre from "../../hooks/media/useMediaByGenre";
 const TVShows = () => {
-  const tvShows = useSelector((store) => store.tvShows);
   const navigate = useNavigate();
 
-  usePopularTVShows();
-  useTopRatedTVShows();
-  useOnTheAirTVShows();
+  const popularTVShows = usePopularMedia("tv");
+  const topRatedTVShows = useTopRatedMedia("tv");
+  const actionAdventureTVShows = useMediaByGenre("tv", 10759);
+  const comedyTVShows = useMediaByGenre("tv", 35);
+  const romanceTVShows = useMediaByGenre("tv", 10749);
 
-  useTVShowsByGenre(10759); // Action & Adventure
-  useTVShowsByGenre(35); // Comedy
-  useTVShowsByGenre(10749); // Romance
+  const onTheAirTVShows = useUpcomingMedia("tv");
 
-  const TVShowList = ({ title, shows, icon }) => {
-    if (!shows || shows.length === 0) return null;
+  const TVShowList = ({ title, mediaItems, icon }) => {
+    if (!mediaItems || mediaItems.length === 0) return null;
 
     return (
       <div className="mb-12">
@@ -33,8 +29,7 @@ const TVShows = () => {
           </h2>
         </div>
         <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4">
-          {shows.map((tvShow) => {
-            const media = tmdbAdapter(tvShow);
+          {mediaItems.map((media) => {
             if (!media) return null;
             return (
               <MediaCard 
@@ -72,12 +67,12 @@ const TVShows = () => {
       </div>
 
       <div className="w-full px-6 lg:px-12 pb-20">
-        <TVShowList title="On The Air" shows={tvShows.onTheAirTVShows} icon="live_tv" />
-        <TVShowList title="Popular TV Shows" shows={tvShows.popularTVShows} icon="trending_up" />
-        <TVShowList title="Top Rated" shows={tvShows.topRatedTVShows} icon="star" />
-        <TVShowList title="Action & Adventure" shows={tvShows.genreTVShows?.[10759]} icon="sports_martial_arts" />
-        <TVShowList title="Comedy" shows={tvShows.genreTVShows?.[35]} icon="mood" />
-        <TVShowList title="Romance" shows={tvShows.genreTVShows?.[10749]} icon="favorite" />
+        <TVShowList title="On The Air" mediaItems={onTheAirTVShows} icon="live_tv" />
+        <TVShowList title="Popular TV Shows" mediaItems={popularTVShows} icon="trending_up" />
+        <TVShowList title="Top Rated" mediaItems={topRatedTVShows} icon="star" />
+        <TVShowList title="Action & Adventure" mediaItems={actionAdventureTVShows} icon="sports_martial_arts" />
+        <TVShowList title="Comedy" mediaItems={comedyTVShows} icon="mood" />
+        <TVShowList title="Romance" mediaItems={romanceTVShows} icon="favorite" />
       </div>
     </div>
   );

@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { options } from "../../../util/core/constants";
+import { useDispatch } from "react-redux";
 import { fetchLists } from "../../../util/store/listsSlice";
 import Header from "../../layout/Header";
-import useRequireAuth from "../../../hooks/common/useRequireAuth";
-import useImdbTitle from "../../../hooks/media/useImdbTitle";
-import useLibraryItemStatus from "../../../hooks/media/useLibraryItemStatus";
+import useMediaDetailsCore from "../../../hooks/media/useMediaDetailsCore";
 import AddToListPopover from "../../lists/AddToListPopover";
 import CreateListModal from "../../lists/CreateListModal";
 import MediaHero from "../../media/MediaDetails/MediaHero";
@@ -15,46 +12,31 @@ import MediaActions from "../../media/MediaDetails/MediaActions";
 import MediaGenres from "../../media/MediaDetails/MediaGenres";
 import MediaCast from "../../media/MediaDetails/MediaCast";
 import { Star } from "lucide-react";
-import { setLibraryItemStatus } from "../../../util/firebase/firestoreService";
-
-const formatCount = (num) => {
-  if (num === null || num === undefined) return 'N/A';
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
-};
 
 const MovieDetails = () => {
   const { movieId, imdbId } = useParams();
-  const [movieDetails, setMovieDetails] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const currentId = imdbId || movieId;
+
+  const {
+    user,
+    mediaDetails: movieDetails,
+    loading,
+    imdbData,
+    imdbLoading,
+    isWatchlisted,
+    isWatched: isCompleted,
+    handleToggleWatchlist,
+    handleToggleWatched: handleToggleCompleted,
+    mediaItemForLists
+  } = useMediaDetailsCore({ mediaId: currentId, mediaType: "movie" });
+
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
-  const [isWatchlisted, setIsWatchlisted] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
   const castScrollRef = useRef(null);
   const similarScrollRef = useRef(null);
   const navigate = useNavigate();
-  const user = useRequireAuth();
   const dispatch = useDispatch();
-  
-  const currentId = imdbId || movieId;
-  const mediaType = currentId && currentId.startsWith('tt') ? "movie" : "movie";
-  const { data: imdbData, loading: imdbLoading } = useImdbTitle(currentId, mediaType);
-
-  // Fetch library item status from Firestore (hydrate UI state on mount)
-  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted } = useLibraryItemStatus({
-    userId: user?.uid,
-    mediaItem: movieDetails ? { id: movieDetails.id, media_type: "movie" } : null,
-    realtime: true,
-  });
-
-  // Sync Firestore library state with local UI state
-  useEffect(() => {
-    setIsWatchlisted(Boolean(firestoreIsWatchlisted));
-    setIsCompleted(Boolean(firestoreIsCompleted));
-  }, [firestoreIsWatchlisted, firestoreIsCompleted]);
 
   const trailer = movieDetails?.videos?.results?.find(
     (v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official
@@ -62,26 +44,9 @@ const MovieDetails = () => {
     (v) => v.site === 'YouTube' && v.type === 'Trailer'
   );
 
-  const fetchMovieDetails = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `https://api.themoviedb.org/3/movie/${movieId}?language=en-US&append_to_response=images,credits,similar,videos&include_image_language=en,null`,
-        options
-      );
-      const movieData = await response.json();
-      setMovieDetails(movieData);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching movie details:", error);
-      setLoading(false);
-    }
-  }, [movieId]);
-
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
-    fetchMovieDetails();
-  }, [fetchMovieDetails]);
+  }, [currentId]);
 
   useEffect(() => {
     if (user) {
@@ -109,59 +74,7 @@ const MovieDetails = () => {
     setShowCreateModal(true);
   };
 
-  const handleToggleWatchlist = async () => {
-    if (!user) {
-      alert("Please log in first.");
-      return;
-    }
-    try {
-      const newStatus = isWatchlisted ? null : "Plan to Watch";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatchlisted(newStatus === "Plan to Watch");
-      if (newStatus === "Plan to Watch") {
-        setIsCompleted(false);
-      }
-    } catch (error) {
-      console.error("Error updating watchlist:", error);
-    }
-  };
 
-  const handleToggleCompleted = async () => {
-    if (!user) {
-      alert("Please log in first.");
-      return;
-    }
-    try {
-      const newStatus = isCompleted ? null : "Completed";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsCompleted(newStatus === "Completed");
-      if (newStatus === "Completed") {
-        setIsWatchlisted(false);
-      }
-    } catch (error) {
-      console.error("Error updating completed status:", error);
-    }
-  };
-
-
-
-  const mediaItemForLists = movieDetails
-    ? {
-        id: movieDetails.id,
-        title: movieDetails.title,
-        poster_path: movieDetails.poster_path,
-        overview: movieDetails.overview,
-        release_date: movieDetails.release_date,
-        vote_average: movieDetails.vote_average,
-        vote_count: movieDetails.vote_count,
-        runtime: movieDetails.runtime,
-        genres: movieDetails.genres,
-        imdbId: currentId && currentId.startsWith('tt') ? currentId : (imdbData?.id || null),
-        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
-        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
-        media_type: "movie",
-      }
-    : null;
 
   if (loading) {
     return (

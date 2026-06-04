@@ -1,28 +1,24 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import Header from "../../layout/Header";
-import { tmdbAdapter } from "../../../domain/media";
 import { MediaCard, MediaPoster, MediaBadges, MediaMetadata } from "../../media/MediaCard";
 import { useNavigate } from "react-router-dom";
-import usePopularMovies from "../../../hooks/movie/usePopularMovies";
-import useTopRatedMovies from "../../../hooks/movie/useTopRatedMovies";
-import useUpcomingMovies from "../../../hooks/movie/useUpcomingMovies";
-import useMoviesByGenre from "../../../hooks/movie/useMoviesByGenre";
-
+import useUpcomingMedia from "../../../hooks/media/useUpcomingMedia";
+import usePopularMedia from "../../../hooks/media/usePopularMedia";
+import useTopRatedMedia from "../../../hooks/media/useTopRatedMedia";
+import useMediaByGenre from "../../../hooks/media/useMediaByGenre";
 const MoviesPage = () => {
-  const movies = useSelector((store) => store.movies);
   const navigate = useNavigate();
 
-  usePopularMovies();
-  useTopRatedMovies();
-  useUpcomingMovies();
+  const popularMovies = usePopularMedia("movie");
+  const topRatedMovies = useTopRatedMedia("movie");
+  const actionMovies = useMediaByGenre("movie", 28);
+  const adventureMovies = useMediaByGenre("movie", 12);
+  const romanceMovies = useMediaByGenre("movie", 10749);
 
-  useMoviesByGenre(28);
-  useMoviesByGenre(12);
-  useMoviesByGenre(10749);
+  const upcomingMovies = useUpcomingMedia("movie");
 
-  const MovieList = ({ title, movies, icon }) => {
-    if (!movies || movies.length === 0) return null;
+  const MovieList = ({ title, mediaItems, icon }) => {
+    if (!mediaItems || mediaItems.length === 0) return null;
 
     return (
       <div className="mb-12">
@@ -33,8 +29,7 @@ const MoviesPage = () => {
           </h2>
         </div>
         <div data-horizontal-scroll="true" className="flex overflow-x-scroll scrollbar-hide gap-4 pb-4">
-          {movies.map((movie) => {
-            const media = tmdbAdapter(movie);
+          {mediaItems.map((media) => {
             if (!media) return null;
             return (
               <MediaCard
@@ -79,33 +74,33 @@ const MoviesPage = () => {
       <div className="w-full px-6 lg:px-12 pb-20">
         <MovieList
           title="Popular Movies"
-          movies={movies.popularMovies}
+          mediaItems={popularMovies}
           icon="trending_up"
         />
         <MovieList
           title="Top Rated"
-          movies={movies.topRatedMovies}
+          mediaItems={topRatedMovies}
           icon="star"
         />
         <MovieList
           title="Upcoming"
-          movies={movies.upcomingMovies}
+          mediaItems={upcomingMovies}
           icon="event"
         />
 
         <MovieList
           title="Action"
-          movies={movies.genreMovies?.[28]}
+          mediaItems={actionMovies}
           icon="sports_martial_arts"
         />
         <MovieList
           title="Adventure"
-          movies={movies.genreMovies?.[12]}
+          mediaItems={adventureMovies}
           icon="explore"
         />
         <MovieList
           title="Romance"
-          movies={movies.genreMovies?.[10749]}
+          mediaItems={romanceMovies}
           icon="favorite"
         />
       </div>

@@ -3,12 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { ArrowLeft, Play, AlertTriangle } from "lucide-react";
 import Header from "../layout/Header";
-import useTvShowDetails from "../../hooks/tv/useTvShowDetails";
+import useMediaDetailsCore from "../../hooks/media/useMediaDetailsCore";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
 import useTvVideos from "../../hooks/tv/useTvVideos";
-import useRequireAuth from "../../hooks/common/useRequireAuth";
-import useImdbTitle from "../../hooks/media/useImdbTitle";
-import useLibraryItemStatus from "../../hooks/media/useLibraryItemStatus";
 import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
 import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
 import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
@@ -29,7 +26,7 @@ import MediaActions from "../media/MediaDetails/MediaActions";
 import MediaGenres from "../media/MediaDetails/MediaGenres";
 import MediaCast from "../media/MediaDetails/MediaCast";
 import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
-import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { upsertLibraryItem } from "../../util/firebase/firestoreService";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
@@ -46,14 +43,25 @@ const formatCount = (num) => {
 const TVShowDetailsPage = () => {
   const { tvId } = useParams();
   const navigate = useNavigate();
-  const user = useRequireAuth();
   const dispatch = useDispatch();
   const popoverRef = useRef(null);
   const recomputeKeyRef = useRef(null);
 
-  const { data: showDetails, loading: detailsLoading, error: detailsError } = useTvShowDetails(tvId);
+  const {
+    user,
+    mediaDetails: showDetails,
+    loading: detailsLoading,
+    error: detailsError,
+    imdbData,
+    imdbLoading,
+    isWatchlisted,
+    isWatched,
+    handleToggleWatchlist,
+    handleToggleWatched,
+    mediaItemForLists
+  } = useMediaDetailsCore({ mediaId: tvId, mediaType: "tv" });
+
   const { data: videos } = useTvVideos(tvId);
-  const { data: imdbData, loading: imdbLoading, error: imdbError } = useImdbTitle(tvId, "tv");
 
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [selectedEpisode, setSelectedEpisode] = useState(null);
@@ -64,8 +72,6 @@ const TVShowDetailsPage = () => {
   const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
-  const [isWatchlisted, setIsWatchlisted] = useState(false);
-  const [isWatched, setIsWatched] = useState(false);
   const [showUnwatchModal, setShowUnwatchModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [showWatchChoiceModal, setShowWatchChoiceModal] = useState(false);
@@ -85,19 +91,6 @@ const TVShowDetailsPage = () => {
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
   const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
   const { recomputeSeriesProgress, loading: recomputeLoading } = useRecomputeSeriesProgress();
-
-  // Fetch library item status from Firestore (hydrate UI state on mount)
-  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsWatched } = useLibraryItemStatus({
-    userId: user?.uid,
-    mediaItem: showDetails ? { id: tvId, media_type: "tv" } : null,
-    realtime: true,
-  });
-
-  // Sync Firestore library state with local UI state
-  useEffect(() => {
-    setIsWatchlisted(Boolean(firestoreIsWatchlisted));
-    setIsWatched(Boolean(firestoreIsWatched));
-  }, [firestoreIsWatchlisted, firestoreIsWatched]);
 
   useEffect(() => {
     if (!user?.uid || !titleKey) return;
@@ -295,34 +288,7 @@ const TVShowDetailsPage = () => {
     return currentSeasonEps;
   };
 
-  const mediaItemForLists = showDetails
-    ? {
-        id: parseInt(tvId),
-        name: showDetails.name,
-        title: showDetails.name,
-        poster_path: showDetails.posterPath || showDetails.poster_path,
-        first_air_date: showDetails.firstAirDate || showDetails.first_air_date,
-        release_date: showDetails.firstAirDate || showDetails.first_air_date,
-        overview: showDetails.overview,
-        vote_average: showDetails.voteAverage ?? showDetails.vote_average,
-        vote_count: showDetails.voteCount ?? showDetails.vote_count,
-        genres: Array.isArray(showDetails.genres) ? showDetails.genres : [],
-        number_of_episodes: showDetails.numberOfEpisodes || showDetails.number_of_episodes || null,
-        images: {
-          tmdbPoster: showDetails.posterPath || showDetails.poster_path || "",
-        },
-        ratings: {
-          tmdbScore: showDetails.voteAverage ?? showDetails.vote_average ?? 0,
-          tmdbVotes: showDetails.voteCount ?? showDetails.vote_count ?? 0,
-          imdbScore: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
-          imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
-        },
-        imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
-        imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
-        imdbId: imdbData?.id || null,
-        media_type: "tv",
-      }
-    : null;
+
 
   const buildEpisodeCatalog = useCallback(async () => {
     let fullCatalogData = allSeasonsData;
@@ -558,37 +524,7 @@ const TVShowDetailsPage = () => {
     };
   }, [hoverTimeout]);
 
-  const handleToggleWatchlist = async () => {
-    if (!user) {
-      alert("Please log in first.");
-      return;
-    }
 
-    try {
-      const newStatus = isWatchlisted ? null : "Plan to Watch";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatchlisted(newStatus === "Plan to Watch");
-      if (newStatus === "Plan to Watch") setIsWatched(false);
-    } catch (error) {
-      console.error("Error updating watchlist:", error);
-    }
-  };
-
-  const handleToggleWatched = async () => {
-    if (!user) {
-      alert("Please log in first.");
-      return;
-    }
-
-    try {
-      const newStatus = isWatched ? null : "Completed";
-      await setLibraryItemStatus(user.uid, mediaItemForLists, newStatus);
-      setIsWatched(newStatus === "Completed");
-      if (newStatus === "Completed") setIsWatchlisted(false);
-    } catch (error) {
-      console.error("Error updating watched status:", error);
-    }
-  };
 
   const handleCreateNew = () => {
     setShowPopover(false);
