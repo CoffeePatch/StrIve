@@ -21,33 +21,13 @@ export {
   setLibraryItemListIds,
   setLibraryItemStatus,
   updateLibraryItem,
-  toggleCustomListTag,
   getLibraryItem,
   getLibraryByStatus,
   getLibraryByListId
 } from '../../services/libraryService';
 
 export {
-  createCustomList,
-  deleteCustomList,
-  updateCustomList,
-  removeListIdFromAllLibraryItems,
-  addItemToCustomList,
-  addItemsToCustomListBatch,
-  removeItemFromCustomList,
-  fetchUserLists,
-  fetchUserListsWithPreviews,
-  fetchListWithItems,
-  pinList,
-  unpinList,
-  createDefaultWatchLaterList,
-  updateItemEnrichment,
-  getPendingItemsInList
-} from '../../services/customListsService';
-
-export {
   refreshLibraryMetadata,
-  refreshCustomListMetadata,
   getItemsWithMissingMetadata,
   getMetadataStatistics
 } from '../../services/metadataService';

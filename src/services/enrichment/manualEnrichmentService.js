@@ -1,4 +1,4 @@
-import { updateItemEnrichment } from "../../util/firebase/firestoreService";
+import { updateLibraryItem } from "../../util/firebase/firestoreService";
 import tmdbApiService from "../tmdb/tmdbApiService";
 import imdbApiService from "../imdb/imdbApiService";
 
@@ -51,7 +51,7 @@ class ManualEnrichmentService {
 
           if (updates && Object.keys(updates).length > 0) {
             // Update Firestore
-            await updateItemEnrichment(userId, listId, item.id, updates);
+            await updateLibraryItem(userId, item, updates);
             
             // Call progress callback with success
             if (onProgress) {
@@ -64,7 +64,7 @@ class ManualEnrichmentService {
             successCount++;
           } else {
             // No data found
-            await updateItemEnrichment(userId, listId, item.id, {
+            await updateLibraryItem(userId, item, {
               enrichmentStatus: "failed",
               lastEnriched: new Date().toISOString(),
             });

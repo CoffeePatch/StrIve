@@ -1,31 +1,34 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { createList } from '../../util/store/listsSlice';
+import { useLists } from '../../domain/lists/useLists';
+import { validateListName, canPinMoreLists } from '../../domain/lists/listValidators';
 
 const CreateListModal = ({ isOpen, onClose, userId }) => {
   const [listName, setListName] = useState('');
   const [isPinned, setIsPinned] = useState(false);
-  const dispatch = useDispatch();
-  const { status, error, lists } = useSelector((state) => state.lists.customLists);
+  const { createNewList, lists, listsStatus, listsError } = useLists(userId);
+  const [validationError, setValidationError] = useState('');
 
   if (!isOpen) return null;
 
   const pinnedCount = lists?.filter(l => l.isPinned).length || 0;
-  const canPin = pinnedCount < 5;
+  const canPin = canPinMoreLists(pinnedCount);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!listName.trim()) return;
+    const errorMsg = validateListName(listName, lists);
+    if (errorMsg) {
+      setValidationError(errorMsg);
+      return;
+    }
+    
+    setValidationError('');
 
     try {
-      await dispatch(createList({ 
-        userId, 
-        listData: { 
-          name: listName,
-          isPinned: isPinned && canPin
-        } 
-      })).unwrap();
+      await createNewList({
+        name: listName.trim(),
+        isPinned: isPinned && canPin
+      });
       setListName('');
       setIsPinned(false);
       onClose();
@@ -42,9 +45,9 @@ const CreateListModal = ({ isOpen, onClose, userId }) => {
           Create New List
         </h2>
         
-        {error && (
+        {(listsError || validationError) && (
           <div className="mb-4 p-3 bg-red-600/20 border border-red-600/50 text-red-400 rounded-lg font-secondary text-sm">
-            Error: {error}
+            {validationError || listsError}
           </div>
         )}
         
@@ -60,7 +63,7 @@ const CreateListModal = ({ isOpen, onClose, userId }) => {
               onChange={(e) => setListName(e.target.value)}
               className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent font-secondary"
               placeholder="e.g., Watch Later, Action Movies"
-              disabled={status === 'loading'}
+              disabled={listsStatus === 'loading'}
               required
               autoFocus
             />
@@ -73,7 +76,7 @@ const CreateListModal = ({ isOpen, onClose, userId }) => {
                   type="checkbox"
                   checked={isPinned}
                   onChange={(e) => setIsPinned(e.target.checked)}
-                  disabled={!canPin || status === 'loading'}
+                  disabled={!canPin || listsStatus === 'loading'}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-yellow-600 peer-disabled:opacity-50 transition-colors"></div>
@@ -100,23 +103,23 @@ const CreateListModal = ({ isOpen, onClose, userId }) => {
               type="button"
               onClick={onClose}
               className="px-5 py-2.5 text-sm font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all font-secondary border border-white/10"
-              disabled={status === 'loading'}
+              disabled={listsStatus === 'loading'}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={status === 'loading' || !listName.trim()}
+              disabled={listsStatus === 'loading' || !listName.trim()}
               className={`px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-all font-secondary flex items-center gap-2 ${
-                status === 'loading' || !listName.trim()
+                listsStatus === 'loading' || !listName.trim()
                   ? 'bg-red-600/50 cursor-not-allowed'
                   : 'bg-red-600 hover:bg-red-700 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)]'
               }`}
             >
-              {status === 'loading' && (
+              {listsStatus === 'loading' && (
                 <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
               )}
-              <span>{status === 'loading' ? 'Creating...' : 'Create List'}</span>
+              <span>{listsStatus === 'loading' ? 'Creating...' : 'Create List'}</span>
             </button>
           </div>
         </form>

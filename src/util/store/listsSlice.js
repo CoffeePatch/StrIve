@@ -1,24 +1,13 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import {
-  createCustomList,
-  updateCustomList,
-  deleteCustomList,
-  addItemToCustomList,
-  removeItemFromCustomList,
-  fetchListWithItems,
-  fetchUserListsWithPreviews,
-  pinList as pinListService,
-  unpinList as unpinListService,
-  createDefaultWatchLaterList,
-  addItemsToCustomListBatch,
-} from "../firebase/firestoreService";
+import { listsAdapter } from '../../domain/lists/listsAdapter';
+import { MAX_PINNED_LISTS } from '../../domain/lists/listConstants';
 
 // Async thunks for custom lists
 export const fetchLists = createAsyncThunk(
   "lists/fetchLists",
   async (userId, { rejectWithValue }) => {
     try {
-      const lists = await fetchUserListsWithPreviews(userId);
+      const lists = await listsAdapter.fetchUserListsWithPreviews(userId);
 
       // Convert Firestore Timestamps to serializable format before returning
       const processedLists = lists.map((list) => {
@@ -132,13 +121,13 @@ export const pinListThunk = createAsyncThunk(
         0;
 
       // Check if pin limit reached (max 5)
-      if (pinnedCount >= 5) {
+      if (pinnedCount >= MAX_PINNED_LISTS) {
         throw new Error(
-          "Maximum of 5 pinned lists reached. Please unpin a list first."
+          `Maximum of ${MAX_PINNED_LISTS} pinned lists reached. Please unpin a list first.`
         );
       }
 
-      await pinListService(userId, listId);
+      await listsAdapter.pinList(userId, listId);
       return { listId, pinnedAt: new Date().toISOString() };
     } catch (error) {
       return rejectWithValue(error.message || error.toString());
@@ -150,7 +139,7 @@ export const unpinListThunk = createAsyncThunk(
   "lists/unpinList",
   async ({ userId, listId }, { rejectWithValue }) => {
     try {
-      await unpinListService(userId, listId);
+      await listsAdapter.unpinList(userId, listId);
       return listId;
     } catch (error) {
       return rejectWithValue(error.toString());
@@ -162,7 +151,7 @@ export const createDefaultList = createAsyncThunk(
   "lists/createDefaultList",
   async (userId, { rejectWithValue }) => {
     try {
-      const newListId = await createDefaultWatchLaterList(userId);
+      const newListId = await listsAdapter.createDefaultWatchLaterList(userId);
       return {
         id: newListId,
         name: "Watch Later",
@@ -183,7 +172,7 @@ export const createList = createAsyncThunk(
   "lists/createList",
   async ({ userId, listData }, { rejectWithValue }) => {
     try {
-      const newListId = await createCustomList(userId, listData);
+      const newListId = await listsAdapter.createList(userId, listData);
       const now = new Date();
       // Return both the new list ID and the original listData to construct the full list object
       return {
@@ -204,7 +193,7 @@ export const deleteList = createAsyncThunk(
   "lists/deleteList",
   async ({ userId, listId }, { rejectWithValue }) => {
     try {
-      await deleteCustomList(userId, listId);
+      await listsAdapter.deleteList(userId, listId);
       return listId; // Return the ID of the deleted list
     } catch (error) {
       return rejectWithValue(error.toString());
@@ -216,7 +205,7 @@ export const updateListMetadata = createAsyncThunk(
   "lists/updateListMetadata",
   async ({ userId, listId, updates }, { rejectWithValue }) => {
     try {
-      const result = await updateCustomList(userId, listId, updates);
+      const result = await listsAdapter.updateList(userId, listId, updates);
       return {
         listId,
         updates: {
@@ -236,7 +225,7 @@ export const addItem = createAsyncThunk(
   "lists/addItem",
   async ({ userId, listId, mediaItem }, { rejectWithValue }) => {
     try {
-      await addItemToCustomList(userId, listId, mediaItem);
+      await listsAdapter.addItemToList(userId, listId, mediaItem);
       return { listId, item: { ...mediaItem, dateAdded: new Date() } }; // Return list ID and the item added
     } catch (error) {
       return rejectWithValue(error.toString());
@@ -248,7 +237,7 @@ export const removeItem = createAsyncThunk(
   "lists/removeItem",
   async ({ userId, listId, mediaId }, { rejectWithValue }) => {
     try {
-      await removeItemFromCustomList(userId, listId, mediaId);
+      await listsAdapter.removeItemFromList(userId, listId, mediaId);
       return { listId, mediaId }; // Return list ID and media ID of the removed item
     } catch (error) {
       return rejectWithValue(error.toString());
@@ -260,7 +249,7 @@ export const addItemsBatch = createAsyncThunk(
   "lists/addItemsBatch",
   async ({ userId, listId, items }, { rejectWithValue }) => {
     try {
-      await addItemsToCustomListBatch(userId, listId, items);
+      await listsAdapter.addItemsBatch(userId, listId, items);
       // Return the items with dateAdded for Redux state update
       const itemsWithDate = items.map((item) => ({
         ...item,
@@ -277,7 +266,7 @@ export const fetchActiveList = createAsyncThunk(
   "lists/fetchActiveList",
   async ({ userId, listId }, { rejectWithValue }) => {
     try {
-      const listData = await fetchListWithItems(userId, listId);
+      const listData = await listsAdapter.fetchListWithItems(userId, listId);
 
       // Convert Firestore Timestamps to serializable format before returning
       if (listData && listData.items && Array.isArray(listData.items)) {

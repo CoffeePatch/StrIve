@@ -12,12 +12,16 @@ import {
   addItemToCustomList,
   removeItemFromCustomList,
   fetchUserLists,
+  updateCustomList,
+  deleteCustomList,
+  removeListIdFromAllLibraryItems,
 } from '../../util/firebase/firestoreService';
 import Header from '../layout/Header';
 import { tmdbAdapter } from '../../domain/media';
 import MediaCard from '../ui/MediaCard';
 import '../../styles/LibraryMasterPage.css';
-import { updateCustomList, deleteCustomList, removeListIdFromAllLibraryItems } from '../../util/firebase/firestoreService';
+import { useLists } from "../../domain/lists/useLists";
+import { useListMembership } from "../../domain/lists/useListMembership";
 import { libraryAdapter } from '../../domain/library/libraryAdapter';
 import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
@@ -28,7 +32,8 @@ const LibraryMasterPage = () => {
   
   const [activeTab, setActiveTab] = useState('watchlist');
   const [items, setItems] = useState([]);
-  const [customLists, setCustomLists] = useState([]);
+  const { lists: customLists, loadLists, createNewList, removeList, updateList } = useLists(user?.uid);
+  const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
   const [selectedListId, setSelectedListId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,21 +59,18 @@ const LibraryMasterPage = () => {
   const loadCustomLists = useCallback(
     async (signal) => {
       if (!user?.uid) return;
-
       try {
-        const lists = await fetchUserLists(user.uid);
-
-        if (signal?.cancelled) return;
-
-        setCustomLists(lists || []);
-        if (lists && lists.length > 0 && !selectedListId) {
-          setSelectedListId(lists[0].id);
+        const lists = await loadLists();
+        if (!signal?.cancelled) {
+          if (lists && lists.length > 0 && !selectedListId) {
+            setSelectedListId(lists[0].id);
+          }
         }
       } catch (error) {
         console.error('Error loading custom lists:', error);
       }
     },
-    [user?.uid, selectedListId]
+    [user?.uid, loadLists, selectedListId]
   );
 
   const loadItems = useCallback(
@@ -261,12 +263,7 @@ const LibraryMasterPage = () => {
       try {
         if (tabAtRemove === 'custom') {
           if (!listIdAtRemove) throw new Error('Missing listId');
-
-          await removeItemFromCustomList(user.uid, listIdAtRemove, item.id);
-
-          const currentListIds = await getLibraryItemListIds(user.uid, item);
-          const nextListIds = (currentListIds || []).filter((id) => id !== listIdAtRemove);
-          await setLibraryItemListIds(user.uid, item, nextListIds);
+          await removeMediaFromList(listIdAtRemove, item.id);
         } else {
           // System status tabs: clear status
           await libraryAdapter.updateLibraryStatus(user.uid, item, null);
@@ -288,15 +285,7 @@ const LibraryMasterPage = () => {
                 try {
                   if (tabAtRemove === 'custom') {
                     if (!listIdAtRemove) throw new Error('Missing listId');
-
-                    await addItemToCustomList(user.uid, listIdAtRemove, item);
-                    const currentListIds = await getLibraryItemListIds(user.uid, item);
-                    const restored = Array.isArray(currentListIds)
-                      ? (currentListIds.includes(listIdAtRemove)
-                          ? currentListIds
-                          : [...currentListIds, listIdAtRemove])
-                      : [listIdAtRemove];
-                    await setLibraryItemListIds(user.uid, item, restored);
+                    await addMediaToList(listIdAtRemove, item);
                   } else {
                     await libraryAdapter.updateLibraryStatus(user.uid, item, statusToRestore);
                   }
@@ -320,8 +309,6 @@ const LibraryMasterPage = () => {
     [user?.uid, activeTab, selectedListId, getTabLabel, sortBy]
   );
 
-  const filteredItems = getFilteredItems();
-
   return (
     <div className="min-h-screen premium-page flex flex-col">
       <Header />
@@ -339,9 +326,6 @@ const LibraryMasterPage = () => {
                   My Library
                 </h1>
               </div>
-              <p className="text-white/60 font-secondary text-lg">
-                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} shown
-              </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -439,7 +423,7 @@ const LibraryMasterPage = () => {
                     if (!user?.uid || !selectedListId) return;
                     setSavingEdit(true);
                     try {
-                      await updateCustomList(user.uid, selectedListId, { name: editTitle, description: editDescription });
+                      await updateList(selectedListId, { name: editTitle, description: editDescription });
                       await loadCustomLists({ cancelled: false });
                       toast.success('List updated');
                       setEditOpen(false);
@@ -479,7 +463,7 @@ const LibraryMasterPage = () => {
                     try {
                       await deleteCustomList(user.uid, selectedListId);
                       // Client-side cleanup
-                      await removeListIdFromAllLibraryItems(user.uid, selectedListId);
+                      await removeList(selectedListId);
                       await loadCustomLists({ cancelled: false });
                       setSelectedListId(null);
                       toast.success('List deleted and cleaned');

@@ -1,8 +1,7 @@
-import {
-  getPendingItemsInList,
-  updateItemEnrichment,
-  fetchUserLists,
-} from "../../util/firebase/firestoreService";
+import { updateLibraryItem } from "../../util/firebase/firestoreService";
+import { listsAdapter } from "../../domain/lists/listsAdapter";
+import { getDocs, query, collection, where, limit } from "firebase/firestore";
+import { db } from "../../util/firebase/firebase";
 import tmdbApiService from "../tmdb/tmdbApiService";
 import imdbApiService from "../imdb/imdbApiService";
 
@@ -27,14 +26,20 @@ class EnrichmentService {
 
     try {
       // 1. Get all user lists
-      const lists = await fetchUserLists(userId);
+      const lists = await listsAdapter.fetchUserLists(userId);
 
       // 2. Iterate through lists to find pending items
       for (const list of lists) {
         if (!this.isProcessing) break; // Stop if requested
 
         // Get a batch of pending items
-        const pendingItems = await getPendingItemsInList(userId, list.id, 5);
+        const q = query(
+          collection(db, "users", userId, "library_items"),
+          where("tracking.listIds", "array-contains", list.id),
+          limit(5)
+        );
+        const snap = await getDocs(q);
+        const pendingItems = snap.docs.map(d => ({id: d.id, ...d.data()})).filter(i => i.enrichmentStatus !== 'enriched');
 
         if (pendingItems.length > 0) {
           console.log(
@@ -133,13 +138,13 @@ class EnrichmentService {
         updates.enrichmentStatus = "enriched";
         updates.lastEnriched = new Date().toISOString();
         
-        await updateItemEnrichment(userId, listId, item.id, updates);
+        await updateLibraryItem(userId, item, updates);
         console.log(
           `✓ Enriched ${item.title} successfully. IMDb: ${updates.imdb_rating || 'N/A'}, TMDB: ${updates.tmdb_rating || 'N/A'}`
         );
       } else {
         // Mark as failed enrichment
-        await updateItemEnrichment(userId, listId, item.id, {
+        await updateLibraryItem(userId, item, {
           enrichmentStatus: "failed",
           lastEnriched: new Date().toISOString(),
         });
@@ -150,7 +155,7 @@ class EnrichmentService {
       
       // Mark as failed
       try {
-        await updateItemEnrichment(userId, listId, item.id, {
+        await updateLibraryItem(userId, item, {
           enrichmentStatus: "failed",
           lastEnriched: new Date().toISOString(),
         });

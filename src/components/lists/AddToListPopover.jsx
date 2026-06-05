@@ -1,12 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-
-import {
-  getLibraryItemListIds,
-  setLibraryItemListIds,
-} from '../../util/firebase/firestoreService';
-
-import { addItem, removeItem } from '../../util/store/listsSlice';
+import { useLists } from '../../domain/lists/useLists';
+import { useListMembership } from '../../domain/lists/useListMembership';
+import { RESERVED_LIST_NAMES } from '../../domain/lists/listConstants';
 
 const RESERVED_STATUS_IDS = new Set([
   'Plan to Watch',
@@ -16,8 +11,8 @@ const RESERVED_STATUS_IDS = new Set([
 ]);
 
 const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
-  const { customLists } = useSelector((state) => state.lists);
-  const dispatch = useDispatch();
+  const { lists: customLists } = useLists(userId);
+  const { getItemMemberships, setItemMemberships, addMediaToList, removeMediaFromList } = useListMembership(userId);
 
   const [savedListIds, setSavedListIds] = useState([]);
   const [selectedListIds, setSelectedListIds] = useState([]);
@@ -34,9 +29,9 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
 
   // Only show true custom lists (and defensively exclude reserved system statuses).
   const availableLists = useMemo(() => {
-    const lists = customLists?.lists || [];
-    return lists.filter((list) => list && !RESERVED_STATUS_IDS.has(list.id));
-  }, [customLists?.lists]);
+    const lists = customLists || [];
+    return lists.filter((list) => list && !RESERVED_STATUS_IDS.has(list.name) && !RESERVED_LIST_NAMES.includes(list.name?.toLowerCase()));
+  }, [customLists]);
 
   // Sort lists: pinned first (max 5), then by creation date
   const sortedLists = [...availableLists].sort((a, b) => {
@@ -71,7 +66,7 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
       try {
         setIsLoadingMembership(true);
         setMembershipLoadedKey(null);
-        const listIds = await getLibraryItemListIds(userId, mediaItem);
+        const listIds = await getItemMemberships(mediaItem);
         if (cancelled) return;
         const normalized = Array.isArray(listIds) ? listIds.filter(Boolean) : [];
         setSavedListIds(normalized);
@@ -116,21 +111,21 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
 
       isPersistingRef.current = true;
       try {
-        await setLibraryItemListIds(userId, mediaItem, next);
+        await setItemMemberships(mediaItem, next);
 
         await Promise.all([
           ...toAdd.map((listId) =>
-            dispatch(addItem({ userId, listId, mediaItem })).unwrap()
+            addMediaToList(listId, mediaItem)
           ),
           ...toRemove.map((listId) =>
-            dispatch(removeItem({ userId, listId, mediaId: mediaItem.id })).unwrap()
+            removeMediaFromList(listId, mediaItem.id)
           ),
         ]);
         setSavedListIds(next);
       } catch (err) {
         console.error('Failed to update listIds:', err);
         try {
-          await setLibraryItemListIds(userId, mediaItem, prev);
+          await setItemMemberships(mediaItem, prev);
         } catch (rollbackErr) {
           console.warn('Failed to rollback listIds:', rollbackErr);
         }
@@ -152,9 +147,11 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
     isReady,
     shouldShowMembershipLoading,
     isLoadingMembership,
-    dispatch,
     userId,
     mediaItem,
+    setItemMemberships,
+    addMediaToList,
+    removeMediaFromList,
   ]);
 
   if (!isOpen) return null;
