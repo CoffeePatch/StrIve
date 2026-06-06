@@ -50,38 +50,31 @@ const EpisodeList = ({
 
       {viewMode !== 'matrix' && !episodesLoading && seasonData?.episodes && seasonData.episodes.length > 0 && (
         viewMode === 'list' ? (
-          <div className="relative">
-            <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
-            <div className="grid grid-cols-1 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
-              {seasonData.episodes.map((episode) => (
-                <EpisodeListItem
-                  key={episode.id}
-                  episode={episode}
-                  onClick={() => handleEpisodeClick(episode)}
-                  isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
-                  onToggleWatched={handleToggleEpisodeWatched}
-                  watchLoading={markWatchedLoading}
-                />
-              ))}
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
+          <div className="grid grid-cols-1 gap-4">
+            {seasonData.episodes.map((episode) => (
+              <EpisodeListItem
+                key={episode.id}
+                episode={episode}
+                onClick={() => handleEpisodeClick(episode)}
+                isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                onToggleWatched={handleToggleEpisodeWatched}
+                watchLoading={markWatchedLoading}
+              />
+            ))}
           </div>
         ) : (
-          <div className="relative">
-            <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black to-transparent pointer-events-none z-10"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[850px] overflow-y-auto scrollbar-hide">
-              {seasonData.episodes.map((episode) => (
-                <EpisodeCard
-                  key={episode.id}
-                  episode={episode}
-                  onClick={() => handleEpisodeClick(episode)}
-                  isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
-                  onToggleWatched={handleToggleEpisodeWatched}
-                  watchLoading={markWatchedLoading}
-                />
-              ))}
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5 xl:gap-6">
+            {seasonData.episodes.map((episode) => (
+              <EpisodeCard
+                key={episode.id}
+                episode={episode}
+                showName={showDetails?.name}
+                onClick={() => handleEpisodeClick(episode)}
+                isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                onToggleWatched={handleToggleEpisodeWatched}
+                watchLoading={markWatchedLoading}
+              />
+            ))}
           </div>
         )
       )}

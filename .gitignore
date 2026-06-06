@@ -33,5 +33,5 @@ functions/serviceAccount.json
 functions/lib/**/*.map
 
 .vercel
-Problem.md
-Quality.md
+*.md
+*.yml

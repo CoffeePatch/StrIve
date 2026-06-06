@@ -8,10 +8,11 @@ const MediaCast = ({ cast }) => {
 
   return (
     <div className="mb-10 lg:mb-16">
-      <SectionHeader 
-        title="Cast" 
-        icon={<span className="material-symbols-outlined">group</span>} 
-      />
+      <div className="flex justify-center mb-6">
+        <h2 className="text-xl md:text-2xl font-bold text-white tracking-wide">
+          Top Billed Cast
+        </h2>
+      </div>
       <Carousel>
         {cast.map((person) => (
           <PersonCard 

@@ -70,14 +70,20 @@ const toNumber = (value) => {
 const extractRatingData = (data) => {
   const score =
     toNumber(data?.rating?.aggregateRating) ??
+    toNumber(data?.rating?.aggregate_rating) ??
     toNumber(data?.rating?.ratingValue) ??
     toNumber(data?.aggregateRating) ??
+    toNumber(data?.aggregate_rating) ??
     toNumber(data?.imdbRating);
 
   const votes =
     toNumber(data?.rating?.voteCount) ??
+    toNumber(data?.rating?.vote_count) ??
+    toNumber(data?.rating?.votes_count) ??
     toNumber(data?.rating?.ratingCount) ??
     toNumber(data?.voteCount) ??
+    toNumber(data?.vote_count) ??
+    toNumber(data?.votes_count) ??
     toNumber(data?.imdbVotes) ??
     0;
 

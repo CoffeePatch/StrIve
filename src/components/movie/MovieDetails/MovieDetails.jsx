@@ -132,8 +132,8 @@ const MovieDetails = () => {
         overview={movieDetails.overview}
         ratingsComponent={
           <MediaRatings
-            imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
-            imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount}
+            imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
+            imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
             imdbLoading={imdbLoading}
             tmdbScore={movieDetails.vote_average}
             tmdbVotes={movieDetails.vote_count}

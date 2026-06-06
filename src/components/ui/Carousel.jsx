@@ -29,13 +29,13 @@ const Carousel = ({
   };
 
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group/carousel ${className}`}>
       {/* Scroll Buttons (visible on hover on desktop) */}
       {showControls && (
         <>
           <button 
             onClick={() => scroll('left')}
-            className="absolute left-0 top-[40%] -translate-y-1/2 -ml-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
+            className="absolute left-0 top-[40%] -translate-y-1/2 -ml-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
             aria-label="Scroll left"
           >
             <ChevronLeft className="w-6 h-6 ml-[-2px]" />
@@ -43,7 +43,7 @@ const Carousel = ({
           
           <button 
             onClick={() => scroll('right')}
-            className="absolute right-0 top-[40%] -translate-y-1/2 -mr-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
+            className="absolute right-0 top-[40%] -translate-y-1/2 -mr-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
             aria-label="Scroll right"
           >
             <ChevronRight className="w-6 h-6 mr-[-2px]" />

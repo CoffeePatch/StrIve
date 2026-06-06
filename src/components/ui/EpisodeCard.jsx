@@ -1,18 +1,12 @@
 import React from 'react';
 import BaseCard from './BaseCard';
-import { Play, Clock, Check, Calendar } from 'lucide-react';
+import { Play, Clock, Check } from 'lucide-react';
 import { IMG_CDN_URL } from '../../util/core/constants';
 
 /**
  * EpisodeCard
- * Specialized card optimized for tracking, not discovery.
- * Prioritizes Episode Number, Title, and Watch Status over large artwork.
- * 
- * @param {object} episode - Episode object
- * @param {function} onClick - Card click handler
- * @param {boolean} isWatched - Whether the user has watched this episode
- * @param {function} onToggleWatched - Handler for clicking the watch checkmark
- * @param {boolean} watchLoading - Loading state for the toggle action
+ * Specialized card optimized for tracking and viewing episodes in a grid.
+ * Matches GRID.md specifications.
  */
 const EpisodeCard = ({
   episode,
@@ -20,13 +14,17 @@ const EpisodeCard = ({
   isWatched = false,
   onToggleWatched,
   watchLoading = false,
-  className = ""
+  className = "",
+  showName = ""
 }) => {
   if (!episode) return null;
 
   const imageUrl = episode.stillPath || episode.still_path
     ? `${IMG_CDN_URL}${episode.stillPath || episode.still_path}`
     : null;
+
+  const seasonNumber = episode.seasonNumber || episode.season_number;
+  const episodeNumber = episode.episodeNumber || episode.episode_number;
 
   const handleWatchedClick = (e) => {
     e.stopPropagation();
@@ -36,93 +34,90 @@ const EpisodeCard = ({
     }
   };
 
-  // Format date if available
-  const airDate = episode.airDate || episode.air_date;
-  const formattedDate = airDate ? new Date(airDate).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  }) : null;
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick && onClick(episode);
+    }
+  };
 
-  // Only render play icon on hover for the overlay
+  // Construct descriptive alt text
+  const showNamePrefix = showName ? `${showName} — ` : '';
+  const imageAlt = `${showNamePrefix}Season ${seasonNumber} Episode ${episodeNumber}`;
+
   const renderOverlay = () => (
-    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-      <Play className="w-10 h-10 text-white fill-white" />
-    </div>
+    <>
+      {/* Hover Play Button */}
+      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
+        <Play className="w-10 h-10 text-white fill-white" />
+      </div>
+
+      {/* Watch Checkmark (Top Left) */}
+      {onToggleWatched && (
+        <button
+          onClick={handleWatchedClick}
+          disabled={watchLoading}
+          className={`absolute top-2 left-2 z-30 shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 
+            ${isWatched 
+              ? 'bg-[var(--color-accent-primary)] text-white shadow-lg' 
+              : 'bg-black/60 text-white/70 hover:bg-black/80 hover:text-white'
+            }
+            ${watchLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+          `}
+          aria-label={isWatched ? "Mark as unwatched" : "Mark as watched"}
+          title={isWatched ? "Watched" : "Mark as watched"}
+        >
+          <Check className="w-4 h-4" strokeWidth={isWatched ? 3 : 2} />
+        </button>
+      )}
+
+      {/* Duration Badge (Top Right) */}
+      {(episode.runtime > 0) && (
+        <div className="absolute top-2 right-2 z-10 bg-black/65 text-white font-medium px-2 py-1 rounded-[4px] flex items-center gap-1 text-[11px] leading-none">
+          <Clock className="w-3 h-3" />
+          <span>{episode.runtime}m</span>
+        </div>
+      )}
+
+      {/* Episode Info Overlay (Bottom Gradient) */}
+      <div className="absolute bottom-0 left-0 right-0 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-6 flex items-center z-10">
+        <span className="text-[14px] font-bold text-white mr-2 shrink-0">
+          {episodeNumber}
+        </span>
+        <span className="text-[14px] font-semibold text-white truncate">
+          {episode.name}
+        </span>
+      </div>
+    </>
   );
 
   return (
-    <div className={`w-full ${className}`}>
+    <div 
+      className={`w-full group/episodecard ${className}`}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label={`Play Episode ${episodeNumber}: ${episode.name}`}
+    >
       <BaseCard
         imageUrl={imageUrl}
-        imageAlt={episode.name}
+        imageAlt={imageAlt}
         aspectRatio="16/9"
-        orientation="horizontal"
+        orientation="vertical"
         onClick={() => onClick && onClick(episode)}
         overlay={renderOverlay()}
-        fallbackText={`Episode ${episode.episodeNumber || episode.episode_number}`}
-        className={isWatched ? 'opacity-70 hover:opacity-100 transition-opacity' : ''}
+        fallbackText={`Episode ${episodeNumber}`}
+        className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] rounded-[12px] [&_.aspect-video]:group-hover/episodecard:brightness-110 ${isWatched ? 'opacity-70 hover:opacity-100 transition-opacity' : ''}`}
       >
-        <div className="flex flex-col h-full justify-center pr-2">
-          {/* Top Metadata Row */}
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-[var(--color-accent-primary)]">
-                Episode {episode.episodeNumber || episode.episode_number}
-              </span>
-              
-              {(episode.runtime > 0) && (
-                <div className="flex items-center gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{episode.runtime}m</span>
-                </div>
-              )}
-
-              {formattedDate && (
-                <div className="flex items-center gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{formattedDate}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Title & Watch Action Row */}
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <h3 className="text-base font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-primary)] transition-colors line-clamp-1 mt-1">
-              {episode.name}
-            </h3>
-            
-            {/* Highly visible tracking action */}
-            {onToggleWatched && (
-              <button
-                onClick={handleWatchedClick}
-                disabled={watchLoading}
-                className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 z-10 
-                  ${isWatched 
-                    ? 'bg-[var(--color-accent-primary)] text-white shadow-lg' 
-                    : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-border-hover)] hover:text-white'
-                  }
-                  ${watchLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
-                `}
-                aria-label={isWatched ? "Mark as unwatched" : "Mark as watched"}
-                title={isWatched ? "Watched" : "Mark as watched"}
-              >
-                <Check className="w-5 h-5" strokeWidth={isWatched ? 3 : 2} />
-              </button>
-            )}
-          </div>
-
-          {/* Overview */}
-          {episode.overview && (
-            <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed hidden sm:block">
-              {episode.overview}
-            </p>
-          )}
-        </div>
+        {/* Synopsis */}
+        {episode.overview && (
+          <p className="text-[12px] md:text-[13px] text-[var(--color-text-secondary)] line-clamp-2 leading-[1.4] mt-1">
+            {episode.overview}
+          </p>
+        )}
       </BaseCard>
     </div>
   );
 };
 
 export default EpisodeCard;
+

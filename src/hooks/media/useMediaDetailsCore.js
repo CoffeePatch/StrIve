@@ -89,12 +89,12 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     ratings: {
       tmdbScore: mediaDetails.voteAverage || 0,
       tmdbVotes: mediaDetails.voteCount || 0,
-      imdbScore: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
-      imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+      imdbScore: imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || null,
+      imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || null,
     },
     imdbId: imdbData?.id || (mediaId && String(mediaId).startsWith("tt") ? mediaId : null),
-    imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue || null,
-    imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount || null,
+    imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || null,
+    imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || null,
     media_type: mediaType,
   } : null;
 

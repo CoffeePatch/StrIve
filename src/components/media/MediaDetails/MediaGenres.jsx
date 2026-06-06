@@ -8,12 +8,7 @@ const MediaGenres = ({ genres }) => {
       {genres.map((genre) => (
         <span
           key={genre.id}
-          className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full text-sm font-secondary"
-          style={{
-            backgroundColor: 'var(--color-bg-elevated, rgba(255,255,255,0.1))',
-            color: 'var(--color-text-secondary, rgba(255,255,255,0.8))',
-            backdropFilter: 'blur(10px)' // glass-effect from movies
-          }}
+          className="px-3 py-1 lg:px-4 lg:py-1.5 rounded-full text-[13px] lg:text-[14px] font-medium bg-white/5 border border-white/10 text-white/80 backdrop-blur-md shadow-sm"
         >
           {genre.name}
         </span>

@@ -101,6 +101,8 @@ const LibraryGrid = ({ items, viewMode, handleItemClick, handleRemove, getImdbRa
               variant="library"
               onClick={() => handleItemClick(item)}
               onRemove={() => handleRemove(item)}
+              imdbRating={getImdbRating ? getImdbRating(item) : null}
+              imdbVotes={getImdbVotes ? getImdbVotes(item) : null}
             />
           );
         })

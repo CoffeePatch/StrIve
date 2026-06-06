@@ -20,6 +20,7 @@ import MediaRatings from "../media/MediaDetails/MediaRatings";
 import MediaActions from "../media/MediaDetails/MediaActions";
 import MediaGenres from "../media/MediaDetails/MediaGenres";
 import MediaCast from "../media/MediaDetails/MediaCast";
+import MediaTrailers from "../media/MediaDetails/MediaTrailers";
 import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
 import { useSeriesTracking } from "../../domain/tracking/useSeriesTracking";
 import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
@@ -136,14 +137,56 @@ const TVShowDetailsPage = () => {
     window.scrollTo(0, 0);
   }, [tvId]);
 
+  const autoSelectedRef = useRef(false);
+
   useEffect(() => {
-    if (showDetails && showDetails.numberOfSeasons) {
-      setSelectedSeason(1);
-      if (!allSeasonsData) {
-        fetchAllSeasonDetails();
-      }
+    if (!showDetails || !showDetails.numberOfSeasons) return;
+
+    // 1. Fetch matrix data if not present
+    if (allSeasonsData === null && !isLoadingMatrix) {
+      fetchAllSeasonDetails();
     }
-  }, [showDetails]);
+
+    // 2. Intelligent Auto-select Season Tab
+    if (!autoSelectedRef.current) {
+      let targetSeason = 1;
+
+      if (watchedSet && watchedSet.size > 0) {
+        let maxSeason = 1;
+        for (const key of watchedSet) {
+          const sn = parseInt(key.split(':')[0], 10);
+          if (!isNaN(sn) && sn > maxSeason) {
+            maxSeason = sn;
+          }
+        }
+        
+        targetSeason = maxSeason;
+
+        // If we have full season data, check if they finished this max season
+        if (allSeasonsData) {
+          const sData = allSeasonsData.find(s => s.season_number === maxSeason);
+          if (sData && sData.episodes && sData.episodes.length > 0) {
+            const allWatched = sData.episodes.every(ep => 
+              watchedSet.has(`${maxSeason}:${ep.episode_number}`)
+            );
+            // Move to next season if current max is fully watched
+            if (allWatched && maxSeason < showDetails.numberOfSeasons) {
+              targetSeason = maxSeason + 1;
+            }
+          }
+          autoSelectedRef.current = true; // Lock auto-selection
+        }
+      } else if (allSeasonsData !== null) {
+        // Watched set is empty, and matrix loaded, we can lock to 1
+        autoSelectedRef.current = true;
+      }
+
+      // Clamp targetSeason to available seasons
+      targetSeason = Math.min(targetSeason, showDetails.numberOfSeasons);
+      
+      setSelectedSeason((prev) => prev !== targetSeason ? targetSeason : prev);
+    }
+  }, [showDetails, watchedSet, allSeasonsData, isLoadingMatrix]);
 
   useEffect(() => {
     let isActive = true;
@@ -413,8 +456,9 @@ const TVShowDetailsPage = () => {
           onBack={() => navigate("/shows")}
           ratingsComponent={
             <MediaRatings
-              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.ratingValue}
-              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.ratingCount}
+              layoutType="tv"
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
               imdbLoading={imdbLoading}
               tmdbScore={showDetails.voteAverage}
               tmdbVotes={showDetails.voteCount}
@@ -422,6 +466,7 @@ const TVShowDetailsPage = () => {
           }
           actionsComponent={
             <MediaActions
+              layoutType="tv"
               onPlay={seasonData?.episodes && seasonData.episodes.length > 0 ? handlePlayNow : null}
               trailerKey={trailer?.key}
               isWatchlisted={isWatchlisted}
@@ -440,14 +485,22 @@ const TVShowDetailsPage = () => {
         <div className="premium-container py-10">
           <div className="mx-auto max-w-[1600px]">
           <MediaCast cast={cast} />
+          
+          <MediaTrailers videos={videos} />
 
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <SectionHeader 
-                  title="Episodes" 
-                  className="!mb-0" // override the default mb-6 from SectionHeader since we have a custom wrapper here
-                />
-                <EpisodeViewToggle viewMode={viewMode} setViewMode={setViewMode} />
+          <div id="episodes-section" className="mt-8 md:mt-12">
+              <div className="flex justify-between items-center mb-4 border-b border-[var(--color-border)] pb-3">
+                <h2 className="text-[18px] md:text-[20px] font-semibold text-[var(--color-text-primary)] leading-none">
+                  Episodes
+                </h2>
+                <div className="flex items-center gap-4">
+                  {viewMode !== 'matrix' && seasonData?.episodes && (
+                    <span className="text-[14px] text-[var(--color-text-secondary)] font-normal">
+                      {seasonData.episodes.length} Episodes &bull; Season {selectedSeason}
+                    </span>
+                  )}
+                  <EpisodeViewToggle viewMode={viewMode} setViewMode={setViewMode} />
+                </div>
               </div>
 
               {/* Series Progress Bar */}
@@ -483,13 +536,11 @@ const TVShowDetailsPage = () => {
                 markWatchedLoading={markWatchedLoading}
               />
             </div>
-
             <div className="mt-10">
-              <SectionHeader title="You might also like" />
               <SimilarShowsPanel tvId={tvId} />
             </div>
-          </div>
         </div>
+      </div>
       </div>
 
       {showEpisodeOverlay && selectedEpisode && (

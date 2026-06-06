@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play } from 'lucide-react';
+import { Play, Eye, Bookmark, ListPlus, Calendar } from 'lucide-react';
 import AddToListPopover from '../../lists/AddToListPopover';
 
 const MediaActions = ({
+  layoutType = "movie",
   onPlay,
   trailerKey,
   isWatchlisted,
@@ -45,6 +46,102 @@ const MediaActions = ({
 
   const actionButtonLabelClass =
     "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
+
+  if (layoutType === "tv") {
+    return (
+      <div className="flex flex-col gap-3 w-full max-w-[700px]">
+        {/* Primary CTA */}
+        {onPlay && (
+          <button 
+            onClick={onPlay} 
+            className="w-full h-14 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white font-semibold hover:bg-[var(--color-accent-primary)] hover:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] transition-all scale-100 hover:scale-[1.01]"
+          >
+            <Play className="w-[18px] h-[18px] fill-current" />
+            <span>Watch Episodes</span>
+          </button>
+        )}
+
+        {/* Secondary Actions Row */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
+          <button
+            onClick={onToggleWatched}
+            aria-pressed={isWatched}
+            className={`flex-1 h-12 rounded-full border flex items-center justify-center gap-2 text-[14px] font-medium transition-colors ${
+              isWatched 
+                ? 'bg-[#E50914]/20 border-[#E50914]/50 text-[#E50914]' 
+                : 'bg-white/10 border-white/10 text-white hover:bg-white/15'
+            }`}
+          >
+            <Eye className="w-4 h-4" fill={isWatched ? "currentColor" : "none"} />
+            <span>Watched</span>
+          </button>
+
+          <button
+            onClick={onToggleWatchlist}
+            aria-pressed={isWatchlisted}
+            className={`flex-1 h-12 rounded-full border flex items-center justify-center gap-2 text-[14px] font-medium transition-colors ${
+              isWatchlisted 
+                ? 'bg-[#E50914]/20 border-[#E50914]/50 text-[#E50914]' 
+                : 'bg-white/10 border-white/10 text-white hover:bg-white/15'
+            }`}
+          >
+            <Bookmark className="w-4 h-4" fill={isWatchlisted ? "currentColor" : "none"} />
+            <span>Watchlist</span>
+          </button>
+
+          <div
+            ref={popoverRef}
+            className="flex-1 relative"
+            onMouseEnter={() => {
+              if (hoverTimeout) clearTimeout(hoverTimeout);
+              const timeout = setTimeout(() => setShowPopover(true), 300);
+              setHoverTimeout(timeout);
+            }}
+            onMouseLeave={() => {
+              if (hoverTimeout) clearTimeout(hoverTimeout);
+              const timeout = setTimeout(() => setShowPopover(false), 300);
+              setHoverTimeout(timeout);
+            }}
+          >
+            <button className="w-full h-12 rounded-full border border-white/10 bg-white/10 text-white hover:bg-white/15 flex items-center justify-center gap-2 text-[14px] font-medium transition-colors">
+              <ListPlus className="w-4 h-4" />
+              <span>Add to List</span>
+            </button>
+
+            {showPopover && (
+              <div
+                onMouseEnter={() => {
+                  if (hoverTimeout) clearTimeout(hoverTimeout);
+                }}
+                onMouseLeave={() => {
+                  if (hoverTimeout) clearTimeout(hoverTimeout);
+                  const timeout = setTimeout(() => setShowPopover(false), 300);
+                  setHoverTimeout(timeout);
+                }}
+              >
+                <AddToListPopover
+                  isOpen={showPopover}
+                  onCreateNew={onCreateNewList}
+                  userId={userId}
+                  mediaItem={mediaItem}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tertiary Action */}
+        <button 
+          onClick={() => document.getElementById('episodes-section')?.scrollIntoView({ behavior: 'smooth' })}
+          className="w-full h-12 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 text-[#E5E7EB] flex items-center justify-center gap-2 text-[14px] transition-colors"
+          aria-label="Scroll to episodes section"
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Browse Episodes</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row lg:items-center gap-0 lg:gap-4">

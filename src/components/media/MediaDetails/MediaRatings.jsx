@@ -9,7 +9,49 @@ const formatCount = (num) => {
   return `${value}`;
 };
 
-const MediaRatings = ({ imdbRating, imdbVotes, imdbLoading, tmdbScore, tmdbVotes }) => {
+const MediaRatings = ({ layoutType = "movie", imdbRating, imdbVotes, imdbLoading, tmdbScore, tmdbVotes }) => {
+  if (layoutType === "tv") {
+    return (
+      <div className="flex flex-row items-center gap-3">
+        {/* TMDB Rating Pill */}
+        <div 
+          className="flex flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/10 shadow-sm"
+          aria-label={`TMDB rating ${tmdbScore ? tmdbScore.toFixed(1) : 'N/A'} out of 10, based on ${tmdbVotes || 0} votes`}
+        >
+          <span className="bg-gradient-to-r from-[#90CEA1] to-[#01B4E4] text-black text-[10px] font-black px-1.5 rounded-sm tracking-tighter leading-tight" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+            TMDB
+          </span>
+          {tmdbScore ? (
+            <>
+              <span className="text-white text-sm font-bold">{tmdbScore.toFixed(1)}</span>
+              {tmdbVotes ? (
+                <span className="text-[#9CA3AF] text-xs">({formatCount(tmdbVotes)})</span>
+              ) : null}
+            </>
+          ) : (
+            <span className="text-xs text-white/40">N/A</span>
+          )}
+        </div>
+
+        {/* IMDb Rating Pill */}
+        {imdbRating && (
+          <div 
+            className="flex flex-row items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/10 shadow-sm"
+            aria-label={`IMDb rating ${imdbRating} out of 10, based on ${imdbVotes || 0} votes`}
+          >
+            <span className="bg-[#F5C518] text-black text-[10px] font-black px-1.5 rounded-sm tracking-tighter leading-tight" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+              IMDb
+            </span>
+            <span className="text-white text-sm font-bold">{imdbRating}</span>
+            {imdbVotes ? (
+              <span className="text-[#9CA3AF] text-xs">({formatCount(imdbVotes)})</span>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3">
       <div className="bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-yellow-500/50 shadow-lg">
