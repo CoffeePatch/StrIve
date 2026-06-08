@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLists } from '../../domain/lists/useLists';
 import { useListMembership } from '../../domain/lists/useListMembership';
 import { RESERVED_LIST_NAMES } from '../../domain/lists/listConstants';
+import { AnimatedDropdown, AnimatedCheckbox } from '../ui/AnimatedPrimitives';
 
 const RESERVED_STATUS_IDS = new Set([
   'Plan to Watch',
@@ -159,12 +160,16 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
   const disableInputs = !isReady || shouldShowMembershipLoading || isLoadingMembership;
 
   return (
-    <div 
-      className="absolute left-0 mt-2 w-72 glass-effect backdrop-blur-xl rounded-xl shadow-2xl z-50 border border-white/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
-      onMouseDown={(e) => e.stopPropagation()}
-      onMouseEnter={(e) => e.stopPropagation()}
+    <AnimatedDropdown 
+      isOpen={isOpen}
+      className="absolute left-0 mt-2 w-72 glass-effect backdrop-blur-xl rounded-xl shadow-2xl z-50 border border-white/20 overflow-hidden"
+      transformOrigin="top left"
     >
-      <div className="py-2 max-h-96 overflow-y-auto">
+      <div 
+        className="py-2 max-h-96 overflow-y-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseEnter={(e) => e.stopPropagation()}
+      >
         {/* Pinned Lists Section */}
         {pinnedLists.length > 0 && (
           <>
@@ -177,12 +182,10 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
                 className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <input
-                    type="checkbox"
+                  <AnimatedCheckbox
                     checked={isChecked(list.id)}
                     disabled={disableInputs}
                     onChange={() => toggleListId(list.id)}
-                    className="h-4 w-4"
                   />
                   <span className="font-secondary truncate">{list.name}</span>
                 </div>
@@ -215,12 +218,10 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
                 className="group flex items-center justify-between w-full px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-all cursor-pointer select-none"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <input
-                    type="checkbox"
+                  <AnimatedCheckbox
                     checked={isChecked(list.id)}
                     disabled={disableInputs}
                     onChange={() => toggleListId(list.id)}
-                    className="h-4 w-4"
                   />
                   <span className="font-secondary truncate">{list.name}</span>
                 </div>
@@ -247,7 +248,7 @@ const AddToListPopover = ({ userId, mediaItem, onCreateNew, isOpen }) => {
           <span>Create new list</span>
         </button>
       </div>
-    </div>
+    </AnimatedDropdown>
   );
 };
 

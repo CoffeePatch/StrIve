@@ -1,4 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -6,15 +8,21 @@ const toNumber = (value) => {
 };
 
 const getItemYear = (item) => {
+  if (item.release_date || item.first_air_date) {
+    const dateStr = String(item.release_date || item.first_air_date);
+    const yearMatch = dateStr.match(/\d{4}/);
+    if (yearMatch) return parseInt(yearMatch[0], 10);
+  }
   if (item.releaseDate) {
     const dateStr = typeof item.releaseDate === 'string' ? item.releaseDate : String(item.releaseDate);
     const yearMatch = dateStr.match(/\d{4}/);
-    if (yearMatch) return yearMatch[0];
+    if (yearMatch) return parseInt(yearMatch[0], 10);
   }
   return null;
 };
 
-const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item.vote_average);
+const getTmdbRating = (item) => toNumber(item?.vote_average ?? item?.ratings?.tmdbScore);
+const getTmdbVotes = (item) => toNumber(item?.vote_count ?? item?.ratings?.tmdbVotes);
 const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item.imdbRating);
 const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item.imdbVotes);
 
@@ -37,106 +45,192 @@ export const standardGenres = [
   'Mystery', 'Romance', 'Science Fiction', 'Thriller', 'War', 'Western',
 ];
 
-const matchesScoreBucket = (score, bucket) => {
-  if (bucket === 'all') return true;
-  if (score == null) return false;
-  if (bucket === '9plus') return score >= 9;
-  if (bucket === '8plus') return score >= 8;
-  if (bucket === '7plus') return score >= 7;
-  if (bucket === '6plus') return score >= 6;
-  if (bucket === 'below6') return score < 6;
-  return true;
-};
-
-const matchesVotesBucket = (votes, bucket) => {
-  if (bucket === 'all') return true;
-  if (votes == null) return false;
-  if (bucket === '1000plus') return votes >= 1000;
-  if (bucket === '10000plus') return votes >= 10000;
-  if (bucket === '50000plus') return votes >= 50000;
-  if (bucket === '100000plus') return votes >= 100000;
-  if (bucket === '150000plus') return votes >= 150000;
-  if (bucket === '500000plus') return votes >= 500000;
-  if (bucket === '1000000plus') return votes >= 1000000;
-  return true;
-};
-
-export function useLibraryFilters(items) {
-  const [searchQuery, setSearchQuery] = useState('');
+export function useLibraryFilters(items, customListsItemsMap = {}) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [imdbFilter, setImdbFilter] = useState('all');
-  const [imdbVotesFilter, setImdbVotesFilter] = useState('all');
-  const [tmdbFilter, setTmdbFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [genreFilter, setGenreFilter] = useState('all');
-  const [yearFilter, setYearFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // URL synced state
+  const status = searchParams.get('status') || 'watchlist';
+  const type = searchParams.get('type') || 'all';
+  const imdbRatingMin = searchParams.get('imdbMin') ? Number(searchParams.get('imdbMin')) : null;
+  const imdbVotesMin = searchParams.get('imdbVotesMin') ? Number(searchParams.get('imdbVotesMin')) : null;
+  const tmdbRatingMin = searchParams.get('tmdbMin') ? Number(searchParams.get('tmdbMin')) : null;
+  const tmdbVotesMin = searchParams.get('tmdbVotesMin') ? Number(searchParams.get('tmdbVotesMin')) : null;
+  const genres = searchParams.get('genres') ? searchParams.get('genres').split(',') : [];
+  const yearFrom = searchParams.get('yearFrom') ? Number(searchParams.get('yearFrom')) : null;
+  const yearTo = searchParams.get('yearTo') ? Number(searchParams.get('yearTo')) : null;
+  const customListIds = searchParams.get('lists') ? searchParams.get('lists').split(',') : [];
+  const searchParamQuery = searchParams.get('search') || '';
+  const sort = searchParams.get('sort') || 'rating-desc';
 
-  const availableYears = useMemo(() => {
-    const yearSet = new Set();
-    items.forEach((item) => {
-      const year = getItemYear(item);
-      if (year) yearSet.add(year);
-    });
-    return Array.from(yearSet).sort((a, b) => b - a);
-  }, [items]);
+  // Sync internal search query state when URL changes, only initially or externally driven
+  useEffect(() => {
+    setSearchQuery(searchParamQuery);
+  }, [searchParamQuery]);
+
+  const updateFilters = useCallback((updates) => {
+    setSearchParams(prev => {
+      Object.keys(updates).forEach(key => {
+        const val = updates[key];
+        if (val === null || val === undefined || val === 'all' || (Array.isArray(val) && val.length === 0) || val === '') {
+          prev.delete(key);
+        } else {
+          prev.set(key, Array.isArray(val) ? val.join(',') : String(val));
+        }
+      });
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const clearAdvancedFilters = useCallback(() => {
-    setImdbFilter('all');
-    setImdbVotesFilter('all');
-    setTmdbFilter('all');
-    setTypeFilter('all');
-    setGenreFilter('all');
-    setYearFilter('all');
-  }, []);
+    updateFilters({
+      imdbMin: null,
+      imdbVotesMin: null,
+      tmdbMin: null,
+      tmdbVotesMin: null,
+      genres: null,
+      yearFrom: null,
+      yearTo: null,
+      lists: null,
+    });
+  }, [updateFilters]);
 
+  // Derived filtered items
   const filteredItems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = searchParamQuery.trim().toLowerCase();
 
-    return items.filter((item) => {
+    // Intersection with selected lists
+    let itemsToFilter = items;
+    if (customListIds.length > 0) {
+      // Create a set of IDs that are present in any of the selected lists (OR logic)
+      const allowedIds = new Set();
+      let hasData = false;
+      customListIds.forEach(listId => {
+        if (customListsItemsMap[listId]) {
+          hasData = true;
+          customListsItemsMap[listId].forEach(item => {
+            const mediaType = item.media_type || item.mediaType;
+            const titleKey = item.titleKey || '';
+            const keyMatch = String(titleKey).match(/^tmdb_(movie|tv)_(\d+)$/);
+            const id = keyMatch ? keyMatch[2] : item.id;
+            allowedIds.add(`${mediaType}_${id}`);
+          });
+        }
+      });
+
+      if (hasData) {
+         itemsToFilter = items.filter(item => {
+            const mediaType = item.media_type || item.mediaType;
+            const titleKey = item.titleKey || '';
+            const keyMatch = String(titleKey).match(/^tmdb_(movie|tv)_(\d+)$/);
+            const id = keyMatch ? keyMatch[2] : item.id;
+            return allowedIds.has(`${mediaType}_${id}`);
+         });
+      } else {
+         // Data is probably still fetching.
+         itemsToFilter = []; 
+      }
+    }
+
+    return itemsToFilter.filter((item) => {
+      // Free-text search
       const title = (item.title || item.name || '').toLowerCase();
       if (query && !title.includes(query)) return false;
 
-      const imdb = getImdbRating(item);
-      if (!matchesScoreBucket(imdb, imdbFilter)) return false;
+      // Status
+      if (status !== 'all') {
+        const itemStatus = normalizeWatchStatus(
+          item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
+        );
+        const targetStatus = normalizeWatchStatus(status);
+        if (targetStatus && itemStatus !== targetStatus) return false;
+      }
 
-      const imdbVotes = getImdbVotes(item);
-      if (!matchesVotesBucket(imdbVotes, imdbVotesFilter)) return false;
-
-      const tmdb = getTmdbRating(item);
-      if (!matchesScoreBucket(tmdb, tmdbFilter)) return false;
-
-      // Map filter values to Firestore media_type values
-      if (typeFilter !== 'all') {
+      // Type
+      if (type !== 'all') {
         const itemMediaType = (item.media_type || item.mediaType || '').toLowerCase();
-        const firestoreType = typeFilter === 'series' ? 'tv' : typeFilter;
+        const firestoreType = type === 'series' ? 'tv' : type;
         if (itemMediaType !== firestoreType) return false;
       }
 
-      const itemYear = getItemYear(item);
-      if (yearFilter !== 'all' && itemYear < parseInt(yearFilter)) return false;
+      // IMDb Rating
+      if (imdbRatingMin !== null) {
+        const imdb = getImdbRating(item);
+        if (imdb == null || imdb < imdbRatingMin) return false;
+      }
 
-      if (genreFilter !== 'all') {
-        const genres = getItemGenres(item).map((g) => g.toLowerCase());
-        if (!genres.includes(genreFilter.toLowerCase())) return false;
+      // IMDb Votes
+      if (imdbVotesMin !== null) {
+        const votes = getImdbVotes(item);
+        if (votes == null || votes < imdbVotesMin) return false;
+      }
+
+      // TMDB Rating
+      if (tmdbRatingMin !== null) {
+        const tmdb = getTmdbRating(item);
+        if (tmdb == null || tmdb < tmdbRatingMin) return false;
+      }
+
+      // TMDB Votes
+      if (tmdbVotesMin !== null) {
+        const tmdbVotes = getTmdbVotes(item);
+        if (tmdbVotes == null || tmdbVotes < tmdbVotesMin) return false;
+      }
+
+      // Year Range
+      const itemYear = getItemYear(item);
+      if (yearFrom !== null) {
+        if (itemYear == null || itemYear < yearFrom) return false;
+      }
+      if (yearTo !== null) {
+        if (itemYear == null || itemYear > yearTo) return false;
+      }
+
+      // Genres
+      if (genres.length > 0) {
+        const itemGenres = getItemGenres(item).map((g) => g.toLowerCase());
+        const hasGenre = genres.some(g => itemGenres.includes(g.toLowerCase()));
+        if (!hasGenre) return false;
       }
 
       return true;
     });
-  }, [items, searchQuery, imdbFilter, imdbVotesFilter, tmdbFilter, typeFilter, yearFilter, genreFilter]);
+  }, [items, customListIds, customListsItemsMap, searchParamQuery, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, yearFrom, yearTo, genres]);
+
+  const activeSecondaryFilterCount = useMemo(() => {
+    let count = 0;
+    if (imdbRatingMin !== null) count++;
+    if (imdbVotesMin !== null) count++;
+    if (tmdbRatingMin !== null) count++;
+    if (tmdbVotesMin !== null) count++;
+    if (genres.length > 0) count++;
+    if (yearFrom !== null || yearTo !== null) count++;
+    if (customListIds.length > 0) count++;
+    return count;
+  }, [imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds]);
 
   return {
     searchQuery, setSearchQuery,
     filtersOpen, setFiltersOpen,
-    imdbFilter, setImdbFilter,
-    imdbVotesFilter, setImdbVotesFilter,
-    tmdbFilter, setTmdbFilter,
-    typeFilter, setTypeFilter,
-    genreFilter, setGenreFilter,
-    yearFilter, setYearFilter,
-    availableYears,
+    status,
+    type,
+    imdbRatingMin,
+    imdbVotesMin,
+    tmdbRatingMin,
+    tmdbVotesMin,
+    genres,
+    yearFrom,
+    yearTo,
+    customListIds,
+    sort,
+    updateFilters,
     clearAdvancedFilters,
     filteredItems,
+    activeSecondaryFilterCount,
     getImdbRating,
-    getImdbVotes
+    getImdbVotes,
+    getTmdbRating,
+    getTmdbVotes
   };
 }

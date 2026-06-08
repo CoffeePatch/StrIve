@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatedDropdown } from '../ui/AnimatedPrimitives';
 
 const ShelfCard = ({ list, onDelete, onExport, onTogglePin, isExporting, bulkDeleteMode, onSelect }) => {
   const navigate = useNavigate();
@@ -105,8 +106,12 @@ const ShelfCard = ({ list, onDelete, onExport, onTogglePin, isExporting, bulkDel
             </button>
 
             {/* Dropdown Menu */}
-            {showMenu && (
-              <div className="absolute top-10 left-0 bg-black/95 backdrop-blur-md rounded-lg overflow-hidden shadow-xl min-w-[120px] border border-white/10">
+            <AnimatedDropdown
+              isOpen={showMenu}
+              className="absolute top-10 left-0 bg-black/95 backdrop-blur-md rounded-lg overflow-hidden shadow-xl min-w-[120px] border border-white/10 z-50"
+              transformOrigin="top left"
+            >
+              <div className="flex flex-col">
                 <button
                   onClick={handleExport}
                   disabled={isExporting}
@@ -123,7 +128,7 @@ const ShelfCard = ({ list, onDelete, onExport, onTogglePin, isExporting, bulkDel
                   <span>Delete</span>
                 </button>
               </div>
-            )}
+            </AnimatedDropdown>
           </div>
         )}
 

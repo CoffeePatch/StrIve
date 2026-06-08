@@ -406,6 +406,53 @@ export const getLibraryItem = async (userId, tmdbId) => {
 };
 
 /**
+ * Gets all library items
+ */
+export const getAllLibraryItems = async (userId, options = {}) => {
+  try {
+    const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
+
+    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const items = querySnapshot.docs
+      .map((d) => normalizeLibraryItem(d.id, d.data()));
+
+    const sortValue = (item) => {
+      if (sortBy === "sort.imdbRating") {
+        return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
+      }
+      if (sortBy === "sort.year") return Number(item?.sort?.year) || 0;
+      if (sortBy === "updatedAt") {
+        const value = item?.tracking?.updatedAt || item?.tracking?.addedAt || item?.addedAt || null;
+        return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
+      }
+      return 0;
+    };
+
+    const direction = sortDirection === "asc" ? 1 : -1;
+    const sortedItems = [...items].sort((left, right) => (sortValue(left) - sortValue(right)) * direction);
+
+    let hydratedItems = sortedItems;
+    if (hydrate) {
+      try {
+        const catalogHydrated = await hydrateItemsFromCatalog(sortedItems);
+        hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
+      } catch (hydrateError) {
+        console.warn("Hydration skipped for getAllLibraryItems:", hydrateError?.message || hydrateError);
+      }
+    }
+
+    if (includePageInfo) {
+      return { items: hydratedItems, hasMore: false, nextCursor: null };
+    }
+
+    return hydratedItems;
+  } catch (error) {
+    console.error("Error getting all library items:", error);
+    throw error;
+  }
+};
+
+/**
  * Gets all library items with a specific status
  */
 export const getLibraryByStatus = async (userId, status, options = {}) => {

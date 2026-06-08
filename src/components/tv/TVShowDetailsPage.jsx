@@ -25,6 +25,7 @@ import EpisodeList from "../media/MediaDetails/TV/EpisodeList";
 import { useSeriesTracking } from "../../domain/tracking/useSeriesTracking";
 import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
 import SectionHeader from "../ui/SectionHeader";
+import MediaDetailSkeleton from "../media/MediaDetailSkeleton";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
@@ -378,22 +379,7 @@ const TVShowDetailsPage = () => {
   };
 
   if (detailsLoading) {
-    return (
-      <div className="min-h-screen premium-page">
-        <Header />
-        <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
-          <div className="text-center">
-            <div
-              className="animate-spin rounded-full h-16 w-16 border-b-4 mx-auto"
-              style={{ borderColor: "var(--color-accent-primary)" }}
-            ></div>
-            <div className="mt-4 text-lg" style={{ color: "var(--color-text-primary)" }}>
-              Loading TV Show...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <MediaDetailSkeleton />;
   }
 
   if (detailsError) {

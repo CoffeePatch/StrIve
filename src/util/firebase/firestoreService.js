@@ -22,6 +22,7 @@ export {
   setLibraryItemStatus,
   updateLibraryItem,
   getLibraryItem,
+  getAllLibraryItems,
   getLibraryByStatus,
   getLibraryByListId
 } from '../../services/libraryService';

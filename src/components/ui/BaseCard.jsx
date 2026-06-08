@@ -72,6 +72,7 @@ const BaseCard = ({
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
             loading="lazy"
+            decoding="async"
           />
         ) : (
           /* Fallback State */

@@ -14,6 +14,7 @@ import MediaCast from "../../media/MediaDetails/MediaCast";
 import Carousel from "../../ui/Carousel";
 import MediaCard from "../../ui/MediaCard";
 import SectionHeader from "../../ui/SectionHeader";
+import MediaDetailSkeleton from "../../media/MediaDetailSkeleton";
 import { Star } from "lucide-react";
 
 const MovieDetails = () => {
@@ -80,15 +81,7 @@ const MovieDetails = () => {
 
 
   if (loading) {
-    return (
-      <div className="min-h-screen premium-page flex items-center justify-center">
-        <Header />
-        <div className="text-center mt-20">
-          <div className="animate-spin rounded-full h-20 w-20 border-4 border-white/20 border-t-red-600 mx-auto"></div>
-          <div className="mt-6 text-white text-lg font-secondary">Loading Movie Details...</div>
-        </div>
-      </div>
-    );
+    return <MediaDetailSkeleton />;
   }
 
   if (!movieDetails) {

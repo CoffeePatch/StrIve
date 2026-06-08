@@ -3,10 +3,8 @@ import { useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import MobileLibraryView from './MobileLibraryView';
 import {
-  getLibraryByStatus,
+  getAllLibraryItems,
   getLibraryByListId,
-  getLibraryItemListIds,
-  setLibraryItemListIds,
 } from '../../util/firebase/firestoreService';
 import { useLists } from "../../domain/lists/useLists";
 import { useListMembership } from "../../domain/lists/useListMembership";
@@ -15,193 +13,113 @@ import Header from '../layout/Header';
 import '../../styles/LibraryMasterPage.css';
 import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DURATIONS, EASINGS } from '../../util/motion';
+import { AnimatedButton, AnimatedIconButton, AnimatedDropdown } from '../ui/AnimatedPrimitives';
+import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
 import LibraryAdvancedFilters from './LibraryAdvancedFilters';
 import LibraryGrid from './LibraryGrid';
+import LibraryGridSkeleton from './LibraryGridSkeleton';
 
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  
-  const activePrimaryTab = searchParams.get('tab') || 'movies';
-  const setActivePrimaryTab = (tab) => {
-    setSearchParams(prev => { prev.set('tab', tab); return prev; }, { replace: true });
-  };
-
-  const activeTab = searchParams.get('filter') || 'watchlist';
-  const setActiveTab = (filter) => {
-    setSearchParams(prev => { prev.set('filter', filter); return prev; }, { replace: true });
-  };
-  
-  const sortBy = searchParams.get('sort') || 'rating-desc';
-  const setSortBy = (sort) => {
-    setSearchParams(prev => { prev.set('sort', sort); return prev; }, { replace: true });
-  };
 
   const [items, setItems] = useState([]);
+  const [customListsItemsMap, setCustomListsItemsMap] = useState({});
   const { lists: customLists, loadLists, createNewList, removeList, updateList } = useLists(user?.uid);
   const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
-  const [selectedListId, setSelectedListId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const libraryFilters = useLibraryFilters(items);
+  
+  const libraryFilters = useLibraryFilters(items, customListsItemsMap);
   const {
     searchQuery, setSearchQuery,
     filtersOpen, setFiltersOpen,
-    filteredItems,
-    getImdbRating,
-    getImdbVotes
+    status, type, customListIds, sort,
+    updateFilters, clearAdvancedFilters,
+    filteredItems, activeSecondaryFilterCount,
+    getImdbRating, getImdbVotes, getTmdbRating, getTmdbVotes,
+    imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin,
+    genres, yearFrom, yearTo
   } = libraryFilters;
+
+  // Legacy mappings for MobileView
+  const activeTab = status;
+  const setActiveTab = (s) => updateFilters({ status: s });
+  const activePrimaryTab = type === 'tv' ? 'shows' : 'movies';
+  const setActivePrimaryTab = (t) => updateFilters({ type: t === 'shows' ? 'tv' : 'movie' });
+
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
-  const [listMenuOpen, setListMenuOpen] = useState(false);
-  const listMenuRef = React.useRef(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
-  const loadCustomLists = useCallback(
-    async (signal) => {
-      if (!user?.uid) return;
+  const loadCustomLists = useCallback(async (signal) => {
+    if (!user?.uid) return;
+    try {
+      await loadLists();
+    } catch (error) {
+      console.error('Error loading custom lists:', error);
+    }
+  }, [user?.uid, loadLists]);
 
-      try {
-        const lists = await loadLists();
-
-        if (signal?.cancelled) return;
-
-        if (lists && lists.length > 0 && !selectedListId) {
-          setSelectedListId(lists[0].id);
-        }
-      } catch (error) {
-        console.error('Error loading custom lists:', error);
+  const loadAllItems = useCallback(async (signal) => {
+    if (!user?.uid) return;
+    try {
+      setLoading(true);
+      const fetchedItems = await getAllLibraryItems(user.uid, { hydrate: false, includePageInfo: false });
+      if (signal?.cancelled) return;
+      setItems(fetchedItems);
+    } catch (error) {
+      console.error('Error loading library items:', error);
+      if (!signal?.cancelled) {
+        setMessage({ type: 'error', text: 'Failed to load library items' });
       }
-    },
-    [user?.uid, loadLists, selectedListId]
-  );
-
-  const loadItems = useCallback(
-    async (signal) => {
-      if (!user?.uid) return;
-
-      try {
-        if (items.length === 0) {
-          setLoading(true);
-        }
-        let fetchedItems = [];
-
-        if (activeTab === 'watchlist') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'Plan to Watch', signal);
-        } else if (activeTab === 'watching') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'Watching', signal);
-        } else if (activeTab === 'watched') {
-          fetchedItems = await fetchAllByStatus(user.uid, 'Completed', signal);
-        } else if (activeTab === 'custom' && selectedListId) {
-          fetchedItems = await fetchAllByListId(user.uid, selectedListId, signal);
-        }
-
-        if (signal?.cancelled) return;
-
-        setItems(fetchedItems);
-      } catch (error) {
-        console.error('Error loading items:', error);
-        if (!signal?.cancelled) {
-          setMessage({ type: 'error', text: 'Failed to load library items' });
-        }
-      } finally {
-        if (!signal?.cancelled) {
-          setLoading(false);
-        }
+    } finally {
+      if (!signal?.cancelled) {
+        setLoading(false);
       }
-    },
-    [user?.uid, activeTab, selectedListId]
-  );
+    }
+  }, [user?.uid]);
 
-  // Load custom lists on mount
+  // Initial load
   useEffect(() => {
     if (!user?.uid) return;
-
     const signal = { cancelled: false };
     loadCustomLists(signal);
+    loadAllItems(signal);
+    return () => { signal.cancelled = true; };
+  }, [user?.uid, loadCustomLists, loadAllItems]);
 
-    return () => {
-      signal.cancelled = true;
-    };
-  }, [user?.uid, loadCustomLists]);
-
-  useEffect(() => {
-    if (!listMenuOpen) return;
-
-    const handlePointerDown = (e) => {
-      const node = listMenuRef.current;
-      if (!node) return;
-      if (node.contains(e.target)) return;
-      setListMenuOpen(false);
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    return () => window.removeEventListener('pointerdown', handlePointerDown);
-  }, [listMenuOpen]);
-
-  // Load items when tab or filters change
+  // Lazy-load custom list items
   useEffect(() => {
     if (!user?.uid) return;
-
-    const signal = { cancelled: false };
-    loadItems(signal);
-
-    return () => {
-      signal.cancelled = true;
-    };
-  }, [user?.uid, activeTab, selectedListId, loadItems]);
-
-  const fetchAllByStatus = async (userId, status, signal) => {
-    if (signal?.cancelled) return [];
-
-    const items = await getLibraryByStatus(userId, status, {
-      hydrate: false,
-      includePageInfo: false,
+    customListIds.forEach(listId => {
+      if (!customListsItemsMap[listId]) {
+        getLibraryByListId(user.uid, listId, { hydrate: false, includePageInfo: false })
+          .then(listItems => {
+            setCustomListsItemsMap(prev => ({ ...prev, [listId]: listItems }));
+          })
+          .catch(err => {
+            console.error("Failed to load list items for listId:", listId, err);
+          });
+      }
     });
-
-    return Array.isArray(items) ? items : [];
-  };
-
-  const fetchAllByListId = async (userId, listId, signal) => {
-    if (signal?.cancelled) return [];
-
-    const items = await getLibraryByListId(userId, listId, {
-      hydrate: false,
-      includePageInfo: false,
-    });
-
-    return Array.isArray(items) ? items : [];
-  };
+  }, [user?.uid, customListIds, customListsItemsMap]);
 
   const getAddedTimestamp = (item) => {
-    const candidate =
-      item?.tracking?.addedAt ||
-      item?.addedAt ||
-      item?.dateAdded ||
-      item?.tracking?.updatedAt ||
-      null;
-
+    const candidate = item?.tracking?.addedAt || item?.addedAt || item?.dateAdded || item?.tracking?.updatedAt || null;
     if (!candidate) return 0;
-
     if (typeof candidate === 'number') return candidate;
-
-    if (typeof candidate?.toDate === 'function') {
-      return candidate.toDate().getTime();
-    }
-
+    if (typeof candidate?.toDate === 'function') return candidate.toDate().getTime();
     const parsed = new Date(candidate).getTime();
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
   const sortItems = (itemsToSort, sortOption) => {
     const sorted = [...itemsToSort];
-
     if (sortOption === 'rating-desc') {
       sorted.sort((a, b) => {
         const ratingA = Number(a?.ratings?.imdbScore ?? a?.imdbRating) || 0;
@@ -221,19 +139,14 @@ const LibraryMasterPage = () => {
         return dateB - dateA;
       });
     }
-
     return sorted;
   };
 
   const sortedAndFilteredItems = useMemo(() => {
-    return sortItems(filteredItems, sortBy);
-  }, [filteredItems, sortBy]);
+    return sortItems(filteredItems, sort);
+  }, [filteredItems, sort]);
 
-  useEffect(() => {
-    libraryFilters.clearAdvancedFilters();
-  }, [activeTab, selectedListId, libraryFilters]);
-
-  const handleItemClick = (item) => {
+  const handleItemClick = useCallback((item) => {
     const mediaType = item.media_type || item.mediaType;
     const titleKey = item.titleKey || '';
     const keyMatch = String(titleKey).match(/^tmdb_(movie|tv)_(\d+)$/);
@@ -241,507 +154,243 @@ const LibraryMasterPage = () => {
     const isTVShow = mediaType === 'tv' || item.first_air_date;
 
     if (!id) return;
-
     if (isTVShow) {
       navigate(`/shows/${id}`);
     } else {
       navigate(`/movie/${id}`);
     }
-  };
+  }, [navigate]);
 
-  const getTabLabel = useCallback(() => {
-    if (activeTab === 'custom') {
-      const list = customLists.find((l) => l.id === selectedListId);
-      return list?.name || 'list';
+  const handleRemove = useCallback(async (item) => {
+    if (!user?.uid) return;
+
+    // Optimistically remove from all UI state
+    setItems((prev) => prev.filter((x) => x.titleKey !== item.titleKey));
+    if (customListIds.length === 1) {
+      const listId = customListIds[0];
+      setCustomListsItemsMap(prev => ({
+        ...prev,
+        [listId]: prev[listId]?.filter(x => x.titleKey !== item.titleKey) || []
+      }));
     }
-    if (activeTab === 'watching') return 'Watching';
-    if (activeTab === 'watched') return 'Completed';
-    return 'Plan to Watch';
-  }, [activeTab, customLists, selectedListId]);
 
-  const handleRemove = useCallback(
-    async (item) => {
-      if (!user?.uid) return;
-
-      const tabAtRemove = activeTab;
-      const listIdAtRemove = selectedListId;
-      const labelAtRemove = getTabLabel();
-      const statusToRestore =
-        tabAtRemove === 'watchlist'
-          ? 'Plan to Watch'
-          : tabAtRemove === 'watching'
-            ? 'Watching'
-            : tabAtRemove === 'watched'
-              ? 'Completed'
-              : null;
-
-      setItems((prev) => prev.filter((x) => !(String(x.id) === String(item.id) && (x.media_type || x.mediaType) === (item.media_type || item.mediaType))));
-
-      try {
-        if (tabAtRemove === 'custom') {
-          if (!listIdAtRemove) throw new Error('Missing listId');
-          await removeMediaFromList(listIdAtRemove, item.id);
-        } else {
-          // System status tabs: clear status
-          await libraryAdapter.updateLibraryStatus(user.uid, item, null);
-        }
-      } catch (error) {
-        console.error('Remove failed:', error);
-        setItems((prev) => sortItems([...prev, item], sortBy));
-        toast.error('Failed to remove item');
-        return;
+    try {
+      if (customListIds.length === 1) {
+        // If viewing a specific custom list, the bin removes it from that list
+        await removeMediaFromList(customListIds[0], item.id);
+      } else {
+        // Otherwise, it clears the watch status from the library
+        await libraryAdapter.updateLibraryStatus(user.uid, item, null);
       }
+    } catch (error) {
+      console.error('Remove failed:', error);
+      // Revert optimistic updates
+      setItems((prev) => sortItems([...prev, item], sort));
+      toast.error('Failed to remove item');
+      return;
+    }
 
-      toast(
-        ({ closeToast }) => (
-          <div className="flex items-center gap-3">
-            <span className="text-sm">Removed from {labelAtRemove}</span>
-            <button
-              className="text-sm underline"
-              onClick={async () => {
-                try {
-                  if (tabAtRemove === 'custom') {
-                    if (!listIdAtRemove) throw new Error('Missing listId');
-                    await addMediaToList(listIdAtRemove, item);
-                  } else {
-                    await libraryAdapter.updateLibraryStatus(user.uid, item, statusToRestore);
-                  }
-
-                  setItems((prev) => sortItems([...prev, item], sortBy));
-                  closeToast?.();
-                } catch (undoErr) {
-                  console.error('Undo failed:', undoErr);
-                  toast.error('Undo failed');
-                }
-              }}
-              aria-label="Undo remove"
-            >
-              Undo
-            </button>
-          </div>
-        ),
-        { autoClose: 5000 }
-      );
-    },
-    [user?.uid, activeTab, selectedListId, getTabLabel, sortBy]
-  );
-
+    toast(({ closeToast }) => (
+      <div className="flex items-center gap-3">
+        <span className="text-sm">Removed from {customListIds.length === 1 ? 'List' : 'Library'}</span>
+        <button
+          className="text-sm underline"
+          onClick={async () => {
+            try {
+              if (customListIds.length === 1) {
+                await addMediaToList(customListIds[0], item);
+              } else {
+                await libraryAdapter.updateLibraryStatus(user.uid, item, item?.tracking?.watchStatus || 'plan_to_watch');
+              }
+              // Restore optimistic updates
+              setItems((prev) => sortItems([...prev, item], sort));
+              if (customListIds.length === 1) {
+                const listId = customListIds[0];
+                setCustomListsItemsMap(prev => ({
+                  ...prev,
+                  [listId]: [...(prev[listId] || []), item]
+                }));
+              }
+              closeToast?.();
+            } catch (undoErr) {
+              console.error('Undo failed:', undoErr);
+              toast.error('Undo failed');
+            }
+          }}
+        >
+          Undo
+        </button>
+      </div>
+    ), { autoClose: 5000 });
+  }, [user?.uid, sort, customListIds, removeMediaFromList, addMediaToList]);
 
   return (
     <>
-      {/* Desktop/Tablet View */}
-      <div className="hidden md:flex min-h-screen premium-page flex-col">
+      <div className="hidden md:flex min-h-screen premium-page flex-col bg-[#0f1014]">
       <Header />
 
-      {/* Hero Section */}
-      <div className="pt-24 pb-12 px-10">
-        <div className="max-w-full mx-auto">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-            <div>
-              <div className="flex items-center gap-4 mb-4">
-                <span className="material-symbols-outlined text-6xl gradient-accent leading-none shrink-0">
-                  collections
-                </span>
-                <h1 className="font-display text-5xl lg:text-6xl font-bold gradient-text">
-                  My Library
-                </h1>
-              </div>
-              <p className="text-white/60 font-secondary text-lg">
-                {sortedAndFilteredItems.length} item{sortedAndFilteredItems.length !== 1 ? 's' : ''} shown
-              </p>
+      <div className="pt-[100px] pb-8 w-full">
+        {/* Library Header Bar */}
+        <div className="flex justify-between items-end px-8 max-w-[1440px] mx-auto w-full mb-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-[32px] font-bold text-white leading-none font-display">My Library</h1>
+            <span className="text-[14px] text-white/60 leading-none mt-1 font-secondary">{sortedAndFilteredItems.length} items</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={`relative flex items-center bg-white/5 border ${searchFocused ? 'border-red-600' : 'border-white/10'} rounded-lg transition-all duration-200 overflow-hidden h-[40px]`} style={{ width: searchFocused ? '320px' : '240px' }}>
+              <span className="material-symbols-outlined text-white/60 text-base absolute left-3 pointer-events-none">search</span>
+              <input 
+                type="text" 
+                className="w-full h-full bg-transparent pl-10 pr-3 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary" 
+                placeholder="Search library..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+              />
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              {/* Import Button */}
-              <button
-                onClick={() => navigate('/import')}
-                className="px-4 py-2 rounded-lg transition-all flex items-center gap-2 bg-black/40 text-white/90 border border-white/20 hover:border-red-500/50 hover:bg-black/60"
-                title="Import lists from CSV"
+            <div className="flex items-center bg-white/5 rounded-lg p-1 h-[40px]">
+               <AnimatedIconButton onClick={() => setViewMode('grid')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'text-white/60 hover:text-white'}`}><span className="material-symbols-outlined text-[18px]">grid_view</span></AnimatedIconButton>
+               <AnimatedIconButton onClick={() => setViewMode('bookshelf')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'bookshelf' ? 'bg-red-600 text-white' : 'text-white/60 hover:text-white'}`}><span className="material-symbols-outlined text-[18px]">view_agenda</span></AnimatedIconButton>
+            </div>
+
+            <div className="relative">
+              <button 
+                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                className="bg-white/5 border border-white/10 h-[40px] px-4 rounded-lg text-[14px] text-white focus:outline-none cursor-pointer font-secondary hover:border-white/30 transition-colors flex items-center gap-2"
               >
-                <span className="material-symbols-outlined text-xl">upload</span>
-                <span className="font-secondary text-sm hidden sm:inline">Import</span>
+                {sort === 'rating-desc' ? 'IMDb: High to Low' : sort === 'rating-asc' ? 'IMDb: Low to High' : 'Newest Added'}
+                <span className="material-symbols-outlined text-[16px] text-white/60">expand_more</span>
               </button>
-              {/* View Mode Toggle */}
-              <div className="glass-effect rounded-xl p-1 flex gap-1">
-                <button
-                  onClick={() => setViewMode('bookshelf')}
-                  className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-                    viewMode === 'bookshelf'
-                      ? 'bg-red-600 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-xl">view_agenda</span>
-                  <span className="font-secondary text-sm hidden sm:inline">Wide</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-                    viewMode === 'grid'
-                      ? 'bg-red-600 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-xl">grid_view</span>
-                  <span className="font-secondary text-sm hidden sm:inline">Grid</span>
-                </button>
-              </div>
-
-              {/* Sort Dropdown */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="glass-effect px-4 py-2 rounded-lg text-white/90 bg-white/10 border border-white/20 hover:border-white/30 transition-all font-secondary text-sm"
+              <AnimatedDropdown 
+                isOpen={sortDropdownOpen} 
+                className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-[#1a1b1e] border border-white/10 rounded-lg shadow-2xl py-2 z-50 overflow-hidden"
+                transformOrigin="top right"
               >
-                <option value="rating-desc">IMDb: High to Low</option>
-                <option value="rating-asc">IMDb: Low to High</option>
-                <option value="date">Newest Added</option>
-              </select>
+                <div className="flex flex-col">
+                  {[
+                    { value: 'rating-desc', label: 'IMDb: High to Low' },
+                    { value: 'rating-asc', label: 'IMDb: Low to High' },
+                    { value: 'date', label: 'Newest Added' }
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        updateFilters({ sort: opt.value });
+                        setSortDropdownOpen(false);
+                      }}
+                      className={`px-4 py-2 text-[14px] font-secondary text-left transition-colors hover:bg-white/10 ${sort === opt.value ? 'text-red-500 bg-red-500/10' : 'text-white/80 hover:text-white'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </AnimatedDropdown>
             </div>
+
+            <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
           </div>
         </div>
-      </div>
+
+        {/* Filter Bar */}
+        <div className="px-8 max-w-[1440px] mx-auto w-full mb-6">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+             <div className="flex items-center">
+               <div className="flex items-center gap-2">
+                 {['all', 'watchlist', 'watching', 'completed'].map(s => (
+                   <AnimatedButton key={s} onClick={() => updateFilters({ status: s })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border ${status === s ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                      {s === 'all' ? 'All' : s === 'watchlist' ? 'Plan to Watch' : s.charAt(0).toUpperCase() + s.slice(1)}
+                   </AnimatedButton>
+                 ))}
+               </div>
+
+               <div className="w-[1px] h-[24px] bg-white/10 mx-4"></div>
+
+                <div className="flex items-center gap-2">
+                 <AnimatedButton onClick={() => updateFilters({ type: 'all' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'all' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                   All Types
+                 </AnimatedButton>
+                 <AnimatedButton onClick={() => updateFilters({ type: 'movie' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'movie' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                   <span className="material-symbols-outlined text-[16px]">movie</span> Movies
+                 </AnimatedButton>
+                 <AnimatedButton onClick={() => updateFilters({ type: 'tv' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'tv' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                   <span className="material-symbols-outlined text-[16px]">tv</span> Shows
+                 </AnimatedButton>
+               </div>
+             </div>
+             
+             <div className="flex items-center">
+                <AnimatedButton onClick={() => setFiltersOpen(!filtersOpen)} className={`h-[36px] px-[14px] rounded-full border text-[14px] flex items-center gap-[6px] transition-colors font-secondary ${activeSecondaryFilterCount > 0 ? 'bg-red-600/20 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white/80 hover:text-white hover:border-white/30'}`}>
+                   <span className="material-symbols-outlined text-[16px]">tune</span>
+                   Filters
+                   {activeSecondaryFilterCount > 0 && <span className="w-[6px] h-[6px] rounded-full bg-red-600 ml-1"></span>}
+                </AnimatedButton>
+             </div>
+          </div>
+
+          <AnimatePresence initial={false}>
+            {filtersOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: DURATIONS.fast, ease: EASINGS.standard }}
+                className="overflow-hidden"
+              >
+                <div className="pt-4">
+                  <LibraryAdvancedFilters filters={libraryFilters} customLists={customLists} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {activeSecondaryFilterCount > 0 && (
+            <div className="flex items-center gap-2 pt-4 flex-wrap">
+               <AnimatePresence mode="popLayout">
+                 {customListIds.map(id => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={id} className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">List: {customLists?.find(l => l.id === id)?.name || id} <button onClick={() => updateFilters({ lists: customListIds.filter(x => x !== id) })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
+                 {imdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbRatingMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">IMDb: {imdbRatingMin}+ <button onClick={() => updateFilters({ imdbMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {imdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbVotesMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">IMDb Votes: {imdbVotesMin >= 1000000 ? `${imdbVotesMin/1000000}M` : imdbVotesMin >= 1000 ? `${imdbVotesMin/1000}K` : imdbVotesMin}+ <button onClick={() => updateFilters({ imdbVotesMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {tmdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbRatingMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">TMDB: {tmdbRatingMin}+ <button onClick={() => updateFilters({ tmdbMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {tmdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbVotesMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">TMDB Votes: {tmdbVotesMin >= 1000000 ? `${tmdbVotesMin/1000000}M` : tmdbVotesMin >= 1000 ? `${tmdbVotesMin/1000}K` : tmdbVotesMin}+ <button onClick={() => updateFilters({ tmdbVotesMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {genres.map(g => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={`g-${g}`} className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">{g} <button onClick={() => updateFilters({ genres: genres.filter(x => x !== g) })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
+                 {(yearFrom || yearTo) && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="year" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">Year: {yearFrom || '...'} - {yearTo || '...'} <button onClick={() => updateFilters({ yearFrom: null, yearTo: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+               </AnimatePresence>
+               <AnimatedButton onClick={clearAdvancedFilters} className="text-[12px] text-white/50 font-secondary hover:text-white bg-transparent ml-2">Clear all</AnimatedButton>
+            </div>
+          )}
+        </div>
 
       {/* Main Content */}
-      <main className="flex-grow w-full px-10 pb-20">
+      <main className="flex-grow w-full px-8 pb-20 max-w-[1440px] mx-auto">
         <div className="max-w-full mx-auto space-y-8">
-          {/* Message Display */}
           {message && (
-            <div
-              className={`glass-effect px-6 py-4 rounded-lg ${
-                message.type === 'error'
-                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                  : 'bg-green-500/20 text-green-300 border border-green-500/30'
-              }`}
-            >
+            <div className={`glass-effect px-6 py-4 rounded-lg ${message.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-green-500/20 text-green-300 border border-green-500/30'}`}>
               {message.text}
             </div>
           )}
 
-          {/* Edit Modal */}
-          {editOpen && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-              <div className="bg-gray-900 rounded-xl w-full max-w-2xl">
-                <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-white">Edit List</h2>
-                  <button onClick={() => setEditOpen(false)} className="text-gray-400 hover:text-white" disabled={savingEdit}>
-                    <span className="material-symbols-outlined">close</span>
-                  </button>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Title</label>
-                    <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none" disabled={savingEdit} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none min-h-[100px]" disabled={savingEdit} />
-                  </div>
-                </div>
-
-                <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
-                  <button className="px-4 py-2 rounded-lg bg-gray-800 text-white" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</button>
-                  <button className={`px-4 py-2 rounded-lg bg-red-600 text-white ${savingEdit ? 'opacity-50 cursor-not-allowed' : ''}`} onClick={async () => {
-                    if (!user?.uid || !selectedListId) return;
-                    setSavingEdit(true);
-                    try {
-                      await updateList(selectedListId, { name: editTitle, description: editDescription });
-                      await loadCustomLists({ cancelled: false });
-                      toast.success('List updated');
-                      setEditOpen(false);
-                    } catch (e) {
-                      console.error('Update failed', e);
-                      toast.error('Failed to update list');
-                    } finally {
-                      setSavingEdit(false);
-                    }
-                  }} disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Delete Modal */}
-          {deleteOpen && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-              <div className="bg-gray-900 rounded-xl w-full max-w-2xl">
-                <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-white">Delete List</h2>
-                  <button onClick={() => setDeleteOpen(false)} className="text-gray-400 hover:text-white" disabled={deleting}>
-                    <span className="material-symbols-outlined">close</span>
-                  </button>
-                </div>
-
-                <div className="p-4">
-                  <p className="text-white">Are you sure? This cannot be undone.</p>
-                  <p className="text-gray-400 mt-2">This will permanently delete the list "{customLists.find(l => l.id === selectedListId)?.name || 'Selected List'}".</p>
-                </div>
-
-                <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
-                  <button className="px-4 py-2 rounded-lg bg-gray-800 text-white" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</button>
-                  <button className={`px-4 py-2 rounded-lg bg-red-600 text-white ${deleting ? 'opacity-50 cursor-not-allowed' : ''}`} onClick={async () => {
-                    if (!user?.uid || !selectedListId) return;
-                    setDeleting(true);
-                    try {
-                      await removeList(selectedListId);
-                      await loadCustomLists({ cancelled: false });
-                      setSelectedListId(null);
-                      toast.success('List deleted and cleaned');
-                      setDeleteOpen(false);
-                    } catch (e) {
-                      console.error('Delete failed', e);
-                      toast.error('Failed to delete list');
-                    } finally {
-                      setDeleting(false);
-                    }
-                  }} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-4 border-b border-white/10 pb-4">
-            <button
-              onClick={() => {
-                setActiveTab('watchlist');
-                setSearchQuery('');
-              }}
-              className={`pb-2 px-2 font-secondary font-semibold transition-all flex items-center gap-2 ${
-                activeTab === 'watchlist'
-                  ? 'text-red-600 border-b-2 border-red-600'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined">bookmark</span>
-              <span>Plan to Watch</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('watching');
-                setSearchQuery('');
-              }}
-              className={`pb-2 px-2 font-secondary font-semibold transition-all flex items-center gap-2 ${
-                activeTab === 'watching'
-                  ? 'text-red-600 border-b-2 border-red-600'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined">play_circle</span>
-              <span>Watching</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('watched');
-                setSearchQuery('');
-              }}
-              className={`pb-2 px-2 font-secondary font-semibold transition-all flex items-center gap-2 ${
-                activeTab === 'watched'
-                  ? 'text-red-600 border-b-2 border-red-600'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined">check_circle</span>
-              <span>Completed</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('custom');
-                setSearchQuery('');
-              }}
-              className={`pb-2 px-2 font-secondary font-semibold transition-all flex items-center gap-2 ${
-                activeTab === 'custom'
-                  ? 'text-red-600 border-b-2 border-red-600'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined">playlist_add</span>
-              <span>Custom Lists</span>
-            </button>
-          </div>
-
-          {/* Custom List Selector */}
-          {activeTab === 'custom' && (
-            <div className="flex items-center w-full gap-3 justify-between">
-              <div className="flex items-center gap-4 shrink-0">
-                <label className="text-white/70 font-secondary">Select List:</label>
-                <select
-                  value={selectedListId || ''}
-                  onChange={(e) => setSelectedListId(e.target.value)}
-                  className="glass-effect px-4 py-2 rounded-lg text-white bg-white/10 border border-white/20 hover:border-white/30 transition-all font-secondary"
-                >
-                  <option value="">-- Choose a list --</option>
-                  {customLists.map((list) => {
-                    const count = Array.isArray(list.items) ? list.items.length : undefined;
-                    return (
-                      <option key={list.id} value={list.id}>
-                        {list.name}{count != null && count > 0 ? ` (${count})` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {filtersOpen && <LibraryAdvancedFilters filters={libraryFilters} inline={true} />}
-
-              {/* Filters toggle and three-dots menu */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  className={`p-1 transition-all flex items-center justify-center ${
-                    filtersOpen
-                      ? 'text-white'
-                      : 'text-white/80 hover:text-white'
-                  }`}
-                  onClick={() => setFiltersOpen((v) => !v)}
-                  aria-label="Toggle advanced filters"
-                  title="Filters"
-                >
-                  <span className={`material-symbols-outlined text-base transition-transform ${filtersOpen ? '-rotate-90' : ''}`}>
-                    chevron_left
-                  </span>
-                </button>
-
-                <div className="relative" ref={listMenuRef}>
-                  <button
-                    className="p-1 text-white/80 hover:text-white focus:outline-none"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!selectedListId) return toast.info('Select a list first');
-                      const list = customLists.find((l) => l.id === selectedListId);
-                      setEditTitle(list?.name || '');
-                      setEditDescription(list?.description || '');
-                      setListMenuOpen((v) => !v);
-                    }}
-                    aria-label="List actions"
-                  >
-                    <span className="material-symbols-outlined">more_vert</span>
-                  </button>
-
-                  {listMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-44 glass-effect border border-white/10 rounded-lg overflow-hidden z-40">
-                    <button
-                      className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
-                      onClick={() => {
-                        setListMenuOpen(false);
-                        setEditOpen(true);
-                      }}
-                    >
-                      Edit List
-                    </button>
-                    <button
-                      className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
-                      onClick={() => {
-                        setListMenuOpen(false);
-                        setDeleteOpen(true);
-                      }}
-                    >
-                      Delete List
-                    </button>
-                    <button
-                      className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
-                      onClick={async () => {
-                        setListMenuOpen(false);
-                        if (!selectedListId) return toast.info('Select a list first');
-                        try {
-                          const list = customLists.find((l) => l.id === selectedListId);
-                          await exportListCsv(selectedListId, list?.name);
-                        } catch (e) {
-                          console.error('Export failed', e);
-                          toast.error('Export failed');
-                        }
-                      }}
-                    >
-                      Export List
-                    </button>
-                  </div>
-                )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab !== 'custom' && (
-            <div className="flex justify-end">
-              <button
-                className={`glass-effect px-2.5 py-2 rounded-lg border transition-all flex items-center justify-center ${
-                  filtersOpen
-                    ? 'text-white border-red-500/60 bg-red-600/20'
-                    : 'text-white/80 border-white/15 hover:border-white/30 hover:text-white'
-                }`}
-                onClick={() => setFiltersOpen((v) => !v)}
-                aria-label="Toggle advanced filters"
-                title="Filters"
-              >
-                <span className={`material-symbols-outlined text-base transition-transform ${filtersOpen ? '-rotate-90' : ''}`}>
-                  chevron_left
-                </span>
-              </button>
-            </div>
-          )}
-
-          {activeTab !== 'custom' && filtersOpen && (
-            <LibraryAdvancedFilters filters={libraryFilters} inline={false} />
-          )}
-
-          {/* Search Filter */}
-          <div className="glass-effect rounded-xl px-4 py-3 flex items-center gap-3 bg-white/5 border border-white/10">
-            <span className="material-symbols-outlined text-white/60">search</span>
-            <input
-              type="text"
-              placeholder="Search in your library..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none font-secondary"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-white/60 hover:text-white transition-colors"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            )}
-          </div>
-
-          {/* Loading State */}
           {loading && (
-            <div className="text-center py-20">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-white/20 border-t-red-600 mx-auto mb-4"></div>
-              <p className="text-white/60 font-secondary">Loading your library...</p>
+            <div className="w-full">
+              <LibraryGridSkeleton viewMode={viewMode} />
             </div>
           )}
 
-          {/* Empty State */}
           {!loading && items.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center">
-              <span className="material-symbols-outlined text-6xl text-white/40 mb-4 block">
-                inbox
-              </span>
-              <p className="text-white/60 font-secondary text-lg">
-                {activeTab === 'watchlist'
-                  ? '📭 Your Plan to Watch list is empty. Search for movies or shows to add them!'
-                  : activeTab === 'watching'
-                    ? '📺 You\'re not currently watching anything.'                  : activeTab === 'watched'
-                  ? '👀 You haven\'t marked anything as completed yet.'
-                  : '🎬 This list is empty. Add items to get started!'}
-              </p>
+            <div className="glass-effect rounded-2xl p-12 text-center border border-white/5 bg-white/5">
+              <span className="material-symbols-outlined text-6xl text-white/20 mb-4 block">inbox</span>
+              <p className="text-white/60 font-secondary text-base">Your library is empty. Search for movies or shows to add them!</p>
             </div>
           )}
 
-          {/* No Search Results */}
           {!loading && items.length > 0 && sortedAndFilteredItems.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center">
-              <span className="material-symbols-outlined text-6xl text-white/40 mb-4 block">
-                search_off
-              </span>
-              <p className="text-white/60 font-secondary text-lg">
-                🔍 No items match "{searchQuery}"
-              </p>
+            <div className="glass-effect rounded-2xl p-12 text-center border border-white/5 bg-white/5">
+              <span className="material-symbols-outlined text-6xl text-white/20 mb-4 block">search_off</span>
+              <p className="text-white/60 font-secondary text-base">No items match your filters.</p>
             </div>
           )}
 
-          {/* Items Grid */}
           {!loading && sortedAndFilteredItems.length > 0 && (
             <LibraryGrid 
               items={sortedAndFilteredItems}
@@ -755,6 +404,7 @@ const LibraryMasterPage = () => {
         </div>
       </main>
       </div>
+      </div>
 
       {/* Mobile View */}
       <div className="block md:hidden">
@@ -763,16 +413,16 @@ const LibraryMasterPage = () => {
           setActivePrimaryTab={setActivePrimaryTab}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
+          sortBy={sort}
+          setSortBy={(val) => updateFilters({ sort: val })}
           items={items}
           filteredItems={sortedAndFilteredItems}
           loading={loading}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           customLists={customLists}
-          selectedListId={selectedListId}
-          setSelectedListId={setSelectedListId}
+          selectedListId={customListIds[0] || null}
+          setSelectedListId={(id) => updateFilters({ lists: [id] })}
           handleItemClick={handleItemClick}
           handleRemove={handleRemove}
           getImdbRating={getImdbRating}

@@ -1,118 +1,211 @@
 import React from 'react';
 import { standardGenres } from '../../hooks/library/useLibraryFilters';
+import { AnimatedChip, AnimatedCheckbox } from '../ui/AnimatedPrimitives';
 
-const LibraryAdvancedFilters = ({ filters, inline }) => {
+const LibraryAdvancedFilters = ({ filters, customLists }) => {
   const {
-    imdbFilter, setImdbFilter,
-    imdbVotesFilter, setImdbVotesFilter,
-    tmdbFilter, setTmdbFilter,
-    typeFilter, setTypeFilter,
-    genreFilter, setGenreFilter,
-    yearFilter, setYearFilter,
-    availableYears,
+    imdbRatingMin,
+    imdbVotesMin,
+    tmdbRatingMin,
+    tmdbVotesMin,
+    genres,
+    yearFrom,
+    yearTo,
+    customListIds,
+    updateFilters,
     clearAdvancedFilters
   } = filters;
 
-  const containerClass = inline
-    ? "overflow-x-auto flex-1 min-w-0"
-    : "glass-effect rounded-xl px-3 py-2 border border-white/10 bg-white/5 overflow-x-auto";
+  const toggleList = (id) => {
+    if (customListIds.includes(id)) {
+      updateFilters({ lists: customListIds.filter(l => l !== id) });
+    } else {
+      updateFilters({ lists: [...customListIds, id] });
+    }
+  };
+
+  const toggleGenre = (g) => {
+    if (genres.includes(g)) {
+      updateFilters({ genres: genres.filter(x => x !== g) });
+    } else {
+      updateFilters({ genres: [...genres, g] });
+    }
+  };
 
   return (
-    <div className={containerClass}>
-      <div className="flex items-center gap-2 min-w-max">
-        <span className="material-symbols-outlined text-white/60 text-base">tune</span>
+    <div className="glass-effect rounded-xl p-6 border border-white/10 bg-white/5 space-y-6">
+       
+       {/* Custom Lists */}
+       {customLists && customLists.length > 0 && (
+         <div className="space-y-3">
+           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Custom Lists</h3>
+           <div className="flex flex-wrap gap-2">
+             {customLists.map(list => {
+               const isActive = customListIds.includes(list.id);
+               return (
+                 <AnimatedChip
+                   key={list.id}
+                   onClick={() => toggleList(list.id)}
+                   isActive={isActive}
+                 >
+                   {list.name}
+                 </AnimatedChip>
+               );
+             })}
+           </div>
+         </div>
+       )}
 
-        <select
-          value={imdbFilter}
-          onChange={(e) => setImdbFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="IMDb Rating"
-        >
-          <option value="all">IMDb: All</option>
-          <option value="9plus">IMDb: 9+</option>
-          <option value="8plus">IMDb: 8+</option>
-          <option value="7plus">IMDb: 7+</option>
-          <option value="6plus">IMDb: 6+</option>
-          <option value="below6">IMDb: Below 6</option>
-        </select>
+       {/* Ratings */}
+       <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Rating</h3>
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { label: 'Any', value: null },
+                 { label: '9+', value: 9 },
+                 { label: '8+', value: 8 },
+                 { label: '7+', value: 7 },
+                 { label: '6+', value: 6 },
+               ].map(opt => (
+                 <AnimatedChip
+                   key={opt.label}
+                   onClick={() => updateFilters({ imdbMin: opt.value })}
+                   isActive={imdbRatingMin === opt.value}
+                 >
+                   {opt.label}
+                 </AnimatedChip>
+               ))}
+            </div>
+          </div>
+          
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Rating</h3>
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { label: 'Any', value: null },
+                 { label: '9+', value: 9 },
+                 { label: '8+', value: 8 },
+                 { label: '7+', value: 7 },
+                 { label: '6+', value: 6 },
+               ].map(opt => (
+                 <AnimatedChip
+                   key={opt.label}
+                   onClick={() => updateFilters({ tmdbMin: opt.value })}
+                   isActive={tmdbRatingMin === opt.value}
+                 >
+                   {opt.label}
+                 </AnimatedChip>
+               ))}
+            </div>
+          </div>
+       </div>
 
-        <select
-          value={imdbVotesFilter}
-          onChange={(e) => setImdbVotesFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="IMDb Votes"
-        >
-          <option value="all">Votes: All</option>
-          <option value="1000plus">1K+ votes</option>
-          <option value="10000plus">10K+ votes</option>
-          <option value="50000plus">50K+ votes</option>
-          <option value="100000plus">100K+ votes</option>
-          <option value="150000plus">150K+ votes</option>
-          <option value="500000plus">500K+ votes</option>
-          <option value="1000000plus">1M+ votes</option>
-        </select>
+       {/* Votes */}
+       <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Votes</h3>
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { label: 'Any', value: null },
+                 { label: '10K+', value: 10000 },
+                 { label: '50K+', value: 50000 },
+                 { label: '100K+', value: 100000 },
+                 { label: '500K+', value: 500000 },
+               ].map(opt => (
+                 <AnimatedChip
+                   key={opt.label}
+                   onClick={() => updateFilters({ imdbVotesMin: opt.value })}
+                   isActive={imdbVotesMin === opt.value}
+                 >
+                   {opt.label}
+                 </AnimatedChip>
+               ))}
+            </div>
+          </div>
 
-        <select
-          value={tmdbFilter}
-          onChange={(e) => setTmdbFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="TMDB Rating"
-        >
-          <option value="all">TMDB: All</option>
-          <option value="9plus">TMDB: 9+</option>
-          <option value="8plus">TMDB: 8+</option>
-          <option value="7plus">TMDB: 7+</option>
-          <option value="6plus">TMDB: 6+</option>
-          <option value="below6">TMDB: Below 6</option>
-        </select>
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Votes</h3>
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { label: 'Any', value: null },
+                 { label: '100+', value: 100 },
+                 { label: '1K+', value: 1000 },
+                 { label: '5K+', value: 5000 },
+                 { label: '10K+', value: 10000 },
+                 { label: '50K+', value: 50000 },
+               ].map(opt => (
+                 <AnimatedChip
+                   key={opt.label}
+                   onClick={() => updateFilters({ tmdbVotesMin: opt.value })}
+                   isActive={tmdbVotesMin === opt.value}
+                 >
+                   {opt.label}
+                 </AnimatedChip>
+               ))}
+            </div>
+          </div>
+       </div>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="Type"
-        >
-          <option value="all">Type: All</option>
-          <option value="movie">Movie</option>
-          <option value="series">Series</option>
-        </select>
+       {/* Year & Genres */}
+       <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Release Year</h3>
+            <div className="flex items-center gap-3">
+              <input 
+                type="number" 
+                placeholder="From" 
+                value={yearFrom || ''} 
+                onChange={(e) => updateFilters({ yearFrom: e.target.value ? Number(e.target.value) : null })}
+                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+              />
+              <span className="text-white/40">-</span>
+              <input 
+                type="number" 
+                placeholder="To" 
+                value={yearTo || ''} 
+                onChange={(e) => updateFilters({ yearTo: e.target.value ? Number(e.target.value) : null })}
+                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+              />
+              <div className="flex flex-wrap gap-2 ml-2">
+                 {[
+                   { label: '2020s', from: 2020, to: 2029 },
+                   { label: '2010s', from: 2010, to: 2019 },
+                   { label: '2000s', from: 2000, to: 2009 },
+                 ].map(decade => {
+                   const isActive = yearFrom === decade.from && yearTo === decade.to;
+                   return (
+                     <AnimatedChip
+                       key={decade.label}
+                       onClick={() => isActive ? updateFilters({ yearFrom: null, yearTo: null }) : updateFilters({ yearFrom: decade.from, yearTo: decade.to })}
+                       isActive={isActive}
+                     >
+                       {decade.label}
+                     </AnimatedChip>
+                   );
+                 })}
+              </div>
+            </div>
+          </div>
 
-        <select
-          value={genreFilter}
-          onChange={(e) => setGenreFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="Genres"
-        >
-          <option value="all">Genres: All</option>
-          {standardGenres.map((genre) => (
-            <option key={genre} value={genre}>
-              {genre}
-            </option>
-          ))}
-        </select>
+         <div className="flex-[2] space-y-3">
+           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Genres</h3>
+           <div className="flex flex-wrap gap-2">
+             {standardGenres.map(g => {
+               const isActive = genres.includes(g);
+               return (
+                 <AnimatedCheckbox
+                   key={g}
+                   onChange={() => toggleGenre(g)}
+                   checked={isActive}
+                   label={g}
+                 />
+               );
+             })}
+           </div>
+         </div>
+       </div>
 
-        <select
-          value={yearFilter}
-          onChange={(e) => setYearFilter(e.target.value)}
-          className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-red-500/60"
-          title="Years"
-        >
-          <option value="all">Years: All</option>
-          {availableYears.map((year) => (
-            <option key={year} value={String(year)}>
-              {year}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={clearAdvancedFilters}
-          className="px-2.5 py-1.5 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30 text-xs transition-colors"
-          title="Clear filters"
-        >
-          <span className="material-symbols-outlined text-sm">restart_alt</span>
-        </button>
-      </div>
     </div>
   );
 };
