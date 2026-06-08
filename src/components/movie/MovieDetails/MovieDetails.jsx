@@ -4,27 +4,27 @@ import { useDispatch } from "react-redux";
 import { fetchLists } from "../../../util/store/listsSlice";
 import Header from "../../layout/Header";
 import useMediaDetailsCore from "../../../hooks/media/useMediaDetailsCore";
-import AddToListPopover from "../../lists/AddToListPopover";
 import CreateListModal from "../../lists/CreateListModal";
 import MediaHero from "../../media/MediaDetails/MediaHero";
 import MediaRatings from "../../media/MediaDetails/MediaRatings";
 import MediaActions from "../../media/MediaDetails/MediaActions";
 import MediaGenres from "../../media/MediaDetails/MediaGenres";
 import MediaCast from "../../media/MediaDetails/MediaCast";
-import Carousel from "../../ui/Carousel";
-import MediaCard from "../../ui/MediaCard";
-import SectionHeader from "../../ui/SectionHeader";
+import MediaTrailers from "../../media/MediaDetails/MediaTrailers";
+import SimilarMoviesPanel from "./SimilarMoviesPanel";
 import MediaDetailSkeleton from "../../media/MediaDetailSkeleton";
-import { Star } from "lucide-react";
 
 const MovieDetails = () => {
   const { movieId, imdbId } = useParams();
   const currentId = imdbId || movieId;
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const {
     user,
     mediaDetails: movieDetails,
-    loading,
+    loading: detailsLoading,
+    error: detailsError,
     imdbData,
     imdbLoading,
     isWatchlisted,
@@ -34,13 +34,7 @@ const MovieDetails = () => {
     mediaItemForLists
   } = useMediaDetailsCore({ mediaId: currentId, mediaType: "movie" });
 
-  const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [hoverTimeout, setHoverTimeout] = useState(null);
-  const castScrollRef = useRef(null);
-  const similarScrollRef = useRef(null);
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   const trailer = movieDetails?.videos?.results?.find(
     (v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official
@@ -57,12 +51,6 @@ const MovieDetails = () => {
       dispatch(fetchLists(user.uid));
     }
   }, [dispatch, user]);
-  
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout) clearTimeout(hoverTimeout);
-    };
-  }, [hoverTimeout]);
 
   const handlePlayMovie = () => {
     if (!user) {
@@ -74,32 +62,51 @@ const MovieDetails = () => {
   };
 
   const handleCreateNew = () => {
-    setShowPopover(false);
     setShowCreateModal(true);
   };
 
-
-
-  if (loading) {
+  if (detailsLoading) {
     return <MediaDetailSkeleton />;
+  }
+
+  if (detailsError) {
+    return (
+      <div className="min-h-screen premium-page">
+        <Header />
+        <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-red-500 text-xl mb-4">Error loading Movie</div>
+            <p style={{ color: "var(--color-text-secondary)" }}>{detailsError}</p>
+            <button
+              onClick={() => navigate("/movies")}
+              className="mt-6 px-6 py-3 rounded"
+              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+            >
+              Back to Movies
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!movieDetails) {
     return (
-      <div className="min-h-screen premium-page flex items-center justify-center">
+      <div className="min-h-screen premium-page">
         <Header />
-        <div className="text-center mt-20">
-          <span className="material-symbols-outlined text-8xl text-white/30 mb-4">
-            movie_off
-          </span>
-          <div className="text-white text-2xl font-display mb-6">Movie not found</div>
-          <button
-            onClick={() => navigate(-1)}
-            className="btn-primary"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-            <span>Go Back</span>
-          </button>
+        <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-xl mb-4" style={{ color: "var(--color-text-primary)" }}>
+              Movie not found
+            </div>
+            <button
+              onClick={() => navigate("/movies")}
+              className="mt-6 px-6 py-3 rounded"
+              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+            >
+              Back to Movies
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -108,70 +115,61 @@ const MovieDetails = () => {
   return (
     <div className="min-h-screen premium-page pt-20">
       <Header />
-      
-      <MediaHero
-        backdropPath={movieDetails.backdrop_path}
-        layoutType="movie"
-        logos={movieDetails.images?.logos}
-        title={movieDetails.title}
-        releaseYear={movieDetails.release_date?.split("-")[0]}
-        durationOrSeasons={`${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m`}
-        status={(() => {
-          const releaseDate = movieDetails.release_date;
-          const parsed = releaseDate ? Date.parse(releaseDate) : NaN;
-          if (!Number.isFinite(parsed)) return null;
-          return parsed > Date.now() ? 'Upcoming' : 'Released';
-        })()}
-        overview={movieDetails.overview}
-        ratingsComponent={
-          <MediaRatings
-            imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
-            imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
-            imdbLoading={imdbLoading}
-            tmdbScore={movieDetails.vote_average}
-            tmdbVotes={movieDetails.vote_count}
-          />
-        }
-        actionsComponent={
-          <MediaActions
-            onPlay={handlePlayMovie}
-            trailerKey={trailer?.key}
-            isWatchlisted={isWatchlisted}
-            onToggleWatchlist={handleToggleWatchlist}
-            isWatched={isCompleted}
-            onToggleWatched={handleToggleCompleted}
-            userId={user?.uid}
-            mediaItem={mediaItemForLists}
-            onCreateNewList={handleCreateNew}
-          />
-        }
-        genresComponent={
-          <MediaGenres genres={movieDetails.genres} />
-        }
-      />
+      <div className="amoled-page">
+        <MediaHero
+          backdropPath={movieDetails.backdrop_path}
+          layoutType="movie"
+          posterPath={movieDetails.poster_path}
+          logos={movieDetails.images?.logos}
+          title={movieDetails.title}
+          releaseYear={movieDetails.release_date?.split("-")[0]}
+          durationOrSeasons={`${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m`}
+          status={(() => {
+            const releaseDate = movieDetails.release_date;
+            const parsed = releaseDate ? Date.parse(releaseDate) : NaN;
+            if (!Number.isFinite(parsed)) return null;
+            return parsed > Date.now() ? 'Upcoming' : 'Released';
+          })()}
+          overview={movieDetails.overview}
+          onBack={() => navigate("/movies")}
+          ratingsComponent={
+            <MediaRatings
+              layoutType="movie"
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
+              imdbLoading={imdbLoading}
+              tmdbScore={movieDetails.vote_average}
+              tmdbVotes={movieDetails.vote_count}
+            />
+          }
+          actionsComponent={
+            <MediaActions
+              layoutType="movie"
+              onPlay={handlePlayMovie}
+              trailerKey={trailer?.key}
+              isWatchlisted={isWatchlisted}
+              onToggleWatchlist={handleToggleWatchlist}
+              isWatched={isCompleted}
+              onToggleWatched={handleToggleCompleted}
+              userId={user?.uid}
+              mediaItem={mediaItemForLists}
+              onCreateNewList={handleCreateNew}
+            />
+          }
+          genresComponent={
+            <MediaGenres genres={movieDetails.genres} />
+          }
+        />
+        <div className="premium-container pt-10 pb-24 md:pb-10">
+          <div className="mx-auto max-w-[1600px]">
+            <MediaCast cast={movieDetails.credits?.cast} />
+            
+            <MediaTrailers videos={movieDetails.videos?.results} />
 
-      <div className="w-full px-6 lg:px-12 py-16">
-        <div className="max-w-7xl mx-auto">
-          <MediaCast cast={movieDetails.credits?.cast} />
-
-          {movieDetails.similar?.results && movieDetails.similar.results.length > 0 && (
             <div className="mt-10">
-              <SectionHeader 
-                title="Similar Movies" 
-                icon={<span className="material-symbols-outlined text-3xl">movie_filter</span>} 
-              />
-              <Carousel>
-                {movieDetails.similar.results.slice(0, 12).map((movie) => (
-                  <MediaCard
-                    key={movie.id}
-                    media={movie}
-                    variant="recommendation"
-                    onClick={() => navigate(`/movie/${movie.id}`)}
-                  />
-                ))}
-              </Carousel>
+              <SimilarMoviesPanel movieId={currentId} />
             </div>
-          )}
+          </div>
         </div>
       </div>
 

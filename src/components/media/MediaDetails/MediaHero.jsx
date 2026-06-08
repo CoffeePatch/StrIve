@@ -21,8 +21,7 @@ const MediaHero = ({
   const isTV = layoutType === "tv";
   const [logoFailed, setLogoFailed] = useState(false);
 
-  if (isTV) {
-    let bestLogo = null;
+  let bestLogo = null;
     if (logos && logos.length > 0) {
       bestLogo = logos.find(l => l.iso_639_1 === 'en') || logos.find(l => l.iso_639_1 === null) || logos[0];
     }
@@ -144,79 +143,6 @@ const MediaHero = ({
           </div>
         </div>
       </div>
-    );
-  }
-
-  // --- MOVIE HERO (Original) ---
-  return (
-    <div className="relative h-screen">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: backdropPath ? `url(${IMG_CDN_URL}/original${backdropPath})` : 'none' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/50"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent"></div>
-      </div>
-
-      <div className="relative z-10 h-full flex items-end">
-        <div className="w-full px-6 lg:px-12 pb-20">
-          <div className="max-w-5xl">
-            <div>
-              {logos && logos.length > 0 ? (
-                <div className="mb-6">
-                  <img
-                    src={`${IMG_CDN_URL}/w500${logos[0].file_path || logos[0].filePath}`}
-                    alt={`${title} Logo`}
-                    className="max-w-full h-auto object-contain max-h-40 drop-shadow-2xl"
-                  />
-                </div>
-              ) : (
-                <h1 className="font-bold tracking-tight text-white font-display text-6xl lg:text-7xl mb-6 drop-shadow-2xl">
-                  {title}
-                </h1>
-              )}
-
-              <div className="flex flex-wrap items-center gap-3 lg:gap-4 text-lg mb-6 font-secondary">
-                {releaseYear && (
-                  <span className="text-white/90 font-semibold">
-                    {releaseYear}
-                  </span>
-                )}
-                {durationOrSeasons && (
-                  <span className="text-white/90">
-                    {durationOrSeasons}
-                  </span>
-                )}
-                {status && (
-                  <span className="glass-effect px-3 py-1 rounded-full text-sm text-white/90">
-                    {status}
-                  </span>
-                )}
-                {ratingsComponent}
-              </div>
-
-              {overview && (
-                <p className="leading-relaxed max-w-3xl text-xl text-white/80 mb-8 font-primary">
-                  {overview}
-                </p>
-              )}
-
-              {actionsComponent && (
-                <div className="mb-8">
-                  {actionsComponent}
-                </div>
-              )}
-
-              {genresComponent && (
-                <div>
-                  {genresComponent}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 };
 

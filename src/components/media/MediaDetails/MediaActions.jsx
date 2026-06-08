@@ -47,11 +47,10 @@ const MediaActions = ({
   const actionButtonLabelClass =
     "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
 
-  if (layoutType === "tv") {
-    return (
-      <div className="flex flex-col gap-3 w-full max-w-[700px]">
-        {/* Primary CTA */}
-        {onPlay && (
+  return (
+    <div className="flex flex-col gap-3 w-full max-w-[700px]">
+      {/* Primary CTA */}
+      {layoutType === "tv" && onPlay && (
           <button 
             onClick={onPlay} 
             className="w-full h-14 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white font-semibold hover:bg-[var(--color-accent-primary)] hover:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] transition-all scale-100 hover:scale-[1.01]"
@@ -59,10 +58,20 @@ const MediaActions = ({
             <Play className="w-[18px] h-[18px] fill-current" />
             <span>Watch Episodes</span>
           </button>
-        )}
+      )}
 
-        {/* Secondary Actions Row (Tablet/Desktop) */}
-        <div className="hidden md:flex flex-col sm:flex-row gap-3 w-full">
+      {layoutType === "movie" && onPlay && (
+        <button 
+          onClick={onPlay} 
+          className="w-full h-14 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white font-semibold hover:bg-[var(--color-accent-primary)] hover:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] transition-all scale-100 hover:scale-[1.01]"
+        >
+          <Play className="w-[18px] h-[18px] fill-current" />
+          <span>Play Now</span>
+        </button>
+      )}
+
+      {/* Secondary Actions Row (Tablet/Desktop) */}
+      <div className="hidden md:flex flex-col sm:flex-row gap-3 w-full">
           <button
             onClick={onToggleWatched}
             aria-pressed={isWatched}
@@ -128,9 +137,10 @@ const MediaActions = ({
               </div>
             )}
           </div>
-        </div>
+      </div>
 
-        {/* Tertiary Action */}
+      {/* Tertiary Action */}
+      {layoutType === "tv" && (
         <button 
           onClick={() => document.getElementById('episodes-section')?.scrollIntoView({ behavior: 'smooth' })}
           className="w-full h-12 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 text-[#E5E7EB] flex items-center justify-center gap-2 text-[14px] transition-colors"
@@ -139,8 +149,21 @@ const MediaActions = ({
           <Calendar className="w-4 h-4" />
           <span>Browse Episodes</span>
         </button>
+      )}
 
-        {/* Floating Action Dock (Mobile Only) */}
+      {layoutType === "movie" && trailerKey && (
+        <a
+          href={`https://www.youtube.com/watch?v=${trailerKey}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full h-12 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 text-[#E5E7EB] flex items-center justify-center gap-2 text-[14px] transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">movie</span>
+          <span>Watch Trailer</span>
+        </a>
+      )}
+
+      {/* Floating Action Dock (Mobile Only) */}
         <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50 md:hidden flex items-center gap-4 bg-black/85 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-full shadow-2xl max-w-[calc(100vw-32px)]">
           <button
             onClick={onToggleWatched}
@@ -184,103 +207,6 @@ const MediaActions = ({
             )}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col lg:flex-row lg:items-center gap-0 lg:gap-4">
-      {/* Primary Actions */}
-      {(onPlay || trailerKey) && (
-        <div className="flex items-center gap-3 mb-4 lg:mb-0">
-          {onPlay && (
-            <button onClick={onPlay} className={actionButtonPrimaryClass}>
-              <span className="material-symbols-outlined text-xl shrink-0 text-current hidden lg:block">play_circle</span>
-              <Play className="w-5 h-5 shrink-0 lg:hidden text-current" />
-              <span className={actionButtonLabelClass}>Play Now</span>
-            </button>
-          )}
-
-          {trailerKey && (
-            <a
-              href={`https://www.youtube.com/watch?v=${trailerKey}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={actionButtonSecondaryClass}
-            >
-              <span className="material-symbols-outlined text-xl shrink-0 text-current">movie</span>
-              <span className={actionButtonLabelClass}>Trailer</span>
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Floating Action Dock (Mobile) / Inline (Desktop) */}
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2.5 rounded-full shadow-2xl lg:relative lg:bottom-auto lg:left-auto lg:translate-x-0 lg:z-auto lg:bg-transparent lg:border-none lg:p-0 lg:shadow-none lg:rounded-none">
-        <button
-          onClick={onToggleWatchlist}
-          className={watchlistButtonClass}
-          title="Watchlist"
-        >
-          <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatchlisted ? 'text-yellow-200' : 'text-white/75 group-hover:text-white'}`}>
-            bookmark
-          </span>
-          <span className={actionButtonLabelClass}>Watchlist</span>
-        </button>
-
-        <button
-          onClick={onToggleWatched}
-          className={watchedButtonClass}
-          title="Watched"
-        >
-          <span className={`material-symbols-outlined text-xl shrink-0 transition-colors ${isWatched ? 'text-green-200' : 'text-white/75 group-hover:text-white'}`}>
-            check_circle
-          </span>
-          <span className={actionButtonLabelClass}>Watched</span>
-        </button>
-
-        <div
-          ref={popoverRef}
-          className="relative"
-          onMouseEnter={() => {
-            if (hoverTimeout) clearTimeout(hoverTimeout);
-            const timeout = setTimeout(() => setShowPopover(true), 500);
-            setHoverTimeout(timeout);
-          }}
-          onMouseLeave={() => {
-            if (hoverTimeout) clearTimeout(hoverTimeout);
-            const timeout = setTimeout(() => setShowPopover(false), 300);
-            setHoverTimeout(timeout);
-          }}
-        >
-          <button className={actionButtonNeutralClass} title="Add to List">
-            <span className="material-symbols-outlined text-xl shrink-0 text-white/75 transition-colors group-hover:text-white">
-              playlist_add
-            </span>
-            <span className={actionButtonLabelClass}>Lists</span>
-          </button>
-
-          {showPopover && (
-            <div
-              onMouseEnter={() => {
-                if (hoverTimeout) clearTimeout(hoverTimeout);
-              }}
-              onMouseLeave={() => {
-                if (hoverTimeout) clearTimeout(hoverTimeout);
-                const timeout = setTimeout(() => setShowPopover(false), 300);
-                setHoverTimeout(timeout);
-              }}
-            >
-              <AddToListPopover
-                isOpen={showPopover}
-                onCreateNew={onCreateNewList}
-                userId={userId}
-                mediaItem={mediaItem}
-              />
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
