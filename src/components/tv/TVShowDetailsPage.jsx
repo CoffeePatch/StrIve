@@ -134,6 +134,25 @@ const TVShowDetailsPage = () => {
     isWatchlisted
   });
 
+  const handleToggleWatchedClick = async () => {
+    if (!isWatched) {
+      // Mark all episodes watched
+      try {
+        await applyWatchMode({}, "all");
+      } catch (err) {
+        console.error("Failed to mark all episodes watched:", err);
+      }
+    } else {
+      // Unwatch all episodes
+      try {
+        await handleUnwatchSeries();
+      } catch (err) {
+        console.error("Failed to unwatch series:", err);
+      }
+    }
+    await handleToggleWatched();
+  };
+
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [tvId]);
@@ -458,7 +477,7 @@ const TVShowDetailsPage = () => {
               isWatchlisted={isWatchlisted}
               onToggleWatchlist={handleToggleWatchlist}
               isWatched={isWatched}
-              onToggleWatched={handleToggleWatched}
+              onToggleWatched={handleToggleWatchedClick}
               userId={user?.uid}
               mediaItem={mediaItemForLists}
               onCreateNewList={handleCreateNew}

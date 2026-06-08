@@ -51,7 +51,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const [searchQuery, setSearchQuery] = useState('');
   
   // URL synced state
-  const status = searchParams.get('status') || 'watchlist';
+  const status = searchParams.get('status') || 'all';
   const type = searchParams.get('type') || 'all';
   const imdbRatingMin = searchParams.get('imdbMin') ? Number(searchParams.get('imdbMin')) : null;
   const imdbVotesMin = searchParams.get('imdbVotesMin') ? Number(searchParams.get('imdbVotesMin')) : null;
@@ -62,7 +62,38 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const yearTo = searchParams.get('yearTo') ? Number(searchParams.get('yearTo')) : null;
   const customListIds = searchParams.get('lists') ? searchParams.get('lists').split(',') : [];
   const searchParamQuery = searchParams.get('search') || '';
-  const sort = searchParams.get('sort') || 'rating-desc';
+
+  // Sort State
+  const [sortState, _setSortState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('librarySortPreference');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Error reading librarySortPreference from localStorage', e);
+    }
+    return null;
+  });
+
+  const activeSortState = useMemo(() => {
+    if (sortState) return sortState;
+    // Apply dynamic defaults per tab
+    const defaults = {
+      watching: { key: 'lastWatched', direction: 'desc' },
+      completed: { key: 'imdb', direction: 'desc' },
+      plan_to_watch: { key: 'dateAdded', direction: 'desc' },
+      dropped: { key: 'dateAdded', direction: 'desc' },
+    };
+    return defaults[status] ?? { key: 'dateAdded', direction: 'desc' };
+  }, [sortState, status]);
+
+  const setSortState = useCallback((newState) => {
+    try {
+      localStorage.setItem('librarySortPreference', JSON.stringify(newState));
+    } catch (e) {
+      console.error('Error saving librarySortPreference to localStorage', e);
+    }
+    _setSortState(newState);
+  }, []);
 
   // Sync internal search query state when URL changes, only initially or externally driven
   useEffect(() => {
@@ -133,18 +164,23 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       }
     }
 
-    return itemsToFilter.filter((item) => {
+    const filtered = itemsToFilter.filter((item) => {
       // Free-text search
       const title = (item.title || item.name || '').toLowerCase();
       if (query && !title.includes(query)) return false;
 
       // Status
+      const itemStatus = normalizeWatchStatus(
+        item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
+      );
+
       if (status !== 'all') {
-        const itemStatus = normalizeWatchStatus(
-          item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
-        );
         const targetStatus = normalizeWatchStatus(status);
         if (targetStatus && itemStatus !== targetStatus) return false;
+      } else if (customListIds.length === 0) {
+        // When viewing the generic "All" library, filter out items that have no watchStatus
+        // (these are items that were "removed" but kept in DB due to custom lists)
+        if (!itemStatus) return false;
       }
 
       // Type
@@ -196,7 +232,59 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
       return true;
     });
-  }, [items, customListIds, customListsItemsMap, searchParamQuery, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, yearFrom, yearTo, genres]);
+
+    // Comparators
+    const comparators = {
+      imdb: (a, b) => {
+        const aScore = a.ratings?.imdbScore ?? -1;
+        const bScore = b.ratings?.imdbScore ?? -1;
+        return bScore - aScore;
+      },
+      tmdb: (a, b) => {
+        const aScore = a.ratings?.tmdbScore ?? -1;
+        const bScore = b.ratings?.tmdbScore ?? -1;
+        return bScore - aScore;
+      },
+      dateAdded: (a, b) => {
+        const aMs = a.tracking?.addedAt?.toMillis?.() ?? 0;
+        const bMs = b.tracking?.addedAt?.toMillis?.() ?? 0;
+        return bMs - aMs;
+      },
+      dateUpdated: (a, b) => {
+        const aMs = a.tracking?.lastUserInteractionAt?.toMillis?.()
+          ?? a.tracking?.updatedAt?.toMillis?.()
+          ?? 0;
+        const bMs = b.tracking?.lastUserInteractionAt?.toMillis?.()
+          ?? b.tracking?.updatedAt?.toMillis?.()
+          ?? 0;
+        return bMs - aMs;
+      },
+      lastWatched: (a, b) => {
+        const aMs = a.tracking?.lastWatchedAt?.toMillis?.() 
+          ?? a.tracking?.addedAt?.toMillis?.() 
+          ?? 0;
+        const bMs = b.tracking?.lastWatchedAt?.toMillis?.() 
+          ?? b.tracking?.addedAt?.toMillis?.() 
+          ?? 0;
+        return bMs - aMs;
+      },
+      releaseYear: (a, b) => {
+        const aYear = a.releaseDate ? new Date(a.releaseDate).getFullYear() : 0;
+        const bYear = b.releaseDate ? new Date(b.releaseDate).getFullYear() : 0;
+        return bYear - aYear;
+      },
+      title: (a, b) =>
+        (a.title ?? '').localeCompare(b.title ?? '', undefined, {
+          sensitivity: 'base'
+        })
+    };
+
+    // Apply Sorting
+    return [...filtered].sort((a, b) => {
+      const result = comparators[activeSortState.key](a, b);
+      return activeSortState.direction === 'asc' ? -result : result;
+    });
+  }, [items, customListIds, customListsItemsMap, searchParamQuery, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, yearFrom, yearTo, genres, status, activeSortState]);
 
   const activeSecondaryFilterCount = useMemo(() => {
     let count = 0;
@@ -223,7 +311,8 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     yearFrom,
     yearTo,
     customListIds,
-    sort,
+    sortState: activeSortState,
+    setSortState,
     updateFilters,
     clearAdvancedFilters,
     filteredItems,

@@ -15,9 +15,9 @@ export const normalizeWatchStatus = (value) => {
     .replace(/[\s-]+/g, "_")
     .replace(/[^a-z_]/g, "");
 
-  if (normalized === "plan_to_watch") return "plan_to_watch";
+  if (normalized === "plan_to_watch" || normalized === "watchlist") return "plan_to_watch";
   if (normalized === "watching") return "watching";
-  if (normalized === "completed") return "completed";
+  if (normalized === "completed" || normalized === "watched") return "completed";
   if (normalized === "dropped") return "dropped";
 
   return null;

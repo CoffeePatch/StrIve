@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "../ui/PageTransition";
 import { useLayoutEffect } from "react";
@@ -37,13 +37,14 @@ import BottomNav from "./BottomNav";
 
 const AppLayout = () => {
   const location = useLocation();
+  const element = useOutlet();
   
   return (
     <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       <ScrollToTop />
       <AnimatePresence mode="wait">
         <PageTransition key={location.pathname}>
-          <Outlet />
+          {element}
         </PageTransition>
       </AnimatePresence>
       <BottomNav />

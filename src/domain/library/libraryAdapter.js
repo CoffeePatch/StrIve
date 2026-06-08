@@ -44,7 +44,7 @@ export const libraryAdapter = {
    * Typically used when you want a full metadata refresh alongside a status change.
    */
   saveLibraryItem: async (userId, mediaItem, status = null) => {
-    return await upsertLibraryItem(userId, mediaItem, { status });
+    return await upsertLibraryItem(userId, mediaItem, { status, isUserInteraction: true });
   },
 
   // --- Semantic Domain Operations ---

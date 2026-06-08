@@ -5,7 +5,9 @@ import {
   getDocs,
   getDoc,
   deleteField,
-  Timestamp
+  Timestamp,
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../util/firebase/firebase';
 import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
@@ -43,7 +45,7 @@ const extractRuntime = (itemOrRuntime) => {
 };
 
 export const buildLibraryPayload = async (mediaItem, existingData, options = {}) => {
-  const { status = null, listId = null, titleKey, mediaType, tmdbId } = options;
+  const { status = null, listId = null, titleKey, mediaType, tmdbId, isUserInteraction = false } = options;
   const now = Timestamp.now();
 
   const mergedListIds = Array.isArray(existingData?.tracking?.listIds)
@@ -131,6 +133,9 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
       addedAt: existingData?.tracking?.addedAt || now,
       updatedAt: now,
       lastWatchedAt: existingData?.tracking?.lastWatchedAt || null,
+      ...(isUserInteraction 
+        ? { lastUserInteractionAt: now } 
+        : existingData?.tracking?.lastUserInteractionAt ? { lastUserInteractionAt: existingData.tracking.lastUserInteractionAt } : {})
     },
   };
 
@@ -149,7 +154,7 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
 export const upsertLibraryItem = async (
   userId,
   mediaItem,
-  { status = null, listId = null } = {}
+  { status = null, listId = null, isUserInteraction = false } = {}
 ) => {
   const mediaType = mediaItem.media_type || (mediaItem.first_air_date ? 'tv' : 'movie');
   const rawId = mediaItem.id ?? mediaItem.tmdbId;
@@ -164,7 +169,7 @@ export const upsertLibraryItem = async (
   const existingSnap = await getDoc(ref);
   const existingData = existingSnap.exists() ? existingSnap.data() : {};
 
-  const payload = await buildLibraryPayload(mediaItem, existingData, { status, listId, titleKey, mediaType, tmdbId });
+  const payload = await buildLibraryPayload(mediaItem, existingData, { status, listId, titleKey, mediaType, tmdbId, isUserInteraction });
 
   await setDoc(ref, payload, { merge: true });
   return titleKey;
@@ -231,7 +236,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null });
+    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null, isUserInteraction: true });
   }
 
   await setDoc(
@@ -241,6 +246,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
         ...(snap.exists() ? snap.data()?.tracking || {} : {}),
         listIds: normalized,
         updatedAt: Timestamp.now(),
+        lastUserInteractionAt: Timestamp.now(),
       },
     },
     { merge: true }
@@ -264,7 +270,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null });
+    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null, isUserInteraction: true });
   }
 
   await setDoc(
@@ -274,6 +280,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
         ...(snap.exists() ? snap.data()?.tracking || {} : {}),
         watchStatus: normalizedStatus,
         updatedAt: Timestamp.now(),
+        lastUserInteractionAt: Timestamp.now(),
       },
     },
     { merge: true }
@@ -412,7 +419,11 @@ export const getAllLibraryItems = async (userId, options = {}) => {
   try {
     const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
-    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const q = query(
+      collection(db, "users", userId, "library_items"),
+      where("tracking.watchStatus", "!=", null)
+    );
+    const querySnapshot = await getDocs(q);
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()));
 
@@ -461,7 +472,11 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
 
     const targetStatus = normalizeWatchStatus(status);
 
-    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const q = query(
+      collection(db, "users", userId, "library_items"),
+      where("tracking.watchStatus", "==", targetStatus)
+    );
+    const querySnapshot = await getDocs(q);
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()))
       .filter((item) => {
@@ -519,7 +534,11 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
   try {
     const { sortBy = "addedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
-    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
+    const q = query(
+      collection(db, "users", userId, "library_items"),
+      where("tracking.listIds", "array-contains", listId)
+    );
+    const querySnapshot = await getDocs(q);
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()))
       .filter((item) => Array.isArray(item?.tracking?.listIds) && item.tracking.listIds.includes(listId));

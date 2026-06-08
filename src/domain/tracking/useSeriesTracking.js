@@ -97,10 +97,10 @@ export const useSeriesTracking = ({
   const applyWatchMode = useCallback(async (episode, mode) => {
     if (!user) throw new Error("User not authenticated.");
 
-    const sn = Number(episode.seasonNumber ?? episode.season_number);
-    const en = Number(episode.episodeNumber ?? episode.episode_number);
+    const sn = Number(episode?.seasonNumber ?? episode?.season_number);
+    const en = Number(episode?.episodeNumber ?? episode?.episode_number);
 
-    if (!Number.isInteger(sn) || !Number.isInteger(en)) {
+    if (mode !== "all" && (!Number.isInteger(sn) || !Number.isInteger(en))) {
       throw new Error("Episode metadata is invalid.");
     }
 

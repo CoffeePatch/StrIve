@@ -5,20 +5,15 @@ import MediaCard from '../ui/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
 import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 
-const LibraryMediaCard = React.memo(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes }) => {
+const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes }, ref) => {
   const { spring } = useMotionPreferences();
   const media = tmdbAdapter(item);
   if (!media) return null;
 
   if (viewMode === 'wide' || viewMode === 'bookshelf') {
     return (
-      <motion.div
-        layout="position"
-        layoutId={`card-${media.mediaType}-${media.id}`}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        transition={spring}
+      <div
+        ref={ref}
         onClick={onClick}
         className="cursor-pointer group flex items-start gap-4 glass-effect rounded-xl p-3 hover:bg-white/10 transition-all relative border border-white/5"
       >
@@ -93,19 +88,12 @@ const LibraryMediaCard = React.memo(({ item, viewMode, onClick, onRemove, imdbRa
         >
           <span className="material-symbols-outlined text-[16px]">delete</span>
         </button>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      layout="position"
-      layoutId={`card-${media.mediaType}-${media.id}`}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={spring}
-    >
+    <div ref={ref}>
       <MediaCard 
         media={media} 
         variant="library"
@@ -114,9 +102,9 @@ const LibraryMediaCard = React.memo(({ item, viewMode, onClick, onRemove, imdbRa
         imdbRating={imdbRating}
         imdbVotes={imdbVotes}
       />
-    </motion.div>
+    </div>
   );
-}, (prevProps, nextProps) => {
+}), (prevProps, nextProps) => {
   return (
     prevProps.item.id === nextProps.item.id &&
     prevProps.viewMode === nextProps.viewMode

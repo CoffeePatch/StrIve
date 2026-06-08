@@ -7,8 +7,9 @@ const MobileLibraryView = ({
   setActivePrimaryTab,
   activeTab,
   setActiveTab,
-  sortBy,
-  setSortBy,
+  sortState,
+  setSortState,
+  onSortClick,
   items,
   filteredItems,
   loading,
@@ -24,7 +25,6 @@ const MobileLibraryView = ({
   message
 }) => {
   const navigate = useNavigate();
-  const [showSortMenu, setShowSortMenu] = useState(false);
 
   // Client-side filtering by media type
   const displayItems = activePrimaryTab === 'movies'
@@ -92,8 +92,9 @@ const MobileLibraryView = ({
 
       {/* Filter Chips Row (Hidden when Lists is active) */}
       {activePrimaryTab !== 'lists' && (
-        <div className="flex justify-between gap-2 px-4 py-3 border-b border-white/5">
+        <div className="flex justify-start gap-2 px-4 py-3 border-b border-white/5 overflow-x-auto hide-scrollbar">
           {[
+            { id: 'all', label: 'All' },
             { id: 'watchlist', label: 'Plan to Watch' },
             { id: 'watching', label: 'Watching' },
             { id: 'watched', label: 'Completed' }
@@ -101,7 +102,7 @@ const MobileLibraryView = ({
             <button
               key={filter.id}
               onClick={() => handleFilterClick(filter.id)}
-              className={`flex-1 whitespace-nowrap px-2 py-1.5 rounded-full text-[13px] font-medium transition-colors border ${
+              className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors border ${
                 activeTab === filter.id
                   ? 'bg-[#E50914] text-white border-[#E50914]'
                   : 'bg-white/5 text-[#E5E7EB] border-white/10 hover:bg-white/10'
@@ -122,42 +123,12 @@ const MobileLibraryView = ({
           
           <div className="relative">
             <button
-              onClick={() => setShowSortMenu(!showSortMenu)}
+              onClick={onSortClick}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-transparent rounded-lg text-[13px] text-white"
             >
               <span>Sort</span>
-              <span className="material-symbols-outlined text-[16px]">expand_more</span>
+              <span className="material-symbols-outlined text-[16px]">sort</span>
             </button>
-
-            {showSortMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowSortMenu(false)}
-                />
-                <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-                  {[
-                    { id: 'rating-desc', label: 'IMDb: High to Low' },
-                    { id: 'rating-asc', label: 'IMDb: Low to High' },
-                    { id: 'date', label: 'Newest Added' }
-                  ].map(option => (
-                    <button
-                      key={option.id}
-                      onClick={() => {
-                        setSortBy(option.id);
-                        setShowSortMenu(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-sm text-white hover:bg-white/10 flex justify-between items-center"
-                    >
-                      <span>{option.label}</span>
-                      {sortBy === option.id && (
-                        <span className="material-symbols-outlined text-[16px] text-[#E50914]">check</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         </div>
       )}

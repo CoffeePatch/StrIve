@@ -21,6 +21,7 @@ import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
 import LibraryAdvancedFilters from './LibraryAdvancedFilters';
 import LibraryGrid from './LibraryGrid';
 import LibraryGridSkeleton from './LibraryGridSkeleton';
+import SortBottomSheet from './SortBottomSheet';
 
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
@@ -37,13 +38,15 @@ const LibraryMasterPage = () => {
   const {
     searchQuery, setSearchQuery,
     filtersOpen, setFiltersOpen,
-    status, type, customListIds, sort,
+    status, type, customListIds, sortState, setSortState,
     updateFilters, clearAdvancedFilters,
     filteredItems, activeSecondaryFilterCount,
     getImdbRating, getImdbVotes, getTmdbRating, getTmdbVotes,
     imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin,
     genres, yearFrom, yearTo
   } = libraryFilters;
+
+  const sortedAndFilteredItems = filteredItems;
 
   // Legacy mappings for MobileView
   const activeTab = status;
@@ -54,7 +57,7 @@ const LibraryMasterPage = () => {
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [searchFocused, setSearchFocused] = useState(false);
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const [sortBottomSheetOpen, setSortBottomSheetOpen] = useState(false);
 
   const loadCustomLists = useCallback(async (signal) => {
     if (!user?.uid) return;
@@ -109,43 +112,6 @@ const LibraryMasterPage = () => {
     });
   }, [user?.uid, customListIds, customListsItemsMap]);
 
-  const getAddedTimestamp = (item) => {
-    const candidate = item?.tracking?.addedAt || item?.addedAt || item?.dateAdded || item?.tracking?.updatedAt || null;
-    if (!candidate) return 0;
-    if (typeof candidate === 'number') return candidate;
-    if (typeof candidate?.toDate === 'function') return candidate.toDate().getTime();
-    const parsed = new Date(candidate).getTime();
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
-  const sortItems = (itemsToSort, sortOption) => {
-    const sorted = [...itemsToSort];
-    if (sortOption === 'rating-desc') {
-      sorted.sort((a, b) => {
-        const ratingA = Number(a?.ratings?.imdbScore ?? a?.imdbRating) || 0;
-        const ratingB = Number(b?.ratings?.imdbScore ?? b?.imdbRating) || 0;
-        return ratingB - ratingA;
-      });
-    } else if (sortOption === 'rating-asc') {
-      sorted.sort((a, b) => {
-        const ratingA = Number(a?.ratings?.imdbScore ?? a?.imdbRating) || 0;
-        const ratingB = Number(b?.ratings?.imdbScore ?? b?.imdbRating) || 0;
-        return ratingA - ratingB;
-      });
-    } else if (sortOption === 'date') {
-      sorted.sort((a, b) => {
-        const dateA = getAddedTimestamp(a);
-        const dateB = getAddedTimestamp(b);
-        return dateB - dateA;
-      });
-    }
-    return sorted;
-  };
-
-  const sortedAndFilteredItems = useMemo(() => {
-    return sortItems(filteredItems, sort);
-  }, [filteredItems, sort]);
-
   const handleItemClick = useCallback((item) => {
     const mediaType = item.media_type || item.mediaType;
     const titleKey = item.titleKey || '';
@@ -185,7 +151,7 @@ const LibraryMasterPage = () => {
     } catch (error) {
       console.error('Remove failed:', error);
       // Revert optimistic updates
-      setItems((prev) => sortItems([...prev, item], sort));
+      setItems((prev) => [...prev, item]);
       toast.error('Failed to remove item');
       return;
     }
@@ -203,7 +169,7 @@ const LibraryMasterPage = () => {
                 await libraryAdapter.updateLibraryStatus(user.uid, item, item?.tracking?.watchStatus || 'plan_to_watch');
               }
               // Restore optimistic updates
-              setItems((prev) => sortItems([...prev, item], sort));
+              setItems((prev) => [...prev, item]);
               if (customListIds.length === 1) {
                 const listId = customListIds[0];
                 setCustomListsItemsMap(prev => ({
@@ -222,7 +188,7 @@ const LibraryMasterPage = () => {
         </button>
       </div>
     ), { autoClose: 5000 });
-  }, [user?.uid, sort, customListIds, removeMediaFromList, addMediaToList]);
+  }, [user?.uid, customListIds, removeMediaFromList, addMediaToList]);
 
   return (
     <>
@@ -258,36 +224,12 @@ const LibraryMasterPage = () => {
 
             <div className="relative">
               <button 
-                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                onClick={() => setSortBottomSheetOpen(true)}
                 className="bg-white/5 border border-white/10 h-[40px] px-4 rounded-lg text-[14px] text-white focus:outline-none cursor-pointer font-secondary hover:border-white/30 transition-colors flex items-center gap-2"
               >
-                {sort === 'rating-desc' ? 'IMDb: High to Low' : sort === 'rating-asc' ? 'IMDb: Low to High' : 'Newest Added'}
-                <span className="material-symbols-outlined text-[16px] text-white/60">expand_more</span>
+                Sort
+                <span className="material-symbols-outlined text-[16px] text-white/60">sort</span>
               </button>
-              <AnimatedDropdown 
-                isOpen={sortDropdownOpen} 
-                className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-[#1a1b1e] border border-white/10 rounded-lg shadow-2xl py-2 z-50 overflow-hidden"
-                transformOrigin="top right"
-              >
-                <div className="flex flex-col">
-                  {[
-                    { value: 'rating-desc', label: 'IMDb: High to Low' },
-                    { value: 'rating-asc', label: 'IMDb: Low to High' },
-                    { value: 'date', label: 'Newest Added' }
-                  ].map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => {
-                        updateFilters({ sort: opt.value });
-                        setSortDropdownOpen(false);
-                      }}
-                      className={`px-4 py-2 text-[14px] font-secondary text-left transition-colors hover:bg-white/10 ${sort === opt.value ? 'text-red-500 bg-red-500/10' : 'text-white/80 hover:text-white'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </AnimatedDropdown>
             </div>
 
             <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
@@ -413,8 +355,9 @@ const LibraryMasterPage = () => {
           setActivePrimaryTab={setActivePrimaryTab}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          sortBy={sort}
-          setSortBy={(val) => updateFilters({ sort: val })}
+          sortState={sortState}
+          setSortState={setSortState}
+          onSortClick={() => setSortBottomSheetOpen(true)}
           items={items}
           filteredItems={sortedAndFilteredItems}
           loading={loading}
@@ -430,6 +373,13 @@ const LibraryMasterPage = () => {
           message={message}
         />
       </div>
+
+      <SortBottomSheet
+        isOpen={sortBottomSheetOpen}
+        onClose={() => setSortBottomSheetOpen(false)}
+        sortState={sortState}
+        onSortChange={setSortState}
+      />
     </>
   );
 };

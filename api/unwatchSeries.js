@@ -78,6 +78,7 @@ export default async function handler(req, res) {
       const nextTracking = {
         ...(libraryData.tracking || {}),
         updatedAt: now,
+        lastUserInteractionAt: now,
         lastWatchedAt: null,
       };
 

@@ -9,9 +9,8 @@ import { normalizeWatchStatus } from "../../../util/library/watchStatus";
 export const tmdbAdapter = (data) => {
   if (!data) return null;
 
-  // Determine media type
   // Explicitly checking media_type first, fallback to first_air_date presence
-  const isTV = data.media_type === "tv" || data.first_air_date !== undefined;
+  const isTV = data.media_type === "tv" || !!data.first_air_date || data.numberOfSeasons !== undefined || data.number_of_seasons !== undefined;
   const mediaType = isTV ? "tv" : "movie";
 
   // Parse release year

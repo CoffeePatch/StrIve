@@ -58,6 +58,12 @@ export const buildEpisodeCatalog = (allSeasonsData, currentSeasonEpisodes = []) 
  * @returns {Array} - Selected episodes to update
  */
 export const selectEpisodesForMode = (catalog, mode, sn, en) => {
+  if (mode === "all") {
+    return catalog
+      .filter((ep) => ep.isAired)
+      .sort((a, b) => a.absoluteOrder - b.absoluteOrder);
+  }
+
   const target = catalog.find(
     (ep) => ep.seasonNumber === sn && ep.episodeNumber === en
   );
