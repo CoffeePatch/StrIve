@@ -154,6 +154,53 @@ a[aria-disabled="true"] {
   cursor: not-allowed;
 }
 
+/* Mobile Library Utilities */
+.hide-horizontal-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-horizontal-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Force 3 columns on mobile grids */
+.mobile-grid-override > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+@media (min-width: 768px) {
+  .mobile-grid-override > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+@media (min-width: 1024px) {
+  .mobile-grid-override > div {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Hide card titles in mobile grid */
+@media (max-width: 767px) {
+  .mobile-grid-override .premium-card .p-3 {
+    display: none !important;
+  }
+  .mobile-grid-override .premium-card .absolute.top-2.right-2 {
+    top: 6px !important;
+    left: 6px !important;
+    right: auto !important;
+    padding: 2px 6px !important;
+    background: rgba(0,0,0,0.75) !important;
+    font-size: 11px !important;
+  }
+  .mobile-grid-override .premium-card .absolute.top-2.right-2 .text-\[10px\] {
+    display: none !important;
+  }
+  .mobile-grid-override .premium-card .absolute.top-2.right-2 .material-symbols-outlined {
+    display: none !important;
+  }
+}
+
 /* Premium Page Wrapper */
 .premium-page {
   background-color: var(--color-bg-primary);

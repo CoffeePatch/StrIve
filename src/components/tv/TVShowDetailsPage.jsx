@@ -482,7 +482,7 @@ const TVShowDetailsPage = () => {
             <MediaGenres genres={showDetails.genres} />
           }
         />
-        <div className="premium-container py-10">
+        <div className="premium-container pt-10 pb-24 md:pb-10">
           <div className="mx-auto max-w-[1600px]">
           <MediaCast cast={cast} />
           

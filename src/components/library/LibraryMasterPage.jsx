@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import MobileLibraryView from './MobileLibraryView';
 import {
   getLibraryByStatus,
   getLibraryByListId,
@@ -21,14 +22,28 @@ import LibraryGrid from './LibraryGrid';
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  const [activeTab, setActiveTab] = useState('watchlist');
+  const activePrimaryTab = searchParams.get('tab') || 'movies';
+  const setActivePrimaryTab = (tab) => {
+    setSearchParams(prev => { prev.set('tab', tab); return prev; }, { replace: true });
+  };
+
+  const activeTab = searchParams.get('filter') || 'watchlist';
+  const setActiveTab = (filter) => {
+    setSearchParams(prev => { prev.set('filter', filter); return prev; }, { replace: true });
+  };
+  
+  const sortBy = searchParams.get('sort') || 'rating-desc';
+  const setSortBy = (sort) => {
+    setSearchParams(prev => { prev.set('sort', sort); return prev; }, { replace: true });
+  };
+
   const [items, setItems] = useState([]);
   const { lists: customLists, loadLists, createNewList, removeList, updateList } = useLists(user?.uid);
   const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
   const [selectedListId, setSelectedListId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy] = useState('rating-desc');
   const libraryFilters = useLibraryFilters(items);
   const {
     searchQuery, setSearchQuery,
@@ -72,7 +87,9 @@ const LibraryMasterPage = () => {
       if (!user?.uid) return;
 
       try {
-        setLoading(true);
+        if (items.length === 0) {
+          setLoading(true);
+        }
         let fetchedItems = [];
 
         if (activeTab === 'watchlist') {
@@ -87,9 +104,7 @@ const LibraryMasterPage = () => {
 
         if (signal?.cancelled) return;
 
-        // Apply sorting
-        const sorted = sortItems(fetchedItems, sortBy);
-        setItems(sorted);
+        setItems(fetchedItems);
       } catch (error) {
         console.error('Error loading items:', error);
         if (!signal?.cancelled) {
@@ -101,7 +116,7 @@ const LibraryMasterPage = () => {
         }
       }
     },
-    [user?.uid, activeTab, selectedListId, sortBy]
+    [user?.uid, activeTab, selectedListId]
   );
 
   // Load custom lists on mount
@@ -140,7 +155,7 @@ const LibraryMasterPage = () => {
     return () => {
       signal.cancelled = true;
     };
-  }, [user?.uid, activeTab, selectedListId, sortBy, loadItems]);
+  }, [user?.uid, activeTab, selectedListId, loadItems]);
 
   const fetchAllByStatus = async (userId, status, signal) => {
     if (signal?.cancelled) return [];
@@ -209,6 +224,10 @@ const LibraryMasterPage = () => {
 
     return sorted;
   };
+
+  const sortedAndFilteredItems = useMemo(() => {
+    return sortItems(filteredItems, sortBy);
+  }, [filteredItems, sortBy]);
 
   useEffect(() => {
     libraryFilters.clearAdvancedFilters();
@@ -309,7 +328,9 @@ const LibraryMasterPage = () => {
 
 
   return (
-    <div className="min-h-screen premium-page flex flex-col">
+    <>
+      {/* Desktop/Tablet View */}
+      <div className="hidden md:flex min-h-screen premium-page flex-col">
       <Header />
 
       {/* Hero Section */}
@@ -326,7 +347,7 @@ const LibraryMasterPage = () => {
                 </h1>
               </div>
               <p className="text-white/60 font-secondary text-lg">
-                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} shown
+                {sortedAndFilteredItems.length} item{sortedAndFilteredItems.length !== 1 ? 's' : ''} shown
               </p>
             </div>
 
@@ -709,7 +730,7 @@ const LibraryMasterPage = () => {
           )}
 
           {/* No Search Results */}
-          {!loading && items.length > 0 && filteredItems.length === 0 && (
+          {!loading && items.length > 0 && sortedAndFilteredItems.length === 0 && (
             <div className="glass-effect rounded-2xl p-12 text-center">
               <span className="material-symbols-outlined text-6xl text-white/40 mb-4 block">
                 search_off
@@ -721,9 +742,9 @@ const LibraryMasterPage = () => {
           )}
 
           {/* Items Grid */}
-          {!loading && filteredItems.length > 0 && (
+          {!loading && sortedAndFilteredItems.length > 0 && (
             <LibraryGrid 
-              items={filteredItems}
+              items={sortedAndFilteredItems}
               viewMode={viewMode}
               handleItemClick={handleItemClick}
               handleRemove={handleRemove}
@@ -733,7 +754,33 @@ const LibraryMasterPage = () => {
           )}
         </div>
       </main>
-    </div>
+      </div>
+
+      {/* Mobile View */}
+      <div className="block md:hidden">
+        <MobileLibraryView
+          activePrimaryTab={activePrimaryTab}
+          setActivePrimaryTab={setActivePrimaryTab}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          items={items}
+          filteredItems={sortedAndFilteredItems}
+          loading={loading}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          customLists={customLists}
+          selectedListId={selectedListId}
+          setSelectedListId={setSelectedListId}
+          handleItemClick={handleItemClick}
+          handleRemove={handleRemove}
+          getImdbRating={getImdbRating}
+          getImdbVotes={getImdbVotes}
+          message={message}
+        />
+      </div>
+    </>
   );
 };
 

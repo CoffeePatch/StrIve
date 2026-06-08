@@ -8,6 +8,7 @@ import MoviesPage from "../movie/Listing/MoviesPage";
 import MovieDetails from "../movie/MovieDetails/MovieDetails";
 import TVShowDetailsPage from "../tv/TVShowDetailsPage";
 import SearchPage from "../pages/SearchPage";
+import ProfilePage from "../pages/ProfilePage";
 import ProtectedRoute from "./ProtectedRoute";
 import ImportPage from "../import/ImportPage";
 import ImportReviewPage from "../import/ImportReviewPage";
@@ -137,6 +138,14 @@ const Body = () => {
           element: (
             <ProtectedRoute>
               <TVShowDetailsPage />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "/profile",
+          element: (
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           ),
         },

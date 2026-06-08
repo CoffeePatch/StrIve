@@ -1,6 +1,7 @@
 import React from "react";
 import EpisodeMatrixView from "../../../tv/TVShowDetails/EpisodeMatrixView";
 import EpisodeListItem from "../../../tv/TVShowDetails/EpisodeListItem";
+import MobileEpisodeRow from "../../../tv/TVShowDetails/MobileEpisodeRow";
 import EpisodeCard from "../../../ui/EpisodeCard";
 
 const EpisodeList = ({
@@ -50,18 +51,34 @@ const EpisodeList = ({
 
       {viewMode !== 'matrix' && !episodesLoading && seasonData?.episodes && seasonData.episodes.length > 0 && (
         viewMode === 'list' ? (
-          <div className="grid grid-cols-1 gap-4">
-            {seasonData.episodes.map((episode) => (
-              <EpisodeListItem
-                key={episode.id}
-                episode={episode}
-                onClick={() => handleEpisodeClick(episode)}
-                isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
-                onToggleWatched={handleToggleEpisodeWatched}
-                watchLoading={markWatchedLoading}
-              />
-            ))}
-          </div>
+          <>
+            {/* Mobile View (Compact Rows) */}
+            <div className="md:hidden flex flex-col gap-0">
+              {seasonData.episodes.map((episode) => (
+                <MobileEpisodeRow
+                  key={episode.id}
+                  episode={episode}
+                  onClick={() => handleEpisodeClick(episode)}
+                  isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                  onToggleWatched={handleToggleEpisodeWatched}
+                  watchLoading={markWatchedLoading}
+                />
+              ))}
+            </div>
+            {/* Tablet/Desktop View (Large List Items) */}
+            <div className="hidden md:grid grid-cols-1 gap-4">
+              {seasonData.episodes.map((episode) => (
+                <EpisodeListItem
+                  key={episode.id}
+                  episode={episode}
+                  onClick={() => handleEpisodeClick(episode)}
+                  isWatched={watchedSet.has(`${episode.seasonNumber}:${episode.episodeNumber}`)}
+                  onToggleWatched={handleToggleEpisodeWatched}
+                  watchLoading={markWatchedLoading}
+                />
+              ))}
+            </div>
+          </>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5 xl:gap-6">
             {seasonData.episodes.map((episode) => (

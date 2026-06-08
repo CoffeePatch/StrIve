@@ -61,8 +61,8 @@ const MediaActions = ({
           </button>
         )}
 
-        {/* Secondary Actions Row */}
-        <div className="flex flex-col sm:flex-row gap-3 w-full">
+        {/* Secondary Actions Row (Tablet/Desktop) */}
+        <div className="hidden md:flex flex-col sm:flex-row gap-3 w-full">
           <button
             onClick={onToggleWatched}
             aria-pressed={isWatched}
@@ -139,6 +139,51 @@ const MediaActions = ({
           <Calendar className="w-4 h-4" />
           <span>Browse Episodes</span>
         </button>
+
+        {/* Floating Action Dock (Mobile Only) */}
+        <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50 md:hidden flex items-center gap-4 bg-black/85 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-full shadow-2xl max-w-[calc(100vw-32px)]">
+          <button
+            onClick={onToggleWatched}
+            className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isWatched ? 'text-[#E50914] bg-white/5' : 'text-white hover:bg-white/10'}`}
+            title="Watched"
+            aria-pressed={isWatched}
+            aria-label="Toggle Watched"
+          >
+            <Eye className="w-5 h-5" fill={isWatched ? "currentColor" : "none"} />
+          </button>
+
+          <button
+            onClick={onToggleWatchlist}
+            className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isWatchlisted ? 'text-[#E50914] bg-white/5' : 'text-white hover:bg-white/10'}`}
+            title="Watchlist"
+            aria-pressed={isWatchlisted}
+            aria-label="Toggle Watchlist"
+          >
+            <Bookmark className="w-5 h-5" fill={isWatchlisted ? "currentColor" : "none"} />
+          </button>
+
+          <div ref={popoverRef} className="relative">
+            <button
+              onClick={() => setShowPopover(!showPopover)}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors text-white hover:bg-white/10`}
+              title="Add to List"
+              aria-label="Add to List"
+            >
+              <ListPlus className="w-5 h-5" />
+            </button>
+
+            {showPopover && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max">
+                <AddToListPopover
+                  isOpen={showPopover}
+                  onCreateNew={onCreateNewList}
+                  userId={userId}
+                  mediaItem={mediaItem}
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
