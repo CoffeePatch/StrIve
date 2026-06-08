@@ -120,6 +120,17 @@ export function selectEpisodesForMode(
   seasonNumber,
   episodeNumber,
 ) {
+  if (mode === "all") {
+    const selected = allEpisodes
+      .filter((e) => e.isAired)
+      .sort((a, b) => a.absoluteOrder - b.absoluteOrder);
+      
+    if (selected.length === 0) {
+      throw new Error("failed-precondition: No eligible aired episodes matched this request.");
+    }
+    return { target: null, selected };
+  }
+
   const target = allEpisodes.find(
     (e) => e.seasonNumber === seasonNumber && e.episodeNumber === episodeNumber,
   );

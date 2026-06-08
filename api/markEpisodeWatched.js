@@ -46,30 +46,32 @@ export default async function handler(req, res) {
 
   if (
     !mode ||
-    !["single", "backfill_to_episode", "season_all"].includes(mode)
+    !["single", "backfill_to_episode", "season_all", "all"].includes(mode)
   ) {
     return sendError(
       res,
       400,
       "invalid-argument",
-      "mode must be one of: single, backfill_to_episode, season_all.",
+      "mode must be one of: single, backfill_to_episode, season_all, all.",
     );
   }
-  if (!Number.isInteger(seasonNumber) || seasonNumber < 1) {
-    return sendError(
-      res,
-      400,
-      "invalid-argument",
-      "seasonNumber must be a positive integer.",
-    );
-  }
-  if (!Number.isInteger(episodeNumber) || episodeNumber < 1) {
-    return sendError(
-      res,
-      400,
-      "invalid-argument",
-      "episodeNumber must be a positive integer.",
-    );
+  if (mode !== "all") {
+    if (!Number.isInteger(seasonNumber) || seasonNumber < 1) {
+      return sendError(
+        res,
+        400,
+        "invalid-argument",
+        "seasonNumber must be a positive integer.",
+      );
+    }
+    if (!Number.isInteger(episodeNumber) || episodeNumber < 1) {
+      return sendError(
+        res,
+        400,
+        "invalid-argument",
+        "episodeNumber must be a positive integer.",
+      );
+    }
   }
 
   const now = admin.firestore.Timestamp.now();

@@ -27,15 +27,10 @@ export const tmdbAdapter = (data) => {
     const nextToWatch = data?.tvProgress?.nextToWatch || null;
     const nextSeasonNumber = Number(nextToWatch?.seasonNumber);
     const nextEpisodeNumber = Number(nextToWatch?.episodeNumber);
-    const hasNextEpisode = Number.isInteger(nextSeasonNumber) && Number.isInteger(nextEpisodeNumber);
-    
-    const shouldDefaultNext = !hasNextEpisode && 
-      (normalizedStatus === "plan_to_watch" || normalizedStatus === "watching" || !normalizedStatus);
+    const hasNextEpisode = Number.isInteger(nextSeasonNumber) && Number.isInteger(nextEpisodeNumber) && nextSeasonNumber > 0 && nextEpisodeNumber > 0;
     
     if (hasNextEpisode) {
       nextEpisodeLabel = `S${nextSeasonNumber}E${nextEpisodeNumber}`;
-    } else if (shouldDefaultNext) {
-      nextEpisodeLabel = "S1E1";
     }
   }
 
@@ -66,6 +61,7 @@ export const tmdbAdapter = (data) => {
     tracking: {
       status: normalizedStatus,
       nextEpisodeLabel
-    }
+    },
+    tvProgress: data.tvProgress || null
   };
 };

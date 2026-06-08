@@ -95,11 +95,16 @@ const MediaCard = ({
           </div>
         )}
 
-        {/* Play Icon on Hover */}
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {/* Play Icon & Next Episode on Hover */}
+        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
           <div className="w-12 h-12 rounded-full bg-[var(--color-accent-primary)]/90 flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-200 shadow-lg">
             <Play className="w-6 h-6 text-white ml-1" fill="currentColor" />
           </div>
+          {media.tracking?.nextEpisodeLabel && (media.tracking?.status === 'watching' || media.tracking?.status === 'plan_to_watch') && (
+            <div className="mt-3 text-white text-xs font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-black/40 backdrop-blur-sm border border-white/10">
+              Next: {media.tracking.nextEpisodeLabel}
+            </div>
+          )}
         </div>
 
         {/* Remove Button for Library Variant */}
@@ -111,6 +116,16 @@ const MediaCard = ({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+
+        {/* TV Progress Bar */}
+        {(media.tracking?.status === 'completed' || (media.tvProgress && media.tvProgress.completionPercent !== undefined && media.tvProgress.completionPercent > 0)) && (
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/60 z-20 overflow-hidden">
+            <div 
+              className="h-full bg-[var(--color-accent-primary)] shadow-[0_0_10px_var(--color-accent-primary)]" 
+              style={{ width: media.tracking?.status === 'completed' ? '100%' : `${Math.min(100, Math.max(0, media.tvProgress.completionPercent))}%` }} 
+            />
+          </div>
         )}
       </>
     );
