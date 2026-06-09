@@ -5,7 +5,7 @@ import MediaCard from '../ui/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
 import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 
-const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes }, ref) => {
+const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes, ...rest }, ref) => {
   const { spring } = useMotionPreferences();
   const media = tmdbAdapter(item);
   if (!media) return null;
@@ -14,8 +14,9 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
     return (
       <div
         ref={ref}
-        onClick={onClick}
+        onClick={() => onClick(item)}
         className="cursor-pointer group flex items-start gap-4 glass-effect rounded-xl p-3 hover:bg-white/10 transition-all relative border border-white/5"
+        {...rest}
       >
         {item.poster_path ? (
           <div className="flex-shrink-0 w-[72px] h-[108px] rounded-lg overflow-hidden border border-white/10 relative group-hover:scale-105 transition-transform duration-300">
@@ -92,7 +93,7 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
           className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white/40 hover:text-red-500 hover:bg-black/60 transition-all opacity-0 group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
-            if (onRemove) onRemove();
+            if (onRemove) onRemove(item);
           }}
           aria-label="Remove from list"
           title="Remove from Library"
@@ -104,12 +105,12 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
   }
 
   return (
-    <div ref={ref}>
+    <div ref={ref} {...rest}>
       <MediaCard
         media={media}
         variant="library"
-        onClick={onClick}
-        onRemove={onRemove}
+        onClick={() => onClick(item)}
+        onRemove={onRemove ? () => onRemove(item) : undefined}
         imdbRating={imdbRating}
         imdbVotes={imdbVotes}
       />
@@ -117,8 +118,12 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
   );
 }), (prevProps, nextProps) => {
   return (
-    prevProps.item.id === nextProps.item.id &&
-    prevProps.viewMode === nextProps.viewMode
+    prevProps.item === nextProps.item &&
+    prevProps.viewMode === nextProps.viewMode &&
+    prevProps.imdbRating === nextProps.imdbRating &&
+    prevProps.imdbVotes === nextProps.imdbVotes &&
+    prevProps.onClick === nextProps.onClick &&
+    prevProps.onRemove === nextProps.onRemove
   );
 });
 

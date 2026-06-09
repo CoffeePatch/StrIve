@@ -6,9 +6,10 @@ import Header from "../layout/Header";
 import useMediaDetailsCore from "../../hooks/media/useMediaDetailsCore";
 import useTvSeasonEpisodes from "../../hooks/tv/useTvSeasonEpisodes";
 import useTvVideos from "../../hooks/tv/useTvVideos";
+import useAutoSeasonSelection from "../../hooks/tv/useAutoSeasonSelection";
 import SeriesProgressBar from "../media/SeriesProgressBar";
 import { fetchLists } from "../../util/store/listsSlice";
-import { options } from "../../util/core/constants";
+import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import EpisodeOverlay from "./TVShowDetails/EpisodeOverlay";
 import SeasonTabs from "../media/SeasonTabs";
 import EpisodeViewToggle from "./TVShowDetails/EpisodeViewToggle";
@@ -94,19 +95,33 @@ const TVShowDetailsPage = () => {
         (_, i) => i + 1
       );
 
-      const seasonPromises = validSeasons.map((seasonNum) =>
-        fetch(
-          `https://api.themoviedb.org/3/tv/${tvId}/season/${seasonNum}?language=en-US`,
-          options
-        ).then(res => res.json())
-      );
+      const seasonsData = [];
+      const batchSize = 5;
 
-      const seasonsData = await Promise.all(seasonPromises);
-      setAllSeasonsData(seasonsData);
+      for (let i = 0; i < validSeasons.length; i += batchSize) {
+        const batch = validSeasons.slice(i, i + batchSize);
+        const batchPromises = batch.map((seasonNum) =>
+          fetch(`/api/tv/episodes?tvId=${tvId}&season=${seasonNum}`)
+            .then(res => {
+              if (!res.ok) throw new Error(`Failed to fetch season ${seasonNum}`);
+              return res.json();
+            })
+            .then(data => ({
+              ...data,
+              season_number: data.seasonNumber, // Normalize to snake_case for backward compatibility
+            }))
+        );
+
+        const batchResults = await Promise.all(batchPromises);
+        seasonsData.push(...batchResults);
+        
+        // Update state progressively so matrix updates column-by-column
+        setAllSeasonsData([...seasonsData]);
+      }
+      
       return seasonsData;
     } catch (error) {
       console.error("Error fetching all seasons data:", error);
-      setAllSeasonsData([]);
       return [];
     } finally {
       setIsLoadingMatrix(false);
@@ -157,56 +172,18 @@ const TVShowDetailsPage = () => {
     window.scrollTo(0, 0);
   }, [tvId]);
 
-  const autoSelectedRef = useRef(false);
+  const { isAutoSelected, resetAutoSelection } = useAutoSeasonSelection({
+    showDetails,
+    watchedSet,
+    selectedSeason,
+    setSelectedSeason,
+    seasonData,
+  });
 
+  // Reset auto selection lock if TV ID changes
   useEffect(() => {
-    if (!showDetails || !showDetails.numberOfSeasons) return;
-
-    // 1. Fetch matrix data if not present
-    if (allSeasonsData === null && !isLoadingMatrix) {
-      fetchAllSeasonDetails();
-    }
-
-    // 2. Intelligent Auto-select Season Tab
-    if (!autoSelectedRef.current) {
-      let targetSeason = 1;
-
-      if (watchedSet && watchedSet.size > 0) {
-        let maxSeason = 1;
-        for (const key of watchedSet) {
-          const sn = parseInt(key.split(':')[0], 10);
-          if (!isNaN(sn) && sn > maxSeason) {
-            maxSeason = sn;
-          }
-        }
-        
-        targetSeason = maxSeason;
-
-        // If we have full season data, check if they finished this max season
-        if (allSeasonsData) {
-          const sData = allSeasonsData.find(s => s.season_number === maxSeason);
-          if (sData && sData.episodes && sData.episodes.length > 0) {
-            const allWatched = sData.episodes.every(ep => 
-              watchedSet.has(`${maxSeason}:${ep.episode_number}`)
-            );
-            // Move to next season if current max is fully watched
-            if (allWatched && maxSeason < showDetails.numberOfSeasons) {
-              targetSeason = maxSeason + 1;
-            }
-          }
-          autoSelectedRef.current = true; // Lock auto-selection
-        }
-      } else if (allSeasonsData !== null) {
-        // Watched set is empty, and matrix loaded, we can lock to 1
-        autoSelectedRef.current = true;
-      }
-
-      // Clamp targetSeason to available seasons
-      targetSeason = Math.min(targetSeason, showDetails.numberOfSeasons);
-      
-      setSelectedSeason((prev) => prev !== targetSeason ? targetSeason : prev);
-    }
-  }, [showDetails, watchedSet, allSeasonsData, isLoadingMatrix]);
+    resetAutoSelection();
+  }, [tvId, resetAutoSelection]);
 
   useEffect(() => {
     let isActive = true;
@@ -215,16 +192,12 @@ const TVShowDetailsPage = () => {
       if (!tvId) return;
 
       try {
-        const response = await fetch(
-          `https://api.themoviedb.org/3/tv/${tvId}/credits?language=en-US`,
-          options
-        );
+        const data = await tmdbApiService.get(`/tv/${tvId}/credits`, { language: 'en-US' });
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch cast: ${response.status}`);
+        if (!data) {
+          throw new Error('Failed to fetch cast');
         }
 
-        const data = await response.json();
         if (!isActive) return;
 
         const normalizedCast = Array.isArray(data?.cast)

@@ -1,6 +1,6 @@
-import { updateLibraryItem } from "../../util/firebase/firestoreService";
+
 import { listsAdapter } from "../../domain/lists/listsAdapter";
-import { getDocs, query, collection, where, limit } from "firebase/firestore";
+import { getDocs, query, collection, where, limit, doc, setDoc, deleteField } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
 import tmdbApiService from "../tmdb/tmdbApiService";
 import imdbApiService from "../imdb/imdbApiService";
@@ -33,13 +33,42 @@ class EnrichmentService {
         if (!this.isProcessing) break; // Stop if requested
 
         // Get a batch of pending items
-        const q = query(
-          collection(db, "users", userId, "library_items"),
-          where("tracking.listIds", "array-contains", list.id),
-          limit(5)
-        );
-        const snap = await getDocs(q);
-        const pendingItems = snap.docs.map(d => ({id: d.id, ...d.data()})).filter(i => i.enrichmentStatus !== 'enriched');
+        let pendingItems = [];
+        try {
+          // Primary query: fast index-based lookup
+          const qPrimary = query(
+            collection(db, "users", userId, "library_items"),
+            where("tracking.listIds", "array-contains", list.id),
+            where("enrichmentStatus", "==", "pending"),
+            limit(5)
+          );
+          const snapPrimary = await getDocs(qPrimary);
+          pendingItems = snapPrimary.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (error) {
+          console.warn("Primary enrichment query failed, falling back to local filtering:", error.message);
+        }
+
+        // Fallback query: if primary query returns fewer than 5 items, fetch 50 and filter locally for legacy items
+        if (pendingItems.length < 5) {
+          const qFallback = query(
+            collection(db, "users", userId, "library_items"),
+            where("tracking.listIds", "array-contains", list.id),
+            limit(50)
+          );
+          const snapFallback = await getDocs(qFallback);
+          const legacyPending = snapFallback.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(i => i.enrichmentStatus !== 'enriched' && i.enrichmentStatus !== 'failed');
+            
+          // Merge lists and de-duplicate
+          const seen = new Set(pendingItems.map(i => i.id));
+          for (const item of legacyPending) {
+            if (!seen.has(item.id)) {
+              pendingItems.push(item);
+              if (pendingItems.length >= 5) break;
+            }
+          }
+        }
 
         if (pendingItems.length > 0) {
           console.log(
@@ -138,16 +167,53 @@ class EnrichmentService {
         updates.enrichmentStatus = "enriched";
         updates.lastEnriched = new Date().toISOString();
         
-        await updateLibraryItem(userId, item, updates);
+        // Write updates to the primary library_items subcollection (both flat & nested)
+        const titleKey = item.id;
+        const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+        const nestedUpdates = {
+          imdbId: updates.imdb_rating ? (item.imdbId || updates.imdbId || null) : (item.imdbId || null),
+          imdbRating: deleteField(),
+          imdbVotes: deleteField(),
+          imdb_rating: deleteField(),
+          imdb_vote_count: deleteField(),
+          vote_average: deleteField(),
+          vote_count: deleteField(),
+          tmdb_rating: deleteField(),
+          tmdb_vote_count: deleteField(),
+          overview: updates.overview || null,
+          backdrop_path: updates.backdrop_path || null,
+          enrichmentStatus: updates.enrichmentStatus,
+          lastEnriched: updates.lastEnriched,
+          sort: {
+            imdbRating: deleteField(),
+            imdbVotes: deleteField(),
+            tmdbRating: deleteField(),
+            tmdbVotes: deleteField(),
+          },
+          ratings: {
+            imdbScore: updates.imdb_rating || null,
+            imdbVotes: updates.imdb_vote_count || null,
+            tmdbScore: updates.tmdb_rating || 0,
+            tmdbVotes: updates.tmdb_vote_count || 0,
+          }
+        };
+        await setDoc(libraryItemsRef, nestedUpdates, { merge: true });
+
+
         console.log(
           `✓ Enriched ${item.title} successfully. IMDb: ${updates.imdb_rating || 'N/A'}, TMDB: ${updates.tmdb_rating || 'N/A'}`
         );
       } else {
         // Mark as failed enrichment
-        await updateLibraryItem(userId, item, {
+        const titleKey = item.id;
+        const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+        const failedUpdates = {
           enrichmentStatus: "failed",
           lastEnriched: new Date().toISOString(),
-        });
+        };
+        await setDoc(libraryItemsRef, failedUpdates, { merge: true });
+
+
         console.log(`✗ No data found for ${item.title}, marked as failed`);
       }
     } catch (error) {
@@ -155,10 +221,15 @@ class EnrichmentService {
       
       // Mark as failed
       try {
-        await updateLibraryItem(userId, item, {
+        const titleKey = item.id;
+        const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+        const failedUpdates = {
           enrichmentStatus: "failed",
           lastEnriched: new Date().toISOString(),
-        });
+        };
+        await setDoc(libraryItemsRef, failedUpdates, { merge: true });
+
+
       } catch (updateError) {
         console.error(`Failed to mark item as failed:`, updateError);
       }

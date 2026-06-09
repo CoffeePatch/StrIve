@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
+import { getRuntime } from '../../util/library/runtime';
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -21,10 +22,10 @@ const getItemYear = (item) => {
   return null;
 };
 
-const getTmdbRating = (item) => toNumber(item?.vote_average ?? item?.ratings?.tmdbScore);
-const getTmdbVotes = (item) => toNumber(item?.vote_count ?? item?.ratings?.tmdbVotes);
-const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item.imdbRating);
-const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item.imdbVotes);
+const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item?.vote_average);
+const getTmdbVotes = (item) => toNumber(item?.ratings?.tmdbVotes ?? item?.vote_count);
+const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item?.imdbRating ?? item?.imdb_rating);
+const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item?.imdbVotes ?? item?.imdb_vote_count);
 
 const getItemGenres = (item) => {
   if (!Array.isArray(item.genres)) return [];
@@ -48,23 +49,36 @@ export const standardGenres = [
 export function useLibraryFilters(items, customListsItemsMap = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   
-  // URL synced state
-  const status = searchParams.get('status') || 'all';
-  const type = searchParams.get('type') || 'all';
-  const imdbRatingMin = searchParams.get('imdbMin') ? Number(searchParams.get('imdbMin')) : null;
-  const imdbVotesMin = searchParams.get('imdbVotesMin') ? Number(searchParams.get('imdbVotesMin')) : null;
-  const tmdbRatingMin = searchParams.get('tmdbMin') ? Number(searchParams.get('tmdbMin')) : null;
-  const tmdbVotesMin = searchParams.get('tmdbVotesMin') ? Number(searchParams.get('tmdbVotesMin')) : null;
-  const genres = searchParams.get('genres') ? searchParams.get('genres').split(',') : [];
-  const yearFrom = searchParams.get('yearFrom') ? Number(searchParams.get('yearFrom')) : null;
-  const yearTo = searchParams.get('yearTo') ? Number(searchParams.get('yearTo')) : null;
-  const customListIds = searchParams.get('lists') ? searchParams.get('lists').split(',') : [];
+  // Search state: searchQuery for immediate input typing, debouncedSearchQuery for list filtering
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Search parameter sync for searchQuery
   const searchParamQuery = searchParams.get('search') || '';
 
-  // Sort State
+  // Local React States for advanced filters to prevent URL bloat
+  const [status, setStatus] = useState('all');
+  const [type, setType] = useState('all');
+  const [imdbRatingMin, setImdbRatingMin] = useState(null);
+  const [imdbVotesMin, setImdbVotesMin] = useState(null);
+  const [tmdbRatingMin, setTmdbRatingMin] = useState(null);
+  const [tmdbVotesMin, setTmdbVotesMin] = useState(null);
+  const [genres, setGenres] = useState([]);
+  const [yearFrom, setYearFrom] = useState(null);
+  const [yearTo, setYearTo] = useState(null);
+  const [customListIds, setCustomListIds] = useState([]);
+  const [runtimes, setRuntimes] = useState([]);
+
+  // Sort State - Read from URL query param, fallback to localStorage
   const [sortState, _setSortState] = useState(() => {
+    const urlSort = searchParams.get('sort');
+    if (urlSort) {
+      const parts = urlSort.split(':');
+      if (parts.length === 2) {
+        return { key: parts[0], direction: parts[1] };
+      }
+    }
     try {
       const saved = localStorage.getItem('librarySortPreference');
       if (saved) return JSON.parse(saved);
@@ -76,14 +90,15 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
   const activeSortState = useMemo(() => {
     if (sortState) return sortState;
-    // Apply dynamic defaults per tab
+    // Apply dynamic defaults per status tab
+    const firstStatus = status.split(',')[0] || 'all';
     const defaults = {
       watching: { key: 'lastWatched', direction: 'desc' },
       completed: { key: 'imdb', direction: 'desc' },
       plan_to_watch: { key: 'dateAdded', direction: 'desc' },
       dropped: { key: 'dateAdded', direction: 'desc' },
     };
-    return defaults[status] ?? { key: 'dateAdded', direction: 'desc' };
+    return defaults[firstStatus] ?? { key: 'dateAdded', direction: 'desc' };
   }, [sortState, status]);
 
   const setSortState = useCallback((newState) => {
@@ -93,51 +108,87 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       console.error('Error saving librarySortPreference to localStorage', e);
     }
     _setSortState(newState);
-  }, []);
-
-  // Sync internal search query state when URL changes, only initially or externally driven
-  useEffect(() => {
-    setSearchQuery(searchParamQuery);
-  }, [searchParamQuery]);
-
-  const updateFilters = useCallback((updates) => {
     setSearchParams(prev => {
-      Object.keys(updates).forEach(key => {
-        const val = updates[key];
-        if (val === null || val === undefined || val === 'all' || (Array.isArray(val) && val.length === 0) || val === '') {
-          prev.delete(key);
-        } else {
-          prev.set(key, Array.isArray(val) ? val.join(',') : String(val));
-        }
-      });
+      if (newState) {
+        prev.set('sort', `${newState.key}:${newState.direction}`);
+      } else {
+        prev.delete('sort');
+      }
       return prev;
     }, { replace: true });
   }, [setSearchParams]);
 
-  const clearAdvancedFilters = useCallback(() => {
-    updateFilters({
-      imdbMin: null,
-      imdbVotesMin: null,
-      tmdbMin: null,
-      tmdbVotesMin: null,
-      genres: null,
-      yearFrom: null,
-      yearTo: null,
-      lists: null,
+  // Sync internal search query state when URL changes
+  useEffect(() => {
+    setSearchQuery(searchParamQuery);
+    setDebouncedSearchQuery(searchParamQuery);
+  }, [searchParamQuery]);
+
+  // Debounce search query updates internally (250ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Sync debounced search query state to URL parameters
+  useEffect(() => {
+    if (debouncedSearchQuery === searchParamQuery) return;
+
+    setSearchParams(prev => {
+      if (debouncedSearchQuery.trim() === '') {
+        prev.delete('search');
+      } else {
+        prev.set('search', debouncedSearchQuery);
+      }
+      return prev;
+    }, { replace: true });
+  }, [debouncedSearchQuery, searchParamQuery, setSearchParams]);
+
+  const updateFilters = useCallback((updates) => {
+    Object.keys(updates).forEach(key => {
+      const val = updates[key];
+      if (key === 'status') setStatus(val ?? 'all');
+      else if (key === 'type') setType(val ?? 'all');
+      else if (key === 'imdbMin') setImdbRatingMin(val);
+      else if (key === 'imdbVotesMin') setImdbVotesMin(val);
+      else if (key === 'tmdbMin') setTmdbRatingMin(val);
+      else if (key === 'tmdbVotesMin') setTmdbVotesMin(val);
+      else if (key === 'genres') setGenres(val ?? []);
+      else if (key === 'yearFrom') setYearFrom(val);
+      else if (key === 'yearTo') setYearTo(val);
+      else if (key === 'lists') setCustomListIds(val ?? []);
+      else if (key === 'runtimes') setRuntimes(val ?? []);
+      else if (key === 'search') setSearchQuery(val ?? '');
     });
-  }, [updateFilters]);
+  }, []);
 
-  // Derived filtered items
-  const filteredItems = useMemo(() => {
-    const query = searchParamQuery.trim().toLowerCase();
+  const clearAdvancedFilters = useCallback(() => {
+    setStatus('all');
+    setType('all');
+    setImdbRatingMin(null);
+    setImdbVotesMin(null);
+    setTmdbRatingMin(null);
+    setTmdbVotesMin(null);
+    setGenres([]);
+    setYearFrom(null);
+    setYearTo(null);
+    setCustomListIds([]);
+    setRuntimes([]);
+  }, []);
 
-    // Intersection with selected lists
-    let itemsToFilter = items;
-    if (customListIds.length > 0) {
-      // Create a set of IDs that are present in any of the selected lists (OR logic)
+  // Filtering engine logic (uses debouncedSearchQuery)
+  const getFilteredItemsInternal = useCallback((itemsList, filterState) => {
+    const query = debouncedSearchQuery.trim().toLowerCase();
+    
+    // Custom list items intersection (OR logic for list IDs)
+    let itemsToFilter = itemsList;
+    if (filterState.customListIds.length > 0) {
       const allowedIds = new Set();
       let hasData = false;
-      customListIds.forEach(listId => {
+      filterState.customListIds.forEach(listId => {
         if (customListsItemsMap[listId]) {
           hasData = true;
           customListsItemsMap[listId].forEach(item => {
@@ -151,16 +202,15 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       });
 
       if (hasData) {
-         itemsToFilter = items.filter(item => {
-            const mediaType = item.media_type || item.mediaType;
-            const titleKey = item.titleKey || '';
-            const keyMatch = String(titleKey).match(/^tmdb_(movie|tv)_(\d+)$/);
-            const id = keyMatch ? keyMatch[2] : item.id;
-            return allowedIds.has(`${mediaType}_${id}`);
-         });
+        itemsToFilter = itemsList.filter(item => {
+          const mediaType = item.media_type || item.mediaType;
+          const titleKey = item.titleKey || '';
+          const keyMatch = String(titleKey).match(/^tmdb_(movie|tv)_(\d+)$/);
+          const id = keyMatch ? keyMatch[2] : item.id;
+          return allowedIds.has(`${mediaType}_${id}`);
+        });
       } else {
-         // Data is probably still fetching.
-         itemsToFilter = []; 
+        itemsToFilter = []; 
       }
     }
 
@@ -169,71 +219,104 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       const title = (item.title || item.name || '').toLowerCase();
       if (query && !title.includes(query)) return false;
 
-      // Status
+      // Watch Status
       const itemStatus = normalizeWatchStatus(
         item?.tracking?.watchStatus ?? item?.watchStatus ?? item?.status
       );
 
-      if (status !== 'all') {
-        const targetStatus = normalizeWatchStatus(status);
-        if (targetStatus && itemStatus !== targetStatus) return false;
-      } else if (customListIds.length === 0) {
-        // When viewing the generic "All" library, filter out items that have no watchStatus
-        // (these are items that were "removed" but kept in DB due to custom lists)
+      if (filterState.status !== 'all') {
+        const selectedStatuses = filterState.status.split(',').map(normalizeWatchStatus).filter(Boolean);
+        if (selectedStatuses.length > 0 && !selectedStatuses.includes(itemStatus)) {
+          return false;
+        }
+      } else if (filterState.customListIds.length === 0) {
         if (!itemStatus) return false;
       }
 
-      // Type
-      if (type !== 'all') {
-        const itemMediaType = (item.media_type || item.mediaType || '').toLowerCase();
-        const firestoreType = type === 'series' ? 'tv' : type;
-        if (itemMediaType !== firestoreType) return false;
+      // Media Type (Movies, TV Shows, Anime)
+      if (filterState.type !== 'all') {
+        const selectedTypes = filterState.type.split(',').map(t => t.toLowerCase());
+        if (selectedTypes.length > 0) {
+          const itemMediaType = (item.media_type || item.mediaType || '').toLowerCase();
+          
+          const isAnime = item.mediaType === 'anime' ||
+                          item.media_type === 'anime' ||
+                          item.origin_country === 'JP' ||
+                          item.originCountry === 'JP' ||
+                          (Array.isArray(item.origin_country) && item.origin_country.includes('JP')) ||
+                          (Array.isArray(item.originCountry) && item.originCountry.includes('JP'));
+
+          const matches = selectedTypes.some(t => {
+            if (t === 'anime') return isAnime;
+            if (t === 'movie') return itemMediaType === 'movie' && !isAnime;
+            if (t === 'tv' || t === 'series') return itemMediaType === 'tv';
+            return false;
+          });
+
+          if (!matches) return false;
+        }
       }
 
       // IMDb Rating
-      if (imdbRatingMin !== null) {
+      if (filterState.imdbRatingMin !== null) {
         const imdb = getImdbRating(item);
-        if (imdb == null || imdb < imdbRatingMin) return false;
+        if (imdb == null || imdb < filterState.imdbRatingMin) return false;
       }
 
       // IMDb Votes
-      if (imdbVotesMin !== null) {
+      if (filterState.imdbVotesMin !== null) {
         const votes = getImdbVotes(item);
-        if (votes == null || votes < imdbVotesMin) return false;
+        if (votes == null || votes < filterState.imdbVotesMin) return false;
       }
 
       // TMDB Rating
-      if (tmdbRatingMin !== null) {
+      if (filterState.tmdbRatingMin !== null) {
         const tmdb = getTmdbRating(item);
-        if (tmdb == null || tmdb < tmdbRatingMin) return false;
+        if (tmdb == null || tmdb < filterState.tmdbRatingMin) return false;
       }
 
       // TMDB Votes
-      if (tmdbVotesMin !== null) {
+      if (filterState.tmdbVotesMin !== null) {
         const tmdbVotes = getTmdbVotes(item);
-        if (tmdbVotes == null || tmdbVotes < tmdbVotesMin) return false;
+        if (tmdbVotes == null || tmdbVotes < filterState.tmdbVotesMin) return false;
       }
 
       // Year Range
       const itemYear = getItemYear(item);
-      if (yearFrom !== null) {
-        if (itemYear == null || itemYear < yearFrom) return false;
+      if (filterState.yearFrom !== null) {
+        if (itemYear == null || itemYear < filterState.yearFrom) return false;
       }
-      if (yearTo !== null) {
-        if (itemYear == null || itemYear > yearTo) return false;
+      if (filterState.yearTo !== null) {
+        if (itemYear == null || itemYear > filterState.yearTo) return false;
       }
 
       // Genres
-      if (genres.length > 0) {
+      if (filterState.genres.length > 0) {
         const itemGenres = getItemGenres(item).map((g) => g.toLowerCase());
-        const hasGenre = genres.some(g => itemGenres.includes(g.toLowerCase()));
+        const hasGenre = filterState.genres.some(g => itemGenres.includes(g.toLowerCase()));
         if (!hasGenre) return false;
+      }
+
+      // Runtimes Range
+      if (filterState.runtimes.length > 0) {
+        const runtime = getRuntime(item);
+        if (runtime == null) return false;
+
+        const matchesRange = filterState.runtimes.some(range => {
+          if (range === '<60') return runtime < 60;
+          if (range === '60-90') return runtime >= 60 && runtime <= 90;
+          if (range === '90-120') return runtime >= 90 && runtime <= 120;
+          if (range === '120-180') return runtime >= 120 && runtime <= 180;
+          if (range === '180+') return runtime > 180;
+          return false;
+        });
+
+        if (!matchesRange) return false;
       }
 
       return true;
     });
 
-    // Comparators
     const comparators = {
       imdb: (a, b) => {
         const aScore = a.ratings?.imdbScore ?? -1;
@@ -273,21 +356,45 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
         const bYear = b.releaseDate ? new Date(b.releaseDate).getFullYear() : 0;
         return bYear - aYear;
       },
+      runtime: (a, b) => {
+        const aRuntime = getRuntime(a) ?? 0;
+        const bRuntime = getRuntime(b) ?? 0;
+        return bRuntime - aRuntime;
+      },
       title: (a, b) =>
         (a.title ?? '').localeCompare(b.title ?? '', undefined, {
           sensitivity: 'base'
         })
     };
 
-    // Apply Sorting
     return [...filtered].sort((a, b) => {
       const result = comparators[activeSortState.key](a, b);
       return activeSortState.direction === 'asc' ? -result : result;
     });
-  }, [items, customListIds, customListsItemsMap, searchParamQuery, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, yearFrom, yearTo, genres, status, activeSortState]);
+  }, [activeSortState, debouncedSearchQuery, customListsItemsMap]);
 
+  // Derived filtered items based on current active states
+  const filteredItems = useMemo(() => {
+    return getFilteredItemsInternal(items, {
+      status,
+      type,
+      imdbRatingMin,
+      imdbVotesMin,
+      tmdbRatingMin,
+      tmdbVotesMin,
+      genres,
+      yearFrom,
+      yearTo,
+      customListIds,
+      runtimes
+    });
+  }, [items, getFilteredItemsInternal, status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds, runtimes]);
+
+  // Active filters count for badge (excluding default 'all' or empty states)
   const activeSecondaryFilterCount = useMemo(() => {
     let count = 0;
+    if (status !== 'all' && status !== '') count++;
+    if (type !== 'all' && type !== '') count++;
     if (imdbRatingMin !== null) count++;
     if (imdbVotesMin !== null) count++;
     if (tmdbRatingMin !== null) count++;
@@ -295,10 +402,12 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     if (genres.length > 0) count++;
     if (yearFrom !== null || yearTo !== null) count++;
     if (customListIds.length > 0) count++;
+    if (runtimes.length > 0) count++;
     return count;
-  }, [imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds]);
+  }, [status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds, runtimes]);
 
-  return {
+  // Wrap values in a stable useMemo object context container
+  const contextValue = useMemo(() => ({
     searchQuery, setSearchQuery,
     filtersOpen, setFiltersOpen,
     status,
@@ -311,15 +420,24 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     yearFrom,
     yearTo,
     customListIds,
+    runtimes,
     sortState: activeSortState,
     setSortState,
     updateFilters,
     clearAdvancedFilters,
     filteredItems,
     activeSecondaryFilterCount,
+    getFilteredItemsInternal,
     getImdbRating,
     getImdbVotes,
     getTmdbRating,
     getTmdbVotes
-  };
+  }), [
+    searchQuery, filtersOpen, status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin,
+    genres, yearFrom, yearTo, customListIds, runtimes, activeSortState, setSortState,
+    updateFilters, clearAdvancedFilters, filteredItems, activeSecondaryFilterCount,
+    getFilteredItemsInternal
+  ]);
+
+  return contextValue;
 }

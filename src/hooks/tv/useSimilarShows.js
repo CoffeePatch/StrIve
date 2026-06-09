@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_KEY;
+import tmdbApiService from '../../services/tmdb/tmdbApiService';
 
 /**
  * Hook to fetch similar TV shows from TMDB
@@ -23,19 +22,11 @@ const useSimilarShows = (tvId) => {
         setLoading(true);
         setError(null);
 
-        const url = `https://api.themoviedb.org/3/tv/${tvId}/similar?page=1`;
-        const response = await fetch(url, {
-          headers: {
-            accept: 'application/json',
-            Authorization: `Bearer ${TMDB_API_KEY}`,
-          },
-        });
+        const tmdbData = await tmdbApiService.get(`/tv/${tvId}/similar`, { page: 1 });
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch similar shows: ${response.status}`);
+        if (!tmdbData) {
+          throw new Error('Failed to fetch similar shows');
         }
-
-        const tmdbData = await response.json();
         
         // Normalize and return all results from the first page (no hard slice limit)
         const shows = (tmdbData.results || []).map(show => ({

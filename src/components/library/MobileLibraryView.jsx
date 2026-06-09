@@ -1,20 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LibraryGrid from './LibraryGrid';
+import { useLibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
+import LibraryFilterSheet from './LibraryFilterSheet';
+import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 
 const MobileLibraryView = ({
   activePrimaryTab,
   setActivePrimaryTab,
-  activeTab,
-  setActiveTab,
-  sortState,
-  setSortState,
-  onSortClick,
   items,
   filteredItems,
   loading,
-  searchQuery,
-  setSearchQuery,
   customLists,
   selectedListId,
   setSelectedListId,
@@ -25,29 +21,94 @@ const MobileLibraryView = ({
   message
 }) => {
   const navigate = useNavigate();
+  const filters = useLibraryFiltersContext();
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    status,
+    type,
+    genres,
+    runtimes,
+    imdbRatingMin,
+    yearFrom,
+    yearTo,
+    customListIds,
+    activeSecondaryFilterCount
+  } = filters;
 
   // Client-side filtering by media type
-  const displayItems = activePrimaryTab === 'movies'
-    ? filteredItems.filter(item => item.media_type === 'movie' || item.mediaType === 'movie')
-    : activePrimaryTab === 'shows'
-    ? filteredItems.filter(item => item.media_type === 'tv' || item.mediaType === 'tv' || item.first_air_date)
-    : filteredItems; // 'lists' shows everything in the list
+  const displayItems = useMemo(() => {
+    return activePrimaryTab === 'movies'
+      ? filteredItems.filter(item => item.media_type === 'movie' || item.mediaType === 'movie')
+      : activePrimaryTab === 'shows'
+      ? filteredItems.filter(item => item.media_type === 'tv' || item.mediaType === 'tv' || item.first_air_date)
+      : filteredItems; // 'lists' shows everything in the list
+  }, [filteredItems, activePrimaryTab]);
 
   // Primary Tabs click handlers
   const handleTabClick = (tab) => {
     setActivePrimaryTab(tab);
     if (tab === 'lists') {
-      setActiveTab('custom');
-    } else if (activeTab === 'custom') {
-      // If switching away from lists, default back to watchlist
-      setActiveTab('watchlist');
+      filters.updateFilters({ type: 'all' });
+      setSelectedListId(null);
+    } else {
+      filters.updateFilters({ type: tab === 'shows' ? 'tv' : 'movie' });
     }
   };
 
-  const handleFilterClick = (filter) => {
-    // If tapping the already active filter, we could clear it, but for V1 we keep it simple single-select
-    setActiveTab(filter);
-  };
+  // Active filters summary text under header
+  const activeFilterSummaryText = useMemo(() => {
+    const parts = [];
+
+    // Watch Status
+    if (status !== 'all') {
+      const displayStatus = status.split(',').map(toDisplayWatchStatus).join(', ');
+      parts.push(displayStatus);
+    }
+
+    // Media Type (Movies, TV Shows, Anime)
+    if (type !== 'all') {
+      const displayType = type.split(',').map(t => {
+        if (t === 'movie') return 'Movies';
+        if (t === 'tv' || t === 'series') return 'TV Shows';
+        return t.charAt(0).toUpperCase() + t.slice(1);
+      }).join(', ');
+      parts.push(displayType);
+    }
+
+    // Year range
+    if (yearFrom || yearTo) {
+      parts.push(`Year: ${yearFrom || '...'} - ${yearTo || '...'}`);
+    }
+
+    // Rating
+    if (imdbRatingMin) {
+      parts.push(`IMDb: ${imdbRatingMin}+`);
+    }
+
+    // Genres
+    if (genres.length > 0) {
+      parts.push(genres.slice(0, 2).join(' • ') + (genres.length > 2 ? '...' : ''));
+    }
+
+    // Custom Lists
+    if (customListIds.length > 0) {
+      const listNames = customListIds.map(id => customLists.find(l => l.id === id)?.name || id).slice(0, 2).join(', ');
+      parts.push(`Lists: ${listNames}${customListIds.length > 2 ? '...' : ''}`);
+    }
+
+    // Runtimes
+    if (runtimes.length > 0) {
+      parts.push(`Runtime: ${runtimes.length} filter${runtimes.length > 1 ? 's' : ''}`);
+    }
+
+    if (parts.length === 0) return '';
+    return parts.join(' • ');
+  }, [status, type, genres, runtimes, imdbRatingMin, yearFrom, yearTo, customListIds, customLists]);
+
+  const isRootListsView = activePrimaryTab === 'lists' && !selectedListId;
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
@@ -90,46 +151,69 @@ const MobileLibraryView = ({
         />
       </div>
 
-      {/* Filter Chips Row (Hidden when Lists is active) */}
-      {activePrimaryTab !== 'lists' && (
-        <div className="flex justify-start gap-2 px-4 py-3 border-b border-white/5 overflow-x-auto hide-scrollbar">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'watchlist', label: 'Plan to Watch' },
-            { id: 'watching', label: 'Watching' },
-            { id: 'watched', label: 'Completed' }
-          ].map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => handleFilterClick(filter.id)}
-              className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors border ${
-                activeTab === filter.id
-                  ? 'bg-[#E50914] text-white border-[#E50914]'
-                  : 'bg-white/5 text-[#E5E7EB] border-white/10 hover:bg-white/10'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
+      {/* Search and Filter Row (Hidden on Lists root view) */}
+      {!isRootListsView && (
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-black">
+          {/* Search Input */}
+          <div className="flex-1 relative flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-10">
+            <span className="material-symbols-outlined text-white/50 text-[18px] absolute left-3 pointer-events-none">search</span>
+            <input
+              type="text"
+              className="w-full h-full bg-transparent pl-10 pr-8 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary"
+              placeholder="Search library..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            )}
+          </div>
+
+          {/* Filter Trigger Button */}
+          <button
+            onClick={() => setFilterSheetOpen(true)}
+            className={`h-10 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 border transition-all ${
+              activeSecondaryFilterCount > 0
+                ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-md shadow-red-500/5'
+                : 'bg-white/5 border-white/10 text-white/80'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">tune</span>
+            <span>Filter</span>
+            {activeSecondaryFilterCount > 0 && (
+              <span className="bg-[#E50914] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                {activeSecondaryFilterCount}
+              </span>
+            )}
+          </button>
         </div>
       )}
 
-      {/* Sort Controls Row (Hidden when on the root Lists view) */}
-      {!(activePrimaryTab === 'lists' && !selectedListId) && (
-        <div className="flex justify-between items-center px-4 h-12">
+      {/* Active Filter Summary Row (Hidden on Lists root view) */}
+      {!isRootListsView && activeSecondaryFilterCount > 0 && (
+        <div 
+          onClick={() => setFilterSheetOpen(true)}
+          className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2 overflow-x-auto hide-scrollbar cursor-pointer select-none active:bg-white/10 transition-colors"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0 animate-pulse" />
+          <span className="text-[12px] font-medium text-white/60 whitespace-nowrap truncate flex-1 pr-4">
+            {activeFilterSummaryText}
+          </span>
+          <span className="material-symbols-outlined text-white/40 text-[14px] ml-auto">chevron_right</span>
+        </div>
+      )}
+
+      {/* Count Info Area */}
+      {!isRootListsView && (
+        <div className="flex justify-between items-center px-4 h-10">
           <span className="text-[13px] text-[#9CA3AF]">
             {displayItems.length} item{displayItems.length !== 1 ? 's' : ''}
           </span>
-          
-          <div className="relative">
-            <button
-              onClick={onSortClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-transparent rounded-lg text-[13px] text-white"
-            >
-              <span>Sort</span>
-              <span className="material-symbols-outlined text-[16px]">sort</span>
-            </button>
-          </div>
         </div>
       )}
 
@@ -148,7 +232,7 @@ const MobileLibraryView = ({
             <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/20 border-t-[#E50914] mb-4" />
             <p className="text-white/60 text-sm">Loading...</p>
           </div>
-        ) : activePrimaryTab === 'lists' && !selectedListId ? (
+        ) : isRootListsView ? (
           // Grid of Custom Lists
           <div className="grid grid-cols-2 gap-3 pt-2">
             {customLists.map(list => (
@@ -193,6 +277,7 @@ const MobileLibraryView = ({
                 handleRemove={handleRemove}
                 getImdbRating={getImdbRating}
                 getImdbVotes={getImdbVotes}
+                isMobileView={true}
               />
             </div>
           </>
@@ -208,6 +293,14 @@ const MobileLibraryView = ({
           </div>
         )}
       </main>
+
+      {/* Filter Bottom Sheet */}
+      <LibraryFilterSheet
+        isOpen={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        items={items}
+        customLists={customLists}
+      />
     </div>
   );
 };

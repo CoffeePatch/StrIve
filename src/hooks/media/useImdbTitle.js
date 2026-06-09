@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import IMDbService from '../../util/imdb/imdbService';
 import { getImdbId } from '../../util/imdb/imdbResolver';
+import { getOrFetch, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
 
 /**
  * Custom hook to fetch IMDb title information by TMDB ID
@@ -14,10 +15,14 @@ const useImdbTitle = (tmdbId, mediaType = 'movie') => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let active = true;
+
     const fetchImdbTitle = async () => {
       try {
-        setLoading(true);
-        setError(null);
+        if (active) {
+          setLoading(true);
+          setError(null);
+        }
         
         console.log('🎬 [IMDb Hook] Starting fetch for TMDB ID:', tmdbId, 'Type:', mediaType);
 
@@ -29,9 +34,11 @@ const useImdbTitle = (tmdbId, mediaType = 'movie') => {
         } catch (serviceError) {
           // IMDb service not configured, gracefully disable
           console.error('❌ [IMDb Hook] Service creation failed:', serviceError.message);
-          setData(null);
-          setError(serviceError.message);
-          setLoading(false);
+          if (active) {
+            setData(null);
+            setError(serviceError.message);
+            setLoading(false);
+          }
           return;
         }
 
@@ -43,30 +50,51 @@ const useImdbTitle = (tmdbId, mediaType = 'movie') => {
         if (!imdbId) {
           // No IMDb ID found for this TMDB ID
           console.warn('⚠️ [IMDb Hook] No IMDb ID found for this content');
-          setData(null);
-          setLoading(false);
+          if (active) {
+            setData(null);
+            setLoading(false);
+          }
           return;
         }
 
         // Fetch the title data
-        console.log('📡 [IMDb Hook] Fetching data from IMDb API...');
-        const titleData = await imdbService.getTitleById(imdbId);
-        console.log('✅ [IMDb Hook] Data received:', titleData);
+        const titleData = await getOrFetch({
+          key: CACHE_KEYS.IMDB_TITLE(imdbId),
+          ttl: TTL.IMDB_TITLE,
+          fetcher: async () => {
+            console.log('📡 [IMDb Hook] Fetching data from IMDb API...');
+            return await imdbService.getTitleById(imdbId);
+          }
+        });
+
+        console.log('✅ [IMDb Hook] Data received from cache or API:', titleData);
         console.log('📊 [IMDb Hook] Rating:', titleData?.rating);
 
-        setData(titleData);
+        if (active) {
+          setData(titleData);
+        }
       } catch (err) {
-        setError(err.message);
-        console.error('❌ [IMDb Hook] Error:', err);
+        if (active) {
+          setError(err.message);
+          console.error('❌ [IMDb Hook] Error:', err);
+        }
       } finally {
-        setLoading(false);
-        console.log('🏁 [IMDb Hook] Fetch complete');
+        if (active) {
+          setLoading(false);
+          console.log('🏁 [IMDb Hook] Fetch complete');
+        }
       }
     };
 
     if (tmdbId) {
       fetchImdbTitle();
+    } else {
+      setLoading(false);
     }
+
+    return () => {
+      active = false;
+    };
   }, [tmdbId, mediaType]);
 
   return { data, loading, error };

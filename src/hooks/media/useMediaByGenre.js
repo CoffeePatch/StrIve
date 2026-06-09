@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useCallback, useMemo } from "react";
-import { options } from "../../util/core/constants";
+import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addGenreMovies } from "../../util/store/moviesSlice";
 import { addGenreTVShows } from "../../util/store/tvShowsSlice";
 import { tmdbAdapter } from "../../domain/media";
@@ -18,11 +18,12 @@ const useMediaByGenre = (mediaType, genreId) => {
     if (rawData && rawData.length > 0) return;
     
     try {
-      const response = await fetch(
-        `https://api.themoviedb.org/3/discover/${mediaType}?with_genres=${genreId}&page=1`,
-        options
-      );
-      const json = await response.json();
+      const json = await tmdbApiService.get(`/discover/${mediaType}`, {
+        with_genres: genreId,
+        page: 1
+      });
+      
+      if (!json) return;
       
       if (mediaType === "movie") {
         dispatch(addGenreMovies({ genreId, results: json.results }));

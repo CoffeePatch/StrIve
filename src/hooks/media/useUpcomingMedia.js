@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useCallback, useMemo } from "react";
-import { options } from "../../util/core/constants";
+import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addUpcomingMovies } from "../../util/store/moviesSlice";
 import { addOnTheAirTVShows } from "../../util/store/tvShowsSlice";
 import { tmdbAdapter } from "../../domain/media";
@@ -19,11 +19,9 @@ const useUpcomingMedia = (mediaType) => {
     
     try {
       const endpoint = mediaType === "movie" ? "movie/upcoming" : "tv/on_the_air";
-      const response = await fetch(
-        `https://api.themoviedb.org/3/${endpoint}?page=1`,
-        options
-      );
-      const json = await response.json();
+      const json = await tmdbApiService.get(`/${endpoint}`, { page: 1 });
+      
+      if (!json) return;
       
       if (mediaType === "movie") {
         dispatch(addUpcomingMovies(json.results));

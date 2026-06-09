@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { addtrailer } from "../../util/store/moviesSlice";
 import { useDispatch } from "react-redux";
-import { options } from "../../util/core/constants";
+import tmdbApiService from "../../services/tmdb/tmdbApiService";
 
 const useMovieTrailer = (movieID) => {
   const dispatch = useDispatch();
@@ -10,13 +10,9 @@ const useMovieTrailer = (movieID) => {
     // A check to prevent errors if movieID is not available yet
     if (!movieID) return;
 
-    const data = await fetch(
-      "https://api.themoviedb.org/3/movie/" +
-        movieID +
-        "/videos?language=en-US",
-      options
-    );
-    const json = await data.json();
+    const json = await tmdbApiService.get(`/movie/${movieID}/videos`, { language: 'en-US' });
+    
+    if (!json) return;
     
     // Check if results exist before trying to filter
     if (!json.results || !Array.isArray(json.results)) {

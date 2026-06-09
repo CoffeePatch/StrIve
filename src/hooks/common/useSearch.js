@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { options } from '../../util/core/constants';
+import tmdbApiService from '../../services/tmdb/tmdbApiService';
 
 const useSearch = (searchTerm) => {
   const [results, setResults] = useState([]);
@@ -29,12 +29,16 @@ const useSearch = (searchTerm) => {
         setLoading(true);
         setError(null);
 
-        // Search using TMDB API with images
-        const response = await fetch(
-          `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(searchTerm)}&language=en-US&include_image_language=en,null`,
-          options
-        );
-        const data = await response.json();
+        // Search using TMDB API with images via proxy
+        const data = await tmdbApiService.get('/search/multi', {
+          query: searchTerm,
+          language: 'en-US',
+          include_image_language: 'en,null',
+        });
+
+        if (!data || !data.results) {
+          throw new Error('Failed to fetch search results');
+        }
 
         // Filter results to separate movies and TV shows
         const searchResults = data.results.filter(item => 

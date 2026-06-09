@@ -20,8 +20,6 @@ export {
   getLibraryItemListIds,
   setLibraryItemListIds,
   setLibraryItemStatus,
-  updateLibraryItem,
-  getLibraryItem,
   getAllLibraryItems,
   getLibraryByStatus,
   getLibraryByListId

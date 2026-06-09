@@ -2,6 +2,7 @@ const WATCH_STATUS_DISPLAY = {
   plan_to_watch: "Plan to Watch",
   watching: "Watching",
   completed: "Completed",
+  on_hold: "On Hold",
   dropped: "Dropped",
 };
 
@@ -18,6 +19,7 @@ export const normalizeWatchStatus = (value) => {
   if (normalized === "plan_to_watch" || normalized === "watchlist") return "plan_to_watch";
   if (normalized === "watching") return "watching";
   if (normalized === "completed" || normalized === "watched") return "completed";
+  if (normalized === "on_hold" || normalized === "onhold") return "on_hold";
   if (normalized === "dropped") return "dropped";
 
   return null;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getImdbId } from '../../util/imdb/imdbResolver';
 import IMDbService from '../../util/imdb/imdbService';
+import { sessionCache, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
 
 // Simple memory cache to prevent re-fetching
 const cache = new Map();
@@ -242,6 +243,27 @@ export const useImdbRating = (tmdbId, mediaType = 'movie', prefetched = null, op
         safeSetRating(cached === NO_RATING ? null : cached);
         return;
       }
+
+      // Check full IMDb title session cache
+      let imdbId = prefetchedImdbId;
+      if (!imdbId) {
+        try {
+          imdbId = await getImdbId(String(tmdbId), normalizedMediaType);
+        } catch {
+          // Ignore resolution errors for local check
+        }
+      }
+      if (imdbId) {
+        const cachedTitle = sessionCache.get(CACHE_KEYS.IMDB_TITLE(imdbId));
+        if (cachedTitle) {
+          const ratingData = extractRatingData(cachedTitle);
+          if (ratingData.score) {
+            cache.set(cacheKey, ratingData);
+            safeSetRating(ratingData);
+            return;
+          }
+        }
+      }
     }
 
     // 2.5 If we've been rate-limited recently, avoid additional network work.
@@ -306,6 +328,15 @@ export const useImdbRating = (tmdbId, mediaType = 'movie', prefetched = null, op
           while (retries > 0) {
             try {
               const data = await imdbService.getTitleById(imdbId);
+              
+              // Bidirectional Cache: save full title details in session cache
+              if (data) {
+                try {
+                  sessionCache.set(CACHE_KEYS.IMDB_TITLE(imdbId), data, TTL.IMDB_TITLE);
+                } catch {
+                  // ignore
+                }
+              }
               
               const ratingData = extractRatingData(data);
 

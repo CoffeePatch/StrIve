@@ -175,4 +175,18 @@ const MediaCard = ({
   );
 };
 
-export default MediaCard;
+export default React.memo(MediaCard, (prevProps, nextProps) => {
+  return (
+    prevProps.variant === nextProps.variant &&
+    prevProps.className === nextProps.className &&
+    prevProps.imdbRating === nextProps.imdbRating &&
+    prevProps.imdbVotes === nextProps.imdbVotes &&
+    prevProps.onClick === nextProps.onClick &&
+    prevProps.onRemove === nextProps.onRemove &&
+    prevProps.media?.id === nextProps.media?.id &&
+    prevProps.media?.title === nextProps.media?.title &&
+    prevProps.media?.name === nextProps.media?.name &&
+    prevProps.media?.tracking?.watchStatus === nextProps.media?.tracking?.watchStatus &&
+    prevProps.media?.tvProgress?.completionPercent === nextProps.media?.tvProgress?.completionPercent
+  );
+});

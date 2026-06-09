@@ -18,6 +18,7 @@ import { DURATIONS, EASINGS } from '../../util/motion';
 import { AnimatedButton, AnimatedIconButton, AnimatedDropdown } from '../ui/AnimatedPrimitives';
 import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
+import { LibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
 import LibraryAdvancedFilters from './LibraryAdvancedFilters';
 import LibraryGrid from './LibraryGrid';
 import LibraryGridSkeleton from './LibraryGridSkeleton';
@@ -74,6 +75,25 @@ const LibraryMasterPage = () => {
       setLoading(true);
       const fetchedItems = await getAllLibraryItems(user.uid, { hydrate: false, includePageInfo: false });
       if (signal?.cancelled) return;
+
+      // Benchmarking duplication hook
+      const mockSizeStr = searchParams.get('mockSize');
+      if (mockSizeStr) {
+        const targetSize = parseInt(mockSizeStr, 10);
+        if (targetSize && targetSize > 0) {
+          let duplicated = [];
+          while (duplicated.length < targetSize) {
+            duplicated = duplicated.concat(fetchedItems.map((item, idx) => ({
+              ...item,
+              id: `${item.id}_mock_${duplicated.length}_${idx}`,
+              titleKey: `${item.titleKey}_mock_${duplicated.length}_${idx}`
+            })));
+          }
+          setItems(duplicated.slice(0, targetSize));
+          return;
+        }
+      }
+
       setItems(fetchedItems);
     } catch (error) {
       console.error('Error loading library items:', error);
@@ -191,7 +211,7 @@ const LibraryMasterPage = () => {
   }, [user?.uid, customListIds, removeMediaFromList, addMediaToList]);
 
   return (
-    <>
+    <LibraryFiltersContext.Provider value={libraryFilters}>
       <div className="hidden md:flex min-h-screen premium-page flex-col bg-[#0f1014]">
       <Header />
 
@@ -353,19 +373,12 @@ const LibraryMasterPage = () => {
         <MobileLibraryView
           activePrimaryTab={activePrimaryTab}
           setActivePrimaryTab={setActivePrimaryTab}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          sortState={sortState}
-          setSortState={setSortState}
-          onSortClick={() => setSortBottomSheetOpen(true)}
           items={items}
           filteredItems={sortedAndFilteredItems}
           loading={loading}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
           customLists={customLists}
           selectedListId={customListIds[0] || null}
-          setSelectedListId={(id) => updateFilters({ lists: [id] })}
+          setSelectedListId={(id) => updateFilters({ lists: id ? [id] : [] })}
           handleItemClick={handleItemClick}
           handleRemove={handleRemove}
           getImdbRating={getImdbRating}
@@ -380,7 +393,7 @@ const LibraryMasterPage = () => {
         sortState={sortState}
         onSortChange={setSortState}
       />
-    </>
+    </LibraryFiltersContext.Provider>
   );
 };
 

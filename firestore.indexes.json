@@ -103,6 +103,20 @@
             ]
         },
         {
+            "collectionGroup": "library_items",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "tracking.listIds",
+                    "arrayConfig": "CONTAINS"
+                },
+                {
+                    "fieldPath": "enrichmentStatus",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "episode_states",
             "queryScope": "COLLECTION",
             "fields": [

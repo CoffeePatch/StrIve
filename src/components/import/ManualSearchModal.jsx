@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { tmdbOptions } from '../../util/core/constants';
+import tmdbApiService from '../../services/tmdb/tmdbApiService';
 
 const ManualSearchModal = ({ 
   isOpen, 
@@ -34,17 +34,18 @@ const ManualSearchModal = ({
       setError('');
 
       try {
-        // Use TMDB search API
-        const response = await fetch(
-          `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(searchQuery)}&include_adult=false&language=en-US&page=1`,
-          tmdbOptions
-        );
+        // Use TMDB search API via proxy
+        const data = await tmdbApiService.get('/search/movie', {
+          query: searchQuery,
+          include_adult: false,
+          language: 'en-US',
+          page: 1
+        });
 
-        if (!response.ok) {
-          throw new Error(`TMDB API error: ${response.status}`);
+        if (!data) {
+          throw new Error('Failed to fetch search results');
         }
 
-        const data = await response.json();
         setSearchResults(data.results || []);
       } catch (err) {
         console.error('Search error:', err);

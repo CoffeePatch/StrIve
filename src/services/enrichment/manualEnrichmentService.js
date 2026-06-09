@@ -1,6 +1,8 @@
-import { updateLibraryItem } from "../../util/firebase/firestoreService";
+
 import tmdbApiService from "../tmdb/tmdbApiService";
 import imdbApiService from "../imdb/imdbApiService";
+import { db } from "../../util/firebase/firebase";
+import { doc, setDoc, deleteField } from "firebase/firestore";
 
 /**
  * Manual Enrichment Service
@@ -50,8 +52,39 @@ class ManualEnrichmentService {
           const updates = await this.enrichSingleItem(item);
 
           if (updates && Object.keys(updates).length > 0) {
-            // Update Firestore
-            await updateLibraryItem(userId, item, updates);
+            // Write updates to the primary library_items subcollection (both flat & nested)
+            const titleKey = item.id;
+            const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+            const nestedUpdates = {
+              imdbId: updates.imdb_rating ? (item.imdbId || updates.imdbId || null) : (item.imdbId || null),
+              imdbRating: deleteField(),
+              imdbVotes: deleteField(),
+              imdb_rating: deleteField(),
+              imdb_vote_count: deleteField(),
+              vote_average: deleteField(),
+              vote_count: deleteField(),
+              tmdb_rating: deleteField(),
+              tmdb_vote_count: deleteField(),
+              overview: updates.overview || null,
+              backdrop_path: updates.backdrop_path || null,
+              enrichmentStatus: updates.enrichmentStatus,
+              lastEnriched: updates.lastEnriched,
+              sort: {
+                imdbRating: deleteField(),
+                imdbVotes: deleteField(),
+                tmdbRating: deleteField(),
+                tmdbVotes: deleteField(),
+              },
+              ratings: {
+                imdbScore: updates.imdb_rating || null,
+                imdbVotes: updates.imdb_vote_count || null,
+                tmdbScore: updates.tmdb_rating || 0,
+                tmdbVotes: updates.tmdb_vote_count || 0,
+              }
+            };
+            await setDoc(libraryItemsRef, nestedUpdates, { merge: true });
+
+
             
             // Call progress callback with success
             if (onProgress) {
@@ -64,10 +97,15 @@ class ManualEnrichmentService {
             successCount++;
           } else {
             // No data found
-            await updateLibraryItem(userId, item, {
+            const titleKey = item.id;
+            const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+            const failedUpdates = {
               enrichmentStatus: "failed",
               lastEnriched: new Date().toISOString(),
-            });
+            };
+            await setDoc(libraryItemsRef, failedUpdates, { merge: true });
+
+
 
             if (onProgress) {
               onProgress(i, items.length, item, { status: 'failed' });

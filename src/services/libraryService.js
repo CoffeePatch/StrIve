@@ -104,6 +104,7 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
     tmdbId,
     imdbId: mediaItem.imdbId || existingData.imdbId || null,
     title: mediaItem.title || mediaItem.name || existingData.title || '',
+    enrichmentStatus: existingData?.enrichmentStatus || "pending",
     images: {
       tmdbPoster: mediaItem.poster_path || existingData?.images?.tmdbPoster || null,
       imdbPoster,
@@ -120,6 +121,20 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
         : {
             runtimeMinutes: deleteField(),
           }),
+    },
+    imdbRating: deleteField(),
+    imdbVotes: deleteField(),
+    imdb_rating: deleteField(),
+    imdb_vote_count: deleteField(),
+    vote_average: deleteField(),
+    vote_count: deleteField(),
+    tmdb_rating: deleteField(),
+    tmdb_vote_count: deleteField(),
+    sort: {
+      imdbRating: deleteField(),
+      imdbVotes: deleteField(),
+      tmdbRating: deleteField(),
+      tmdbVotes: deleteField(),
     },
     ratings: {
       imdbScore,
@@ -297,77 +312,6 @@ export {
 
 
 
-/**
- * Updates or creates a library item with status
- * @param {string} userId - The UID of the user
- * @param {Object} mediaItem - The media item data from TMDB
- * @param {string} status - The status: "plan_to_watch", "watching", "completed", "dropped", or null
- */
-export const updateLibraryItem = async (userId, mediaItem, status) => {
-  try {
-    const tmdbId = String(mediaItem.id);
-    const mediaType = mediaItem.media_type || (mediaItem.first_air_date ? "tv" : "movie");
-
-    const itemRef = doc(db, "users", userId, "library", tmdbId);
-    const docSnapshot = await getDoc(itemRef);
-    const exists = docSnapshot.exists();
-    const existingData = exists ? docSnapshot.data() : {};
-
-    const libraryItem = {
-      id: tmdbId,
-      media_type: mediaType,
-      title: mediaItem.title || mediaItem.name || existingData.title || "",
-      poster_path: mediaItem.poster_path || existingData.poster_path || "",
-      release_date: mediaItem.release_date || mediaItem.first_air_date || existingData.release_date || "",
-      vote_average: mediaItem.vote_average || existingData.vote_average || 0,
-      vote_count: mediaItem.vote_count || existingData.vote_count || 0,
-      status: status,
-      dateAdded: existingData.dateAdded || new Date().toISOString(),
-      listIds: existingData.listIds || [],
-    };
-
-    libraryItem.ratings = {
-      imdbScore: firstNumber(
-        mediaItem?.ratings?.imdbScore,
-        mediaItem.imdbRating,
-        mediaItem.imdb_rating,
-        existingData?.ratings?.imdbScore,
-        existingData.imdbRating,
-        existingData.imdb_rating
-      ),
-      imdbVotes: firstNumber(
-        mediaItem?.ratings?.imdbVotes,
-        mediaItem.imdbVotes,
-        mediaItem.imdb_vote_count,
-        existingData?.ratings?.imdbVotes,
-        existingData.imdbVotes,
-        existingData.imdb_vote_count
-      ),
-      tmdbScore: firstNumber(
-        mediaItem?.ratings?.tmdbScore,
-        mediaItem.vote_average,
-        existingData?.ratings?.tmdbScore,
-        existingData.vote_average
-      ) ?? 0,
-      tmdbVotes: firstNumber(
-        mediaItem?.ratings?.tmdbVotes,
-        mediaItem.vote_count,
-        existingData?.ratings?.tmdbVotes,
-        existingData.vote_count
-      ) ?? 0,
-    };
-
-    if (existingData.progress) {
-      libraryItem.progress = existingData.progress;
-    }
-
-    await setDoc(itemRef, libraryItem, { merge: true });
-    return libraryItem;
-  } catch (error) {
-    console.error("Error updating library item:", error);
-    throw error;
-  }
-};
 
 /**
  * Toggles a custom list tag on a library item
@@ -394,23 +338,6 @@ export const toggleCustomListTag = async (userId, mediaItem, listId, add = true)
   }
 };
 
-/**
- * Gets a single library item
- */
-export const getLibraryItem = async (userId, tmdbId) => {
-  try {
-    const itemRef = doc(db, "users", userId, "library", String(tmdbId));
-    const docSnapshot = await getDoc(itemRef);
-
-    if (docSnapshot.exists()) {
-      return docSnapshot.data();
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting library item:", error);
-    throw error;
-  }
-};
 
 /**
  * Gets all library items
@@ -431,7 +358,16 @@ export const getAllLibraryItems = async (userId, options = {}) => {
       if (sortBy === "sort.imdbRating") {
         return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
       }
-      if (sortBy === "sort.year") return Number(item?.sort?.year) || 0;
+      if (sortBy === "sort.year") {
+        const yearVal = item?.sort?.year;
+        if (yearVal) return Number(yearVal);
+        const dateStr = item?.releaseDate || item?.release_date || item?.first_air_date;
+        if (dateStr) {
+          const yearMatch = String(dateStr).match(/\d{4}/);
+          if (yearMatch) return parseInt(yearMatch[0], 10);
+        }
+        return 0;
+      }
       if (sortBy === "updatedAt") {
         const value = item?.tracking?.updatedAt || item?.tracking?.addedAt || item?.addedAt || null;
         return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
@@ -495,7 +431,16 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
       if (sortBy === "sort.imdbRating") {
         return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
       }
-      if (sortBy === "sort.year") return Number(item?.sort?.year) || 0;
+      if (sortBy === "sort.year") {
+        const yearVal = item?.sort?.year;
+        if (yearVal) return Number(yearVal);
+        const dateStr = item?.releaseDate || item?.release_date || item?.first_air_date;
+        if (dateStr) {
+          const yearMatch = String(dateStr).match(/\d{4}/);
+          if (yearMatch) return parseInt(yearMatch[0], 10);
+        }
+        return 0;
+      }
       if (sortBy === "updatedAt") {
         const value = item?.tracking?.updatedAt || item?.tracking?.addedAt || item?.addedAt || null;
         return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();

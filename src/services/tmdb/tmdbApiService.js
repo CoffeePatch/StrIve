@@ -1,6 +1,6 @@
 /**
  * TMDB API Service
- * Interact with api.themoviedb.org to fetch movie/show details
+ * Interact with TMDb API via proxy to fetch movie/show details
  */
 
 const PROXY_URL = "/api/tmdb";
@@ -30,6 +30,15 @@ class TmdbApiService {
       console.error(`Failed to fetch from proxy (${endpoint}):`, error);
       return null;
     }
+  }
+
+  /**
+   * Generic GET query to TMDB via proxy
+   * @param {string} endpoint
+   * @param {Object} params
+   */
+  async get(endpoint, params = {}) {
+    return this._fetch(endpoint, params);
   }
 
   /**

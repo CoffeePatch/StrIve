@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useCallback, useMemo } from "react";
-import { options } from "../../util/core/constants";
+import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addNowPlayingMovies } from "../../util/store/moviesSlice";
 import { addAiringTodayTVShows } from "../../util/store/tvShowsSlice";
 import { tmdbAdapter } from "../../domain/media";
@@ -19,11 +19,9 @@ const useNowPlayingMedia = (mediaType) => {
     
     try {
       const endpoint = mediaType === "movie" ? "movie/now_playing" : "tv/airing_today";
-      const response = await fetch(
-        `https://api.themoviedb.org/3/${endpoint}?page=1`,
-        options
-      );
-      const json = await response.json();
+      const json = await tmdbApiService.get(`/${endpoint}`, { page: 1 });
+      
+      if (!json) return;
       
       if (mediaType === "movie") {
         dispatch(addNowPlayingMovies(json.results));

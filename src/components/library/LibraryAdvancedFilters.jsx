@@ -210,4 +210,4 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
   );
 };
 
-export default LibraryAdvancedFilters;
+export default React.memo(LibraryAdvancedFilters);

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MediaCard from "../../ui/MediaCard";
-
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_KEY;
+import tmdbApiService from "../../../services/tmdb/tmdbApiService";
 
 const SimilarMoviesPanel = ({ movieId }) => {
   const [activeTab, setActiveTab] = useState("recommended");
@@ -15,18 +14,11 @@ const SimilarMoviesPanel = ({ movieId }) => {
       if (!movieId) return;
       setLoading(true);
       try {
-        const [recRes, simRes] = await Promise.all([
-          fetch(`https://api.themoviedb.org/3/movie/${movieId}/recommendations?page=1`, { 
-            headers: { Authorization: `Bearer ${TMDB_API_KEY}`, accept: 'application/json' } 
-          }),
-          fetch(`https://api.themoviedb.org/3/movie/${movieId}/similar?page=1`, { 
-            headers: { Authorization: `Bearer ${TMDB_API_KEY}`, accept: 'application/json' } 
-          })
+        const [recData, simData] = await Promise.all([
+          tmdbApiService.get(`/movie/${movieId}/recommendations`, { page: 1 }),
+          tmdbApiService.get(`/movie/${movieId}/similar`, { page: 1 })
         ]);
         
-        const recData = await recRes.json();
-        const simData = await simRes.json();
-
         const mapMovie = movie => ({
           id: movie.id,
           name: movie.title,
@@ -36,8 +28,8 @@ const SimilarMoviesPanel = ({ movieId }) => {
           mediaType: 'movie'
         });
 
-        const recommended = (recData.results || []).map(mapMovie);
-        const similar = (simData.results || []).map(mapMovie);
+        const recommended = (recData?.results || []).map(mapMovie);
+        const similar = (simData?.results || []).map(mapMovie);
 
         setMovies({ recommended, similar });
         

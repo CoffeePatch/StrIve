@@ -3,7 +3,7 @@ import useRequireAuth from "../common/useRequireAuth";
 import useImdbTitle from "./useImdbTitle";
 import useLibraryItemStatus from "./useLibraryItemStatus";
 import { libraryAdapter } from "../../domain/library/libraryAdapter";
-import { options } from "../../util/core/constants";
+import { getOrFetch, CACHE_KEYS, TTL } from "../../util/cache/sessionCache";
 
 const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   const user = useRequireAuth();
@@ -23,42 +23,52 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     try {
       setLoading(true);
       setError(null);
-      let data = null;
       
-      if (mediaType === "tv") {
-        const response = await fetch(`/api/tv/details?tvId=${mediaId}`);
-        if (!response.ok) throw new Error("Failed to fetch TV details");
-        data = await response.json();
-      } else {
-        const response = await fetch(
-          `https://api.themoviedb.org/3/movie/${mediaId}?language=en-US&append_to_response=images,credits,similar,videos&include_image_language=en,null`,
-          options
-        );
-        if (!response.ok) throw new Error("Failed to fetch Movie details");
-        data = await response.json();
-      }
+      const cacheKey = mediaType === "tv" 
+        ? CACHE_KEYS.TV_DETAILS(mediaId) 
+        : CACHE_KEYS.MOVIE_DETAILS(mediaId);
+      const ttl = mediaType === "tv" 
+        ? TTL.TV_DETAILS 
+        : TTL.MOVIE_DETAILS;
 
-      // Domain normalization logic
-      const normalizedDetails = {
-        ...data,
-        id: data.id,
-        title: data.title || data.name,
-        posterPath: data.poster_path || data.posterPath,
-        backdropPath: data.backdrop_path || data.backdropPath,
-        releaseYear: (data.release_date || data.first_air_date || data.firstAirDate || "").split("-")[0],
-        releaseDate: data.release_date || data.first_air_date || data.firstAirDate,
-        overview: data.overview,
-        voteAverage: data.vote_average ?? data.voteAverage,
-        voteCount: data.vote_count ?? data.voteCount,
-        genres: data.genres || [],
-        status: data.status,
-        runtime: data.runtime,
-        numberOfSeasons: data.numberOfSeasons || data.number_of_seasons,
-        numberOfEpisodes: data.numberOfEpisodes || data.number_of_episodes,
-        mediaType,
-      };
+      const details = await getOrFetch({
+        key: cacheKey,
+        ttl,
+        fetcher: async () => {
+          let data = null;
+          if (mediaType === "tv") {
+            const response = await fetch(`/api/tv/details?tvId=${mediaId}`);
+            if (!response.ok) throw new Error("Failed to fetch TV details");
+            data = await response.json();
+          } else {
+            const response = await fetch(`/api/movie/details?movieId=${mediaId}`);
+            if (!response.ok) throw new Error("Failed to fetch Movie details");
+            data = await response.json();
+          }
 
-      setMediaDetails(normalizedDetails);
+          // Domain normalization logic
+          return {
+            ...data,
+            id: data.id,
+            title: data.title || data.name,
+            posterPath: data.poster_path || data.posterPath,
+            backdropPath: data.backdrop_path || data.backdropPath,
+            releaseYear: (data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate || "").split("-")[0],
+            releaseDate: data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate,
+            overview: data.overview,
+            voteAverage: data.vote_average ?? data.voteAverage,
+            voteCount: data.vote_count ?? data.voteCount,
+            genres: data.genres || [],
+            status: data.status,
+            runtime: data.runtime,
+            numberOfSeasons: data.numberOfSeasons || data.number_of_seasons,
+            numberOfEpisodes: data.numberOfEpisodes || data.number_of_episodes,
+            mediaType,
+          };
+        }
+      });
+
+      setMediaDetails(details);
     } catch (err) {
       console.error(`Error in useMediaDetailsCore for ${mediaType}:`, err);
       setError(err.message);
@@ -93,8 +103,6 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
       imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || null,
     },
     imdbId: imdbData?.id || (mediaId && String(mediaId).startsWith("tt") ? mediaId : null),
-    imdbRating: imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || null,
-    imdbVotes: imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || null,
     media_type: mediaType,
   } : null;
 

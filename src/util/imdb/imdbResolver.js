@@ -4,10 +4,9 @@
  * Uses existing options pattern from constants.js
  */
 
-import { options } from '../core/constants';
+import tmdbApiService from '../../services/tmdb/tmdbApiService';
 
 // Constants
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const CACHE_KEY_PREFIX = 'tmdb_imdb_mapping_';
 const MAX_RETRIES = 3;
@@ -70,20 +69,17 @@ export const getImdbId = async (tmdbId, mediaType = 'movie') => {
     return cachedItem.imdbId;
   }
 
-  // Not in cache or expired, fetch from TMDB API
+  // Not in cache or expired, fetch from TMDB API via proxy
   console.log(`Cache miss for ${mediaType} ID ${tmdbId}, fetching from TMDB API...`);
 
   let lastError;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const endpoint = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}/external_ids`;
-      const response = await fetch(endpoint, options);
+      const data = await tmdbApiService.get(`/${mediaType}/${tmdbId}/external_ids`);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      if (!data) {
+        throw new Error(`Failed to fetch external IDs`);
       }
-
-      const data = await response.json();
       
       // Extract the IMDb ID
       let imdbId = data.imdb_id || null;
@@ -91,11 +87,9 @@ export const getImdbId = async (tmdbId, mediaType = 'movie') => {
       // Fallback: fetch full details with external_ids appended
       if (!imdbId) {
         try {
-          const detailsEndpoint = `${TMDB_BASE_URL}/${mediaType}/${tmdbId}?append_to_response=external_ids`;
-          const detailsResponse = await fetch(detailsEndpoint, options);
+          const detailsData = await tmdbApiService.get(`/${mediaType}/${tmdbId}`, { append_to_response: 'external_ids' });
 
-          if (detailsResponse.ok) {
-            const detailsData = await detailsResponse.json();
+          if (detailsData) {
             imdbId = detailsData?.external_ids?.imdb_id || detailsData?.imdb_id || null;
           }
         } catch (detailsError) {

@@ -1,6 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../util/firebase/firebase';
 import { firstNumber } from '../util/firebase/firestoreService';
+import tmdbApiService from './tmdb/tmdbApiService';
 
 export const normalizeLibraryItem = (docId, data = {}) => {
   const titleKey = data.titleKey || docId;
@@ -114,9 +115,6 @@ export const hydrateItemsFromCatalog = async (items) => {
 };
 
 export const hydrateItemsFromTmdb = async (items) => {
-  const tmdbKey = import.meta.env.VITE_TMDB_KEY;
-  if (!tmdbKey) return items;
-
   const needsHydration = items.filter(
     (item) => item?.id && (item.isFallbackTitle || !item.title || !item.poster_path || !item.vote_average)
   );
@@ -132,14 +130,8 @@ export const hydrateItemsFromTmdb = async (items) => {
       if (!Number.isFinite(id)) return;
 
       try {
-        const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${id}?language=en-US`, {
-          headers: {
-            accept: "application/json",
-            Authorization: `Bearer ${tmdbKey}`,
-          },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await tmdbApiService.get(`/${mediaType}/${id}`, { language: 'en-US' });
+        if (!data) return;
         tmdbMap.set(`${mediaType}:${id}`, data);
       } catch (err) {
         console.warn("TMDB hydration failed for", mediaType, id, err?.message || err);

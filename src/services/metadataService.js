@@ -1,11 +1,12 @@
 import {
   collection,
-  doc,
   setDoc,
-  getDocs
+  getDocs,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../util/firebase/firebase';
-import { firstNumber, fetchImdbData, getLibraryByListId } from '../util/firebase/firestoreService';
+import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
+import tmdbApiService from './tmdb/tmdbApiService';
 
 // PHASE 2: ENRICHMENT BRIDGE - Refresh Metadata Utilities
 // ============================================================================
@@ -48,21 +49,14 @@ const needsMetadataRefresh = (item = {}, forceRefresh = false) => {
 
 const fetchTmdbMetadata = async (tmdbId, mediaType) => {
   try {
-    const tmdbKey = import.meta.env.VITE_TMDB_KEY;
-    if (!tmdbKey || !tmdbId) return null;
+    if (!tmdbId) return null;
 
-    const response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?language=en-US`, {
-      headers: {
-        accept: "application/json",
-        Authorization: `Bearer ${tmdbKey}`,
-      },
-    });
+    const data = await tmdbApiService.get(`/${mediaType}/${tmdbId}`, { language: 'en-US' });
 
-    if (!response.ok) {
+    if (!data) {
       return null;
     }
 
-    const data = await response.json();
     return {
       vote_average: firstNumber(data.vote_average),
       vote_count: firstNumber(data.vote_count),
@@ -83,20 +77,25 @@ const buildMetadataPatch = (item = {}, imdbData = {}, tmdbData = null) => {
 
   return {
     imdbId,
-    imdbRating,
-    imdbVotes,
-    imdb_rating: imdbRating,
-    imdb_vote_count: imdbVotes,
-    vote_average: voteAverage,
-    vote_count: voteCount,
-    tmdb_rating: voteAverage,
-    tmdb_vote_count: voteCount,
+    imdbRating: deleteField(),
+    imdbVotes: deleteField(),
+    imdb_rating: deleteField(),
+    imdb_vote_count: deleteField(),
+    vote_average: deleteField(),
+    vote_count: deleteField(),
+    tmdb_rating: deleteField(),
+    tmdb_vote_count: deleteField(),
     sort: {
-      ...(item.sort || {}),
-      tmdbRating: voteAverage,
-      tmdbVotes: voteCount,
-      imdbRating: imdbRating ?? null,
+      imdbRating: deleteField(),
+      imdbVotes: deleteField(),
+      tmdbRating: deleteField(),
+      tmdbVotes: deleteField(),
+    },
+    ratings: {
+      imdbScore: imdbRating ?? null,
       imdbVotes: imdbVotes ?? null,
+      tmdbScore: voteAverage,
+      tmdbVotes: voteCount,
     },
     lastMetadataRefresh: new Date().toISOString(),
   };
@@ -229,105 +228,7 @@ export const refreshLibraryMetadata = async (
   }
 };
 
-/**
- * Refreshes metadata for a specific custom list
- * Useful for bulk updates to a curated collection
- * 
- * @param {string} userId - The UID of the user
- * @param {string} listId - The custom list ID
- * @param {object} options - Configuration options
- * @param {number} options.batchSize - Number of items to process
- * @param {function} options.onProgress - Callback for progress updates
- * @returns {Promise<object>} Summary of refresh operation
- */
-export const refreshCustomListMetadata = async (
-  userId,
-  listId,
-  options = {}
-) => {
-  const {
-    batchSize = 50,
-    onProgress = null,
-  } = options;
 
-  try {
-    // Get all items in the custom list
-    const items = await getLibraryByListId(userId, listId);
-
-    // Filter items that need refresh
-    const itemsToRefresh = items
-      .filter(item => item.imdbRating === null || item.imdbRating === undefined || !item.imdbId)
-      .slice(0, batchSize);
-
-    const summary = {
-      listId,
-      totalItems: items.length,
-      itemsToRefresh: itemsToRefresh.length,
-      refreshed: 0,
-      failed: 0,
-      errors: [],
-      startTime: new Date(),
-    };
-
-    console.log(`≡ƒöä Refreshing metadata for custom list "${listId}" (${itemsToRefresh.length} items)`);
-
-    for (let i = 0; i < itemsToRefresh.length; i++) {
-      const item = itemsToRefresh[i];
-
-      try {
-        if (onProgress) {
-          onProgress({
-            current: i + 1,
-            total: itemsToRefresh.length,
-            itemTitle: item.title,
-          });
-        }
-
-        const imdbData = await fetchImdbData(item.id, item.media_type);
-
-        if (imdbData.imdbRating !== null || imdbData.imdbId) {
-          // Update in library
-          const itemRef = doc(db, "users", userId, "library", item.id);
-          await setDoc(
-            itemRef,
-            {
-              imdbRating: imdbData.imdbRating,
-              imdbVotes: imdbData.imdbVotes,
-              imdbId: imdbData.imdbId,
-              lastMetadataRefresh: new Date().toISOString(),
-            },
-            { merge: true }
-          );
-
-          summary.refreshed++;
-          console.log(`Γ£à Refreshed: ${item.title}`);
-        }
-      } catch (error) {
-        summary.failed++;
-        summary.errors.push({
-          itemId: item.id,
-          title: item.title,
-          error: error.message,
-        });
-        console.error(`Γ¥î Failed: ${item.title}`);
-      }
-
-      // Delay between requests
-      if (i < itemsToRefresh.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-
-    summary.endTime = new Date();
-    summary.duration = summary.endTime - summary.startTime;
-
-    console.log(`Γ£à Custom list refresh complete:`, summary);
-    return summary;
-  } catch (error) {
-    console.error("Error refreshing custom list metadata:", error);
-    throw error;
-  }
-};
 
 /**
  * Gets items with missing IMDb metadata

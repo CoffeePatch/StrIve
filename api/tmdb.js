@@ -1,4 +1,4 @@
-import { sendError } from "./_lib/utils.js";
+import { sendError, getCached, setCache } from "./_lib/utils.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -29,6 +29,16 @@ export default async function handler(req, res) {
     );
   }
 
+  // Check cache for non-search endpoints
+  const isSearch = endpoint.includes("/search");
+  const cacheKey = `tmdb_proxy_${endpoint}_${JSON.stringify(params)}`;
+  if (!isSearch) {
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+  }
+
   try {
     const url = new URL(`${API_BASE_URL}${endpoint}`);
     url.searchParams.append("api_key", TMDB_API_KEY);
@@ -50,6 +60,12 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+
+    // Cache the result for non-search endpoints
+    if (!isSearch) {
+      setCache(cacheKey, data);
+    }
+
     return res.status(200).json(data);
   } catch (error) {
     console.error(`Error proxying TMDB request to ${endpoint}:`, error);

@@ -1,23 +1,29 @@
+import { lazy, Suspense, useLayoutEffect } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Outlet, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "../ui/PageTransition";
-import { useLayoutEffect } from "react";
+import PageLoader from "../ui/PageLoader";
+
+// Eagerly loaded components (Core Navigation)
 import Browse from "../pages/Browse";
 import Login from "../auth/Login";
 import TVShows from "../tv/TVShows";
 import MoviesPage from "../movie/Listing/MoviesPage";
-import MovieDetails from "../movie/MovieDetails/MovieDetails";
-import TVShowDetailsPage from "../tv/TVShowDetailsPage";
 import SearchPage from "../pages/SearchPage";
-import ProfilePage from "../pages/ProfilePage";
-import ProtectedRoute from "./ProtectedRoute";
-import ImportPage from "../import/ImportPage";
-import ImportReviewPage from "../import/ImportReviewPage";
 import LibraryMasterPage from "../library/LibraryMasterPage";
-import SettingsPage from "../settings/SettingsPage";
-import SimklPage from "../simkl/SimklPage";
-import SimklCallback from "../simkl/SimklCallback";
+
+// Lazily loaded components (Secondary/Detailed screens)
+const MovieDetails = lazy(() => import("../movie/MovieDetails/MovieDetails"));
+const TVShowDetailsPage = lazy(() => import("../tv/TVShowDetailsPage"));
+const SettingsPage = lazy(() => import("../settings/SettingsPage"));
+const ImportPage = lazy(() => import("../import/ImportPage"));
+const ImportReviewPage = lazy(() => import("../import/ImportReviewPage"));
+const SimklPage = lazy(() => import("../simkl/SimklPage"));
+const SimklCallback = lazy(() => import("../simkl/SimklCallback"));
+const ProfilePage = lazy(() => import("../pages/ProfilePage"));
+
+import ProtectedRoute from "./ProtectedRoute";
 import { useSimklBackgroundSync } from "../../hooks/simkl/useSimkl";
 import { RouterProvider } from "react-router-dom";
 import Footer from "./Footer";
@@ -44,7 +50,9 @@ const AppLayout = () => {
       <ScrollToTop />
       <AnimatePresence mode="wait">
         <PageTransition key={location.pathname}>
-          {element}
+          <Suspense fallback={<PageLoader />}>
+            {element}
+          </Suspense>
         </PageTransition>
       </AnimatePresence>
       <BottomNav />
