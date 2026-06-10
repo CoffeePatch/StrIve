@@ -3,7 +3,7 @@ import useRequireAuth from "../common/useRequireAuth";
 import useImdbTitle from "./useImdbTitle";
 import useLibraryItemStatus from "./useLibraryItemStatus";
 import { libraryAdapter } from "../../domain/library/libraryAdapter";
-import { getOrFetch, CACHE_KEYS, TTL } from "../../util/cache/sessionCache";
+import { getOrFetch, CACHE_KEYS, TTL, invalidateContinueWatching } from "../../util/cache/sessionCache";
 
 const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   const user = useRequireAuth();
@@ -136,6 +136,7 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
         setIsWatchlisted(true);
         setIsWatched(false);
       }
+      invalidateContinueWatching(user.uid);
     } catch (error) {
       console.error("Error updating watchlist:", error);
     }
@@ -155,6 +156,7 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
         setIsWatched(true);
         setIsWatchlisted(false);
       }
+      invalidateContinueWatching(user.uid);
     } catch (error) {
       console.error("Error updating watched status:", error);
     }

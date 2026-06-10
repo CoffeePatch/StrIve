@@ -98,6 +98,10 @@ export default async function handler(req, res) {
         mediaType: det.media_type,
         tmdbId: det.data.id,
         title: det.data.title || det.data.name || "",
+        enrichmentStatus: currentData?.enrichmentStatus || "pending",
+        enrichmentRetryCount: currentData?.enrichmentRetryCount ?? 0,
+        lastEnrichmentAttempt: currentData?.lastEnrichmentAttempt ?? null,
+        nextEnrichmentAttempt: currentData?.nextEnrichmentAttempt ?? null,
         images: {
           tmdbPoster: det.data.poster_path || null,
           imdbPoster: null,

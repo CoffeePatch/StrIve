@@ -6,6 +6,7 @@ import useSeriesProgress from "../../hooks/tv/useSeriesProgress";
 import useRecomputeSeriesProgress from "../../hooks/tv/useRecomputeSeriesProgress";
 import { libraryAdapter } from "../library/libraryAdapter";
 import { buildEpisodeCatalog, selectEpisodesForMode, createEpisodeKey } from "./trackingHelpers";
+import { invalidateContinueWatching } from "../../util/cache/sessionCache";
 
 const SYNCING_TIMEOUT_MS = 12000;
 
@@ -154,6 +155,7 @@ export const useSeriesTracking = ({
         mode,
         episodeCatalog: catalog,
       });
+      invalidateContinueWatching(user.uid);
       return selected;
     } catch (err) {
       setPendingProgress(null);
@@ -182,6 +184,7 @@ export const useSeriesTracking = ({
     clearAllLocal();
     setPendingProgress(null);
     await unwatchSeries({ titleKey });
+    invalidateContinueWatching(user.uid);
   }, [user, titleKey, clearAllLocal, unwatchSeries]);
 
   return {

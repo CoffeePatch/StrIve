@@ -7,6 +7,8 @@ export const TTL = {
   TV_DETAILS: 24 * 60 * 60 * 1000,
   TV_SEASON: 24 * 60 * 60 * 1000,
   IMDB_TITLE: 6 * 60 * 60 * 1000,
+  CONTINUE_WATCHING: 2 * 60 * 1000, // 2 minutes
+  BROWSE_LIBRARY: 2 * 60 * 1000, // 2 minutes
 };
 
 export const CACHE_KEYS = {
@@ -14,6 +16,14 @@ export const CACHE_KEYS = {
   TV_DETAILS: (id) => `tv_details_${id}`,
   TV_SEASON: (tvId, num) => `tv_season_${tvId}_${num}`,
   IMDB_TITLE: (imdbId) => `imdb_title_${imdbId}`,
+  CONTINUE_WATCHING: (userId) => `continue_watching_${userId}`,
+  BROWSE_LIBRARY: (userId) => `browse_library_${userId}`,
+};
+
+export const invalidateContinueWatching = (userId) => {
+  if (!userId) return;
+  sessionCache.remove(CACHE_KEYS.CONTINUE_WATCHING(userId));
+  sessionCache.remove(CACHE_KEYS.BROWSE_LIBRARY(userId));
 };
 
 export const sessionCache = {

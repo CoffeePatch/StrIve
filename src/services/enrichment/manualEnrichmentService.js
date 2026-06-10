@@ -69,6 +69,7 @@ class ManualEnrichmentService {
               backdrop_path: updates.backdrop_path || null,
               enrichmentStatus: updates.enrichmentStatus,
               lastEnriched: updates.lastEnriched,
+              nextEnrichmentAttempt: null, // Clear scheduled attempt on success, retain count/lastAttempt
               sort: {
                 imdbRating: deleteField(),
                 imdbVotes: deleteField(),
@@ -99,12 +100,15 @@ class ManualEnrichmentService {
             // No data found
             const titleKey = item.id;
             const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+            const currentRetryCount = Number(item.enrichmentRetryCount || 0);
+            const retryHours = Math.pow(2, currentRetryCount + 1); // Exponential backoff: 2h, 4h, 8h...
             const failedUpdates = {
               enrichmentStatus: "failed",
-              lastEnriched: new Date().toISOString(),
+              enrichmentRetryCount: currentRetryCount + 1,
+              lastEnrichmentAttempt: new Date().toISOString(),
+              nextEnrichmentAttempt: new Date(Date.now() + retryHours * 60 * 60 * 1000).toISOString(),
             };
             await setDoc(libraryItemsRef, failedUpdates, { merge: true });
-
 
 
             if (onProgress) {
@@ -116,6 +120,22 @@ class ManualEnrichmentService {
         } catch (error) {
           console.error(`Error enriching ${item.title}:`, error);
           
+          try {
+            const titleKey = item.id;
+            const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+            const currentRetryCount = Number(item.enrichmentRetryCount || 0);
+            const retryHours = Math.pow(2, currentRetryCount + 1);
+            const failedUpdates = {
+              enrichmentStatus: "failed",
+              enrichmentRetryCount: currentRetryCount + 1,
+              lastEnrichmentAttempt: new Date().toISOString(),
+              nextEnrichmentAttempt: new Date(Date.now() + retryHours * 60 * 60 * 1000).toISOString(),
+            };
+            await setDoc(libraryItemsRef, failedUpdates, { merge: true });
+          } catch (writeErr) {
+            console.error(`Failed to write failed enrichment status:`, writeErr);
+          }
+
           if (onProgress) {
             onProgress(i, items.length, item, { status: 'error', error: error.message });
           }

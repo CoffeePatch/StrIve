@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Eye, Bookmark, ListPlus, Calendar } from 'lucide-react';
+import { Play, Eye, Bookmark, ListPlus, Calendar, Lock } from 'lucide-react';
 import AddToListPopover from '../../lists/AddToListPopover';
 
 const MediaActions = ({
@@ -52,20 +52,24 @@ const MediaActions = ({
       {/* Primary CTA */}
       {layoutType === "tv" && onPlay && (
           <button 
-            onClick={onPlay} 
-            className="w-full h-14 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white font-semibold hover:bg-[var(--color-accent-primary)] hover:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] transition-all scale-100 hover:scale-[1.01]"
+            aria-disabled="true"
+            onClick={(e) => e.preventDefault()}
+            title="Streaming feature coming soon"
+            className="w-full h-14 bg-white/5 border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white/50 font-semibold cursor-not-allowed opacity-70 transition-all"
           >
-            <Play className="w-[18px] h-[18px] fill-current" />
+            <Lock className="w-[18px] h-[18px]" />
             <span>Watch Episodes</span>
           </button>
       )}
 
       {layoutType === "movie" && onPlay && (
         <button 
-          onClick={onPlay} 
-          className="w-full h-14 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white font-semibold hover:bg-[var(--color-accent-primary)] hover:border-transparent focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] transition-all scale-100 hover:scale-[1.01]"
+          aria-disabled="true"
+          onClick={(e) => e.preventDefault()}
+          title="Streaming feature coming soon"
+          className="w-full h-14 bg-white/5 border border-white/10 rounded-full px-6 flex items-center justify-center gap-2.5 text-white/50 font-semibold cursor-not-allowed opacity-70 transition-all"
         >
-          <Play className="w-[18px] h-[18px] fill-current" />
+          <Lock className="w-[18px] h-[18px]" />
           <span>Play Now</span>
         </button>
       )}

@@ -1,12 +1,9 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { tmdbAdapter } from '../../domain/media';
 import MediaCard from '../ui/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
-import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 
 const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes, ...rest }, ref) => {
-  const { spring } = useMotionPreferences();
   const media = tmdbAdapter(item);
   if (!media) return null;
 

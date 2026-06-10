@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Play, Clock, CheckCircle, Check } from "lucide-react";
+import { X, Play, Clock, CheckCircle, Check, Lock } from "lucide-react";
 import { useSelector } from "react-redux";
 import useMarkEpisodeWatched from "../../../hooks/tv/useMarkEpisodeWatched";
 
@@ -138,8 +138,13 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
             </div>
           )}
           <div className="flex gap-4">
-            <button className="flex items-center gap-2 px-6 py-3 rounded bg-white text-black font-semibold cursor-pointer hover:bg-gray-200 transition-colors">
-              <Play className="w-5 h-5" />Watch
+            <button 
+              aria-disabled="true"
+              onClick={(e) => e.preventDefault()}
+              title="Streaming feature coming soon"
+              className="flex items-center gap-2 px-6 py-3 rounded bg-white/10 text-white/50 font-semibold cursor-not-allowed opacity-70 transition-colors"
+            >
+              <Lock className="w-5 h-5" />Play Episode
             </button>
             {!isWatched && (
               <button

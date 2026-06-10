@@ -98,6 +98,10 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
     ? undefined
     : (normalizeWatchStatus(status) ?? status);
 
+  const targetStatus = normalizedStatus ?? existingData?.tracking?.watchStatus ?? null;
+  const isNewlyCompleted = targetStatus === 'completed' && existingData?.tracking?.watchStatus !== 'completed';
+  const lastWatchedAt = isNewlyCompleted ? now : (existingData?.tracking?.lastWatchedAt || null);
+
   const payload = {
     titleKey,
     mediaType,
@@ -105,6 +109,9 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
     imdbId: mediaItem.imdbId || existingData.imdbId || null,
     title: mediaItem.title || mediaItem.name || existingData.title || '',
     enrichmentStatus: existingData?.enrichmentStatus || "pending",
+    enrichmentRetryCount: existingData?.enrichmentRetryCount ?? 0,
+    lastEnrichmentAttempt: existingData?.lastEnrichmentAttempt ?? null,
+    nextEnrichmentAttempt: existingData?.nextEnrichmentAttempt ?? null,
     images: {
       tmdbPoster: mediaItem.poster_path || existingData?.images?.tmdbPoster || null,
       imdbPoster,
@@ -143,11 +150,11 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
       tmdbVotes,
     },
     tracking: {
-      watchStatus: normalizedStatus ?? existingData?.tracking?.watchStatus ?? null,
+      watchStatus: targetStatus,
       listIds: mergedListIds,
       addedAt: existingData?.tracking?.addedAt || now,
       updatedAt: now,
-      lastWatchedAt: existingData?.tracking?.lastWatchedAt || null,
+      lastWatchedAt,
       ...(isUserInteraction 
         ? { lastUserInteractionAt: now } 
         : existingData?.tracking?.lastUserInteractionAt ? { lastUserInteractionAt: existingData.tracking.lastUserInteractionAt } : {})
@@ -254,12 +261,18 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
     await upsertLibraryItem(userId, mediaItem, { status: null, listId: null, isUserInteraction: true });
   }
 
+  const currentSnap = snap.exists() ? snap : await getDoc(ref);
+  const existingData = currentSnap.data();
+  const existingTracking = existingData?.tracking || {};
+  const addedAt = existingTracking.addedAt || Timestamp.now();
+
   await setDoc(
     ref,
     {
       tracking: {
-        ...(snap.exists() ? snap.data()?.tracking || {} : {}),
+        ...existingTracking,
         listIds: normalized,
+        addedAt,
         updatedAt: Timestamp.now(),
         lastUserInteractionAt: Timestamp.now(),
       },
@@ -285,15 +298,24 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null, isUserInteraction: true });
+    await upsertLibraryItem(userId, mediaItem, { status: normalizedStatus, listId: null, isUserInteraction: true });
+    return titleKey;
   }
+
+  const existingData = snap.data();
+  const existingTracking = existingData?.tracking || {};
+  const isNewlyCompleted = normalizedStatus === 'completed' && existingTracking.watchStatus !== 'completed';
+  const addedAt = existingTracking.addedAt || Timestamp.now();
+  const lastWatchedAt = isNewlyCompleted ? Timestamp.now() : (existingTracking.lastWatchedAt || null);
 
   await setDoc(
     ref,
     {
       tracking: {
-        ...(snap.exists() ? snap.data()?.tracking || {} : {}),
+        ...existingTracking,
         watchStatus: normalizedStatus,
+        addedAt,
+        lastWatchedAt,
         updatedAt: Timestamp.now(),
         lastUserInteractionAt: Timestamp.now(),
       },
@@ -368,6 +390,10 @@ export const getAllLibraryItems = async (userId, options = {}) => {
         }
         return 0;
       }
+      if (sortBy === "addedAt" || sortBy === "tracking.addedAt") {
+        const value = item?.tracking?.addedAt || item?.addedAt || item?.tracking?.updatedAt || null;
+        return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
+      }
       if (sortBy === "updatedAt") {
         const value = item?.tracking?.updatedAt || item?.tracking?.addedAt || item?.addedAt || null;
         return value?.toMillis ? value.toMillis() : new Date(value || 0).getTime();
@@ -404,7 +430,7 @@ export const getAllLibraryItems = async (userId, options = {}) => {
  */
 export const getLibraryByStatus = async (userId, status, options = {}) => {
   try {
-    const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
+    const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true, limit: limitCount } = options;
 
     const targetStatus = normalizeWatchStatus(status);
 
@@ -451,10 +477,12 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
     const direction = sortDirection === "asc" ? 1 : -1;
     const sortedItems = [...items].sort((left, right) => (sortValue(left) - sortValue(right)) * direction);
 
-    let hydratedItems = sortedItems;
+    const limitedItems = limitCount ? sortedItems.slice(0, limitCount) : sortedItems;
+
+    let hydratedItems = limitedItems;
     if (hydrate) {
       try {
-        const catalogHydrated = await hydrateItemsFromCatalog(sortedItems);
+        const catalogHydrated = await hydrateItemsFromCatalog(limitedItems);
         hydratedItems = await hydrateItemsFromTmdb(catalogHydrated);
       } catch (hydrateError) {
         console.warn("Hydration skipped for getLibraryByStatus:", hydrateError?.message || hydrateError);

@@ -48,7 +48,40 @@ class EnrichmentService {
           console.warn("Primary enrichment query failed, falling back to local filtering:", error.message);
         }
 
-        // Fallback query: if primary query returns fewer than 5 items, fetch 50 and filter locally for legacy items
+        // Query failed items that are eligible for retry
+        if (pendingItems.length < 5) {
+          try {
+            const qFailed = query(
+              collection(db, "users", userId, "library_items"),
+              where("tracking.listIds", "array-contains", list.id),
+              where("enrichmentStatus", "==", "failed"),
+              limit(5)
+            );
+            const snapFailed = await getDocs(qFailed);
+            const failedItems = snapFailed.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            // Filter failed items locally for retry eligibility (max 3 retries, exponential backoff has passed)
+            const eligibleFailed = failedItems.filter(item => {
+              const retryCount = Number(item.enrichmentRetryCount || 0);
+              const nextAttempt = item.nextEnrichmentAttempt;
+              if (retryCount >= 3) return false;
+              if (!nextAttempt) return true;
+              return new Date(nextAttempt) <= new Date();
+            });
+
+            const seen = new Set(pendingItems.map(i => i.id));
+            for (const item of eligibleFailed) {
+              if (!seen.has(item.id)) {
+                pendingItems.push(item);
+                if (pendingItems.length >= 5) break;
+              }
+            }
+          } catch (error) {
+            console.warn("Failed items enrichment query failed:", error.message);
+          }
+        }
+
+        // Fallback query: if combined items are still fewer than 5, fetch 50 and filter locally for legacy or retry-eligible items
         if (pendingItems.length < 5) {
           const qFallback = query(
             collection(db, "users", userId, "library_items"),
@@ -56,13 +89,24 @@ class EnrichmentService {
             limit(50)
           );
           const snapFallback = await getDocs(qFallback);
-          const legacyPending = snapFallback.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(i => i.enrichmentStatus !== 'enriched' && i.enrichmentStatus !== 'failed');
+          const candidates = snapFallback.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          const legacyOrRetryEligible = candidates.filter(i => {
+            // Unenriched legacy items (no status, or status not enriched/failed)
+            if (i.enrichmentStatus !== 'enriched' && i.enrichmentStatus !== 'failed') {
+              return true;
+            }
+            // Failed retry-eligible items
+            if (i.enrichmentStatus === 'failed') {
+              const retryCount = Number(i.enrichmentRetryCount || 0);
+              const nextAttempt = i.nextEnrichmentAttempt;
+              return retryCount < 3 && (!nextAttempt || new Date(nextAttempt) <= new Date());
+            }
+            return false;
+          });
             
-          // Merge lists and de-duplicate
           const seen = new Set(pendingItems.map(i => i.id));
-          for (const item of legacyPending) {
+          for (const item of legacyOrRetryEligible) {
             if (!seen.has(item.id)) {
               pendingItems.push(item);
               if (pendingItems.length >= 5) break;
@@ -78,7 +122,11 @@ class EnrichmentService {
           // Process each item
           for (const item of pendingItems) {
             if (!this.isProcessing) break;
-            await this.enrichItem(userId, list.id, item);
+            try {
+              await this.enrichItem(userId, list.id, item);
+            } catch (itemError) {
+              console.error(`Unhandled error processing item ${item.title || item.id} in sync queue:`, itemError);
+            }
 
             // Throttle: Wait 2 seconds between items
             await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -184,6 +232,7 @@ class EnrichmentService {
           backdrop_path: updates.backdrop_path || null,
           enrichmentStatus: updates.enrichmentStatus,
           lastEnriched: updates.lastEnriched,
+          nextEnrichmentAttempt: null, // Clear scheduled attempt on success, retain count/lastAttempt
           sort: {
             imdbRating: deleteField(),
             imdbVotes: deleteField(),
@@ -207,14 +256,18 @@ class EnrichmentService {
         // Mark as failed enrichment
         const titleKey = item.id;
         const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+        const currentRetryCount = Number(item.enrichmentRetryCount || 0);
+        const retryHours = Math.pow(2, currentRetryCount + 1); // Exponential backoff: 2h, 4h, 8h...
         const failedUpdates = {
           enrichmentStatus: "failed",
-          lastEnriched: new Date().toISOString(),
+          enrichmentRetryCount: currentRetryCount + 1,
+          lastEnrichmentAttempt: new Date().toISOString(),
+          nextEnrichmentAttempt: new Date(Date.now() + retryHours * 60 * 60 * 1000).toISOString(),
         };
         await setDoc(libraryItemsRef, failedUpdates, { merge: true });
 
 
-        console.log(`✗ No data found for ${item.title}, marked as failed`);
+        console.log(`✗ No data found for ${item.title}, marked as failed (Retry #${currentRetryCount + 1})`);
       }
     } catch (error) {
       console.error(`Error enriching item ${item.id}:`, error);
@@ -223,9 +276,13 @@ class EnrichmentService {
       try {
         const titleKey = item.id;
         const libraryItemsRef = doc(db, "users", userId, "library_items", titleKey);
+        const currentRetryCount = Number(item.enrichmentRetryCount || 0);
+        const retryHours = Math.pow(2, currentRetryCount + 1);
         const failedUpdates = {
           enrichmentStatus: "failed",
-          lastEnriched: new Date().toISOString(),
+          enrichmentRetryCount: currentRetryCount + 1,
+          lastEnrichmentAttempt: new Date().toISOString(),
+          nextEnrichmentAttempt: new Date(Date.now() + retryHours * 60 * 60 * 1000).toISOString(),
         };
         await setDoc(libraryItemsRef, failedUpdates, { merge: true });
 

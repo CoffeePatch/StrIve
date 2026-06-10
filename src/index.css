@@ -604,3 +604,17 @@ a[aria-disabled="true"] {
     box-shadow: 0 0 16px rgba(34, 211, 238, 0.5), 0 0 32px rgba(22, 163, 74, 0.3);
   }
 }
+
+/* Media Card Vanilla Hover/Tap Animations */
+.media-card-wrapper {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .media-card-wrapper:hover {
+    transform: scale(1.03) translateY(-2px);
+  }
+  .media-card-wrapper:active {
+    transform: scale(0.95);
+  }
+}

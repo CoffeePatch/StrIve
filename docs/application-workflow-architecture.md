@@ -223,3 +223,4 @@ Check the watched episode records first, then confirm the series progress summar
 ### A title shows stale artwork or ratings
 
 Check whether the catalog data and the library record were both refreshed after enrichment.
+

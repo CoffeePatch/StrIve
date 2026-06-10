@@ -150,6 +150,13 @@ const LibraryMasterPage = () => {
   const handleRemove = useCallback(async (item) => {
     if (!user?.uid) return;
 
+    // Capture cloned snapshots of pre-mutation state
+    const previousItems = [...items];
+    const previousCustomListsItemsMap = {};
+    for (const k in customListsItemsMap) {
+      previousCustomListsItemsMap[k] = [...(customListsItemsMap[k] || [])];
+    }
+
     // Optimistically remove from all UI state
     setItems((prev) => prev.filter((x) => x.titleKey !== item.titleKey));
     if (customListIds.length === 1) {
@@ -170,8 +177,9 @@ const LibraryMasterPage = () => {
       }
     } catch (error) {
       console.error('Remove failed:', error);
-      // Revert optimistic updates
-      setItems((prev) => [...prev, item]);
+      // Revert to cloned snapshots
+      setItems(previousItems);
+      setCustomListsItemsMap(previousCustomListsItemsMap);
       toast.error('Failed to remove item');
       return;
     }
@@ -208,7 +216,7 @@ const LibraryMasterPage = () => {
         </button>
       </div>
     ), { autoClose: 5000 });
-  }, [user?.uid, customListIds, removeMediaFromList, addMediaToList]);
+  }, [user?.uid, customListIds, customListsItemsMap, items, removeMediaFromList, addMediaToList]);
 
   return (
     <LibraryFiltersContext.Provider value={libraryFilters}>

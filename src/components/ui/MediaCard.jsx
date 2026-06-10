@@ -2,8 +2,6 @@ import React from 'react';
 import BaseCard from './BaseCard';
 import Badge from './Badge';
 import { Star, Tv, Film, Trash2, Play } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { IMG_CDN_URL } from '../../util/core/constants';
 
 const formatCount = (num) => {
@@ -131,14 +129,9 @@ const MediaCard = ({
     );
   };
 
-  const { spring, shouldReduceMotion } = useMotionPreferences();
-
   return (
-    <motion.div 
-      className={`flex-none ${widthClass} ${className}`}
-      whileHover={shouldReduceMotion ? undefined : { scale: 1.03, y: -2 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.95 }}
-      transition={spring}
+    <div 
+      className={`media-card-wrapper flex-none ${widthClass} ${className}`}
     >
       <BaseCard
         imageUrl={imageUrl}
@@ -171,7 +164,7 @@ const MediaCard = ({
           </div>
         </div>
       </BaseCard>
-    </motion.div>
+    </div>
   );
 };
 

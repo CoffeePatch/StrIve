@@ -376,6 +376,7 @@ export default async function handler(req, res) {
       );
       const fallbackLastWatchedAt =
         libraryData?.tracking?.lastWatchedAt || libraryData.lastWatchedAt || null;
+      const finalLastWatchedAt = writes.length > 0 ? now : (lastWatchedEpisode?.watchedAt || fallbackLastWatchedAt);
 
       upsertSeriesProgressAndLibrary(tx, {
         progressRef,
@@ -390,7 +391,7 @@ export default async function handler(req, res) {
         lastWatchedEpisode,
         nextEpisode,
         progressNeedsRecompute: false,
-        lastWatchedAt: lastWatchedEpisode?.watchedAt || fallbackLastWatchedAt,
+        lastWatchedAt: finalLastWatchedAt,
         updatedAt: now,
         tracking: libraryData.tracking || null,
       });

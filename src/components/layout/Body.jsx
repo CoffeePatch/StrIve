@@ -1,8 +1,6 @@
 import { lazy, Suspense, useLayoutEffect } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Outlet, useLocation, useOutlet } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
-import PageTransition from "../ui/PageTransition";
 import PageLoader from "../ui/PageLoader";
 
 // Eagerly loaded components (Core Navigation)
@@ -11,9 +9,9 @@ import Login from "../auth/Login";
 import TVShows from "../tv/TVShows";
 import MoviesPage from "../movie/Listing/MoviesPage";
 import SearchPage from "../pages/SearchPage";
-import LibraryMasterPage from "../library/LibraryMasterPage";
 
 // Lazily loaded components (Secondary/Detailed screens)
+const LibraryMasterPage = lazy(() => import("../library/LibraryMasterPage"));
 const MovieDetails = lazy(() => import("../movie/MovieDetails/MovieDetails"));
 const TVShowDetailsPage = lazy(() => import("../tv/TVShowDetailsPage"));
 const SettingsPage = lazy(() => import("../settings/SettingsPage"));
@@ -48,13 +46,9 @@ const AppLayout = () => {
   return (
     <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       <ScrollToTop />
-      <AnimatePresence mode="wait">
-        <PageTransition key={location.pathname}>
-          <Suspense fallback={<PageLoader />}>
-            {element}
-          </Suspense>
-        </PageTransition>
-      </AnimatePresence>
+      <Suspense fallback={<PageLoader />}>
+        {element}
+      </Suspense>
       <BottomNav />
     </div>
   );

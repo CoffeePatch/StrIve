@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import { ArrowLeft, Play, AlertTriangle } from "lucide-react";
 import Header from "../layout/Header";
 import useMediaDetailsCore from "../../hooks/media/useMediaDetailsCore";
@@ -43,6 +43,7 @@ const formatCount = (num) => {
 const TVShowDetailsPage = () => {
   const { tvId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const popoverRef = useRef(null);
   const recomputeKeyRef = useRef(null);
@@ -251,9 +252,105 @@ const TVShowDetailsPage = () => {
 
   const handlePlayNow = () => {
     if (!seasonData?.episodes || seasonData.episodes.length === 0) return;
-    setSelectedEpisode(seasonData.episodes[0]);
-    setShowEpisodeOverlay(true);
+
+    // Find the next episode to watch
+    const nextToWatch = showDetails?.tvProgress?.nextToWatch || null;
+    let targetEpisode = null;
+
+    if (nextToWatch) {
+      const targetSeason = Number(nextToWatch.seasonNumber);
+      const targetEpisodeNum = Number(nextToWatch.episodeNumber);
+
+      if (selectedSeason === targetSeason) {
+        targetEpisode = seasonData.episodes.find(
+          (ep) => Number(ep.episodeNumber ?? ep.episode_number) === targetEpisodeNum
+        );
+      }
+    }
+
+    // Fallback 1: First unwatched episode in current season
+    if (!targetEpisode) {
+      targetEpisode = seasonData.episodes.find((ep) => {
+        const epNum = Number(ep.episodeNumber ?? ep.episode_number);
+        const key = `${selectedSeason}:${epNum}`;
+        return !watchedSet.has(key);
+      });
+    }
+
+    // Fallback 2: First episode of current season
+    if (!targetEpisode) {
+      targetEpisode = seasonData.episodes[0];
+    }
+
+    if (targetEpisode) {
+      setSelectedEpisode(targetEpisode);
+      setShowEpisodeOverlay(true);
+    }
   };
+
+  // Handle auto-resume behavior on mount
+  useEffect(() => {
+    if (
+      location.state?.resume &&
+      showDetails &&
+      isAutoSelected &&
+      !episodesLoading &&
+      seasonData?.episodes?.length > 0 &&
+      Number(seasonData.seasonNumber) === Number(selectedSeason)
+    ) {
+      // Find the next episode to watch
+      const nextToWatch = showDetails?.tvProgress?.nextToWatch || null;
+      let targetEpisode = null;
+
+      if (nextToWatch) {
+        const targetSeason = Number(nextToWatch.seasonNumber);
+        const targetEpisodeNum = Number(nextToWatch.episodeNumber);
+
+        // Verify if the active season matches the target season
+        if (selectedSeason === targetSeason) {
+          targetEpisode = seasonData.episodes.find(
+            (ep) => Number(ep.episodeNumber ?? ep.episode_number) === targetEpisodeNum
+          );
+        } else {
+          // If the selected season is not the target season yet, switch to it
+          setSelectedSeason(targetSeason);
+          return;
+        }
+      }
+
+      // Fallback 1: Find the first unwatched episode in the current season
+      if (!targetEpisode) {
+        targetEpisode = seasonData.episodes.find((ep) => {
+          const epNum = Number(ep.episodeNumber ?? ep.episode_number);
+          const key = `${selectedSeason}:${epNum}`;
+          return !watchedSet.has(key);
+        });
+      }
+
+      // Fallback 2: Default to the first episode of the current season
+      if (!targetEpisode && seasonData.episodes.length > 0) {
+        targetEpisode = seasonData.episodes[0];
+      }
+
+      if (targetEpisode) {
+        setSelectedEpisode(targetEpisode);
+        setShowEpisodeOverlay(true);
+      }
+
+      // Clear route state to prevent re-trigger on refresh or back navigation
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [
+    location.state,
+    showDetails,
+    isAutoSelected,
+    episodesLoading,
+    seasonData,
+    selectedSeason,
+    watchedSet,
+    navigate,
+    location.pathname
+  ]);
 
   const handleEpisodeClick = async (episode) => {
     setSelectedEpisode(episode);

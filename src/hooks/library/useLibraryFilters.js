@@ -58,8 +58,34 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const searchParamQuery = searchParams.get('search') || '';
 
   // Local React States for advanced filters to prevent URL bloat
-  const [status, setStatus] = useState('all');
-  const [type, setType] = useState('all');
+  const [status, setStatus] = useState(() => searchParams.get('status') || 'all');
+  const [type, setType] = useState(() => searchParams.get('type') || 'all');
+
+  // Sync status, type, and sort from URL when searchParams changes
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus !== null) {
+      setStatus(urlStatus || 'all');
+    }
+    const urlType = searchParams.get('type');
+    if (urlType !== null) {
+      setType(urlType || 'all');
+    }
+    const urlSort = searchParams.get('sort');
+    if (urlSort !== null) {
+      const parts = urlSort.split(':');
+      if (parts.length === 2) {
+        _setSortState({ key: parts[0], direction: parts[1] });
+      }
+    } else {
+      try {
+        const saved = localStorage.getItem('librarySortPreference');
+        _setSortState(saved ? JSON.parse(saved) : null);
+      } catch {
+        _setSortState(null);
+      }
+    }
+  }, [searchParams]);
   const [imdbRatingMin, setImdbRatingMin] = useState(null);
   const [imdbVotesMin, setImdbVotesMin] = useState(null);
   const [tmdbRatingMin, setTmdbRatingMin] = useState(null);
