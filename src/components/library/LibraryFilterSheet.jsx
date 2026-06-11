@@ -8,11 +8,11 @@ import { toDisplayWatchStatus, normalizeWatchStatus } from '../../util/library/w
 import { AnimatedChip } from '../ui/AnimatedPrimitives';
 
 const SORT_OPTIONS = [
-  { id: 'dateAdded', label: 'Recently Added' },
-  { id: 'title-asc', label: 'Title A-Z' },
-  { id: 'title-desc', label: 'Title Z-A' },
-  { id: 'releaseYear', label: 'Release Date' },
-  { id: 'imdb', label: 'Rating (IMDb)' },
+  { id: 'title', label: 'Title' },
+  { id: 'dateAdded', label: 'Date Added' },
+  { id: 'lastWatched', label: 'Last Watched' },
+  { id: 'imdb', label: 'IMDb Rating' },
+  { id: 'tmdb', label: 'TMDB Rating' },
   { id: 'runtime', label: 'Runtime' }
 ];
 
@@ -150,16 +150,24 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
   };
 
   // Draft Toggle Handlers
+  const handleSortOptionClick = (optionId) => {
+    if (draftFilters.sortState?.key === optionId) {
+      updateDraft('sortState', {
+        key: optionId,
+        direction: draftFilters.sortState.direction === 'asc' ? 'desc' : 'asc'
+      });
+    } else {
+      updateDraft('sortState', {
+        key: optionId,
+        direction: optionId === 'title' ? 'asc' : 'desc'
+      });
+    }
+  };
+
   const toggleStatus = (s) => {
     const active = draftFilters.status === 'all' ? [] : draftFilters.status.split(',').filter(Boolean);
     const next = active.includes(s) ? active.filter(x => x !== s) : [...active, s];
     updateDraft('status', next.length === 0 ? 'all' : next.join(','));
-  };
-
-  const toggleType = (t) => {
-    const active = draftFilters.type === 'all' ? [] : draftFilters.type.split(',').filter(Boolean);
-    const next = active.includes(t) ? active.filter(x => x !== t) : [...active, t];
-    updateDraft('type', next.length === 0 ? 'all' : next.join(','));
   };
 
   const toggleGenre = (g) => {
@@ -228,17 +236,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       });
     }
 
-    // Media Types
-    if (draftFilters.type !== 'all') {
-      draftFilters.type.split(',').forEach(t => {
-        let label = t === 'movie' ? 'Movies' : t === 'tv' ? 'TV Shows' : t.charAt(0).toUpperCase() + t.slice(1);
-        chips.push({
-          id: `type-${t}`,
-          label,
-          onClear: () => toggleType(t)
-        });
-      });
-    }
+
 
     // Rating
     if (draftFilters.imdbRatingMin !== null) {
@@ -317,7 +315,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
   const handleReset = () => {
     setDraftFilters({
       status: 'all',
-      type: 'all',
+      type: filters.type,
       imdbRatingMin: null,
       imdbVotesMin: null,
       tmdbRatingMin: null,
@@ -416,30 +414,27 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
               >
                 <div className="space-y-1">
                   {SORT_OPTIONS.map(opt => {
-                    let key = opt.id;
-                    let direction = 'desc';
-                    if (opt.id === 'title-asc') {
-                      key = 'title';
-                      direction = 'asc';
-                    } else if (opt.id === 'title-desc') {
-                      key = 'title';
-                      direction = 'desc';
-                    }
-
-                    const isSelected = draftFilters.sortState?.key === key && draftFilters.sortState?.direction === direction;
+                    const isActive = draftFilters.sortState?.key === opt.id;
 
                     return (
                       <button
                         key={opt.id}
-                        onClick={() => updateDraft('sortState', { key, direction })}
+                        onClick={() => handleSortOptionClick(opt.id)}
                         className="w-full h-13 flex items-center justify-between px-3 rounded-xl hover:bg-white/5 transition-colors text-left"
                       >
-                        <span className={`text-[14px] font-medium ${isSelected ? 'text-red-500' : 'text-white/80'}`}>
+                        <span className={`text-[14px] font-medium ${isActive ? 'text-red-500' : 'text-white/80'}`}>
                           {opt.label}
                         </span>
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-red-500 bg-red-500' : 'border-white/20'}`}>
-                          {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                        </div>
+                        
+                        {isActive ? (
+                          <span className="material-symbols-outlined text-red-500 text-[20px]">
+                            {draftFilters.sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                          </span>
+                        ) : (
+                          <span className="material-symbols-outlined text-white/20 text-[20px]">
+                            arrow_downward
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -461,34 +456,6 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
                       <AnimatedChip
                         key={opt.id}
                         onClick={() => toggleStatus(opt.id)}
-                        isActive={isSelected}
-                      >
-                        {opt.label}
-                      </AnimatedChip>
-                    );
-                  })}
-                </div>
-              </AccordionSection>
-
-              {/* 3. Media Type Accordion */}
-              <AccordionSection
-                title="Media Type"
-                isExpanded={expandedSections.mediaType}
-                onToggle={() => toggleSection('mediaType')}
-              >
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'movie', label: 'Movies' },
-                    { id: 'tv', label: 'TV Shows' },
-                    ...(hasAnime ? [{ id: 'anime', label: 'Anime' }] : [])
-                  ].map(opt => {
-                    const active = draftFilters.type === 'all' ? [] : draftFilters.type.split(',').filter(Boolean);
-                    const isSelected = active.includes(opt.id);
-
-                    return (
-                      <AnimatedChip
-                        key={opt.id}
-                        onClick={() => toggleType(opt.id)}
                         isActive={isSelected}
                       >
                         {opt.label}

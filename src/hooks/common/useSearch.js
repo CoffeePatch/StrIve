@@ -23,11 +23,12 @@ const useSearch = (searchTerm) => {
       return;
     }
 
+    setLoading(true);
+    setError(null);
+
     // Set a new timeout for 500ms
     timeoutRef.current = setTimeout(async () => {
       try {
-        setLoading(true);
-        setError(null);
 
         // Search using TMDB API with images via proxy
         const data = await tmdbApiService.get('/search/multi', {

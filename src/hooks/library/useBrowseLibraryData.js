@@ -9,6 +9,7 @@ export function useBrowseLibraryData(userId) {
   const [recentlyWatched, setRecentlyWatched] = useState([]);
   const [watchlistPicks, setWatchlistPicks] = useState([]);
   const [stats, setStats] = useState({ watchingCount: 0, completedCount: 0, watchlistCount: 0 });
+  const [totalLibraryCount, setTotalLibraryCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const location = useLocation();
   const isBrowsePage = location.pathname === '/';
@@ -36,6 +37,8 @@ export function useBrowseLibraryData(userId) {
       });
 
       if (!isMounted.current) return;
+
+      setTotalLibraryCount((allItems || []).length);
 
       // 1. Derive Continue Watching: watchStatus === 'watching'
       const watchingItems = (allItems || []).filter(item => {
@@ -139,5 +142,5 @@ export function useBrowseLibraryData(userId) {
     }
   }, [userId, fetchDashboardData]);
 
-  return { continueWatching, recentlyAdded, recentlyWatched, watchlistPicks, stats, loading, refetch };
+  return { continueWatching, recentlyAdded, recentlyWatched, watchlistPicks, stats, totalLibraryCount, loading, refetch };
 }

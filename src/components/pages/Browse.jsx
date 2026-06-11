@@ -7,7 +7,6 @@ import useTopRatedMedia from "../../hooks/media/useTopRatedMedia";
 import useMediaByGenre from "../../hooks/media/useMediaByGenre";
 
 import Header from "../layout/Header";
-import MainContainer from "../layout/MainContainer";
 import MediaCard from "../ui/MediaCard";
 import Carousel from "../ui/Carousel";
 import SectionHeader from "../ui/SectionHeader";
@@ -29,6 +28,7 @@ const Browse = () => {
     recentlyWatched: recentlyWatchedItems,
     watchlistPicks: watchlistPicksItems,
     stats,
+    totalLibraryCount,
     loading,
     refetch
   } = useBrowseLibraryData(user?.uid);
@@ -309,9 +309,8 @@ const Browse = () => {
   return (
     <div className="min-h-screen premium-page">
       <Header />
-      <MainContainer />
       
-      <div className="w-full px-6 lg:px-12 py-8">
+      <div className="w-full px-6 lg:px-12 pt-24 pb-8">
         {user && (
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-white font-secondary">
@@ -330,57 +329,82 @@ const Browse = () => {
         {renderStatsRow()}
 
         {/* Continue Watching Shelf */}
-        {user && preferences.continueWatching && (
-          <MediaList
-            title="Continue Watching"
-            items={continueWatchingItems}
-            icon="play_circle"
-            viewAllPath="/library?status=watching&type=all&sort=lastWatched:desc"
-            emptyMessage="No shows or movies in progress."
-            onQuickActions={handleQuickActions}
-            onCardClick={(media) => {
-              const isTV = media.mediaType === 'tv' || media.media_type === 'tv';
-              navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`, {
-                state: { resume: true }
-              });
-            }}
-          />
-        )}
+        {user && !loading && totalLibraryCount === 0 ? (
+          <div className="glass-effect rounded-2xl p-8 md:p-12 text-center border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent mb-12 flex flex-col items-center justify-center relative overflow-hidden group">
+            {/* Background glowing/glass effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 to-purple-600/20 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 pointer-events-none" />
+            <div className="relative z-10 max-w-md">
+              <span className="material-symbols-outlined text-5xl text-red-500 mb-4 animate-bounce">
+                movie_filter
+              </span>
+              <h3 className="text-2xl font-bold text-white font-secondary mb-3">
+                Your Library is Empty
+              </h3>
+              <p className="text-white/60 font-secondary text-sm mb-6 leading-relaxed">
+                Add movies and TV shows to track your progress, build custom lists, and get personalized recommendations.
+              </p>
+              <button
+                onClick={() => navigate("/library")}
+                className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-secondary text-sm font-semibold transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] shadow-lg shadow-red-600/20"
+              >
+                Go to Library
+              </button>
+            </div>
+          </div>
+        ) : (
+          user && (
+            <>
+              {preferences.continueWatching && (
+                <MediaList
+                  title="Continue Watching"
+                  items={continueWatchingItems}
+                  icon="play_circle"
+                  viewAllPath="/library?status=watching&type=all&sort=lastWatched:desc"
+                  emptyMessage="No shows or movies in progress."
+                  onQuickActions={handleQuickActions}
+                  onCardClick={(media) => {
+                    const isTV = media.mediaType === 'tv' || media.media_type === 'tv';
+                    navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`, {
+                      state: { resume: true }
+                    });
+                  }}
+                />
+              )}
 
-        {/* Recently Added Shelf */}
-        {user && preferences.recentlyAdded && (
-          <MediaList
-            title="Recently Added"
-            items={recentlyAddedItems}
-            icon="history"
-            viewAllPath="/library?sort=dateAdded:desc&type=all"
-            emptyMessage="Your recently added items will appear here."
-            onQuickActions={handleQuickActions}
-          />
-        )}
+              {preferences.recentlyAdded && (
+                <MediaList
+                  title="Recently Added"
+                  items={recentlyAddedItems}
+                  icon="history"
+                  viewAllPath="/library?sort=dateAdded:desc&type=all"
+                  emptyMessage="Your recently added items will appear here."
+                  onQuickActions={handleQuickActions}
+                />
+              )}
 
-        {/* Recently Watched Shelf */}
-        {user && preferences.recentlyWatched && (
-          <MediaList
-            title="Recently Watched"
-            items={recentlyWatchedItems}
-            icon="visibility"
-            viewAllPath="/library?sort=lastWatched:desc&type=all"
-            emptyMessage="Items you finish watching will appear here."
-            onQuickActions={handleQuickActions}
-          />
-        )}
+              {preferences.recentlyWatched && (
+                <MediaList
+                  title="Recently Watched"
+                  items={recentlyWatchedItems}
+                  icon="visibility"
+                  viewAllPath="/library?sort=lastWatched:desc&type=all"
+                  emptyMessage="Items you finish watching will appear here."
+                  onQuickActions={handleQuickActions}
+                />
+              )}
 
-        {/* Watchlist Picks Shelf */}
-        {user && preferences.watchlistPicks && (
-          <MediaList
-            title="Watchlist Picks"
-            items={watchlistPicksItems}
-            icon="thumb_up"
-            viewAllPath="/library?status=plan_to_watch&sort=imdb:desc&type=all"
-            emptyMessage="Add titles to your watchlist to see recommendations."
-            onQuickActions={handleQuickActions}
-          />
+              {preferences.watchlistPicks && (
+                <MediaList
+                  title="Watchlist Picks"
+                  items={watchlistPicksItems}
+                  icon="thumb_up"
+                  viewAllPath="/library?status=plan_to_watch&sort=imdb:desc&type=all"
+                  emptyMessage="Add titles to your watchlist to see recommendations."
+                  onQuickActions={handleQuickActions}
+                />
+              )}
+            </>
+          )
         )}
 
         <MediaList
