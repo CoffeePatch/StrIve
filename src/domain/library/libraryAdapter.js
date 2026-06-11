@@ -47,6 +47,14 @@ export const libraryAdapter = {
     return await upsertLibraryItem(userId, mediaItem, { status, isUserInteraction: true });
   },
 
+  /**
+   * Completely removes a library item, including all metadata, tracking, and list memberships.
+   */
+  removeLibraryItem: async (userId, mediaItem) => {
+    const { deleteLibraryItem } = await import("../../util/firebase/firestoreService");
+    return await deleteLibraryItem(userId, mediaItem);
+  },
+
   // --- Semantic Domain Operations ---
 
   addToWatchlist: async (userId, mediaItem) => {

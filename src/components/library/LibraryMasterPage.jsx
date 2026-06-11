@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import MobileLibraryView from './MobileLibraryView';
@@ -11,27 +11,27 @@ import { useListMembership } from "../../domain/lists/useListMembership";
 import { libraryAdapter } from '../../domain/library/libraryAdapter';
 import Header from '../layout/Header';
 import '../../styles/LibraryMasterPage.css';
-import { exportListCsv } from '../../util/export/exportDownload';
 import { toast } from 'react-toastify';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { DURATIONS, EASINGS } from '../../util/motion';
 import { AnimatedButton, AnimatedIconButton, AnimatedDropdown } from '../ui/AnimatedPrimitives';
-import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
 import { LibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
 import LibraryAdvancedFilters from './LibraryAdvancedFilters';
 import LibraryGrid from './LibraryGrid';
 import LibraryGridSkeleton from './LibraryGridSkeleton';
 import SortBottomSheet from './SortBottomSheet';
+import QuickActionsModal from '../ui/QuickActionsModal';
 
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const [items, setItems] = useState([]);
   const [customListsItemsMap, setCustomListsItemsMap] = useState({});
-  const { lists: customLists, loadLists, createNewList, removeList, updateList } = useLists(user?.uid);
+  const { lists: customLists, loadLists } = useLists(user?.uid);
   const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
   const [loading, setLoading] = useState(false);
   
@@ -42,16 +42,27 @@ const LibraryMasterPage = () => {
     status, type, customListIds, sortState, setSortState,
     updateFilters, clearAdvancedFilters,
     filteredItems, activeSecondaryFilterCount,
-    getImdbRating, getImdbVotes, getTmdbRating, getTmdbVotes,
+    getImdbRating, getImdbVotes,
     imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin,
     genres, yearFrom, yearTo
   } = libraryFilters;
 
+  const customListIdsRef = useRef(customListIds);
+  useEffect(() => {
+    customListIdsRef.current = customListIds;
+  }, [customListIds]);
+
+  const [activeMedia, setActiveMedia] = useState(null);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+
+  const handleQuickActions = useCallback((media) => {
+    setActiveMedia(media);
+    setQuickActionsOpen(true);
+  }, []);
+
   const sortedAndFilteredItems = filteredItems;
 
   // Legacy mappings for MobileView
-  const activeTab = status;
-  const setActiveTab = (s) => updateFilters({ status: s });
   const activePrimaryTab = type === 'tv' ? 'shows' : 'movies';
   const setActivePrimaryTab = (t) => updateFilters({ type: t === 'shows' ? 'tv' : 'movie' });
 
@@ -60,7 +71,7 @@ const LibraryMasterPage = () => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [sortBottomSheetOpen, setSortBottomSheetOpen] = useState(false);
 
-  const loadCustomLists = useCallback(async (signal) => {
+  const loadCustomLists = useCallback(async () => {
     if (!user?.uid) return;
     try {
       await loadLists();
@@ -78,6 +89,7 @@ const LibraryMasterPage = () => {
 
       // Benchmarking duplication hook
       const mockSizeStr = searchParams.get('mockSize');
+      let finalItems = fetchedItems;
       if (mockSizeStr) {
         const targetSize = parseInt(mockSizeStr, 10);
         if (targetSize && targetSize > 0) {
@@ -89,12 +101,29 @@ const LibraryMasterPage = () => {
               titleKey: `${item.titleKey}_mock_${duplicated.length}_${idx}`
             })));
           }
-          setItems(duplicated.slice(0, targetSize));
-          return;
+          finalItems = duplicated.slice(0, targetSize);
         }
       }
 
-      setItems(fetchedItems);
+      setItems(finalItems);
+
+      // Refetch active custom list items in-place to avoid flashing
+      const activeListIds = customListIdsRef.current;
+      if (activeListIds && activeListIds.length > 0) {
+        const fetchPromises = activeListIds.map(async (listId) => {
+          const listItems = await getLibraryByListId(user.uid, listId, { hydrate: false, includePageInfo: false });
+          return { listId, listItems };
+        });
+        const results = await Promise.all(fetchPromises);
+        if (signal?.cancelled) return;
+        setCustomListsItemsMap(prev => {
+          const next = { ...prev };
+          results.forEach(({ listId, listItems }) => {
+            next[listId] = listItems;
+          });
+          return next;
+        });
+      }
     } catch (error) {
       console.error('Error loading library items:', error);
       if (!signal?.cancelled) {
@@ -105,13 +134,13 @@ const LibraryMasterPage = () => {
         setLoading(false);
       }
     }
-  }, [user?.uid]);
+  }, [user?.uid, searchParams]);
 
   // Initial load
   useEffect(() => {
     if (!user?.uid) return;
     const signal = { cancelled: false };
-    loadCustomLists(signal);
+    loadCustomLists();
     loadAllItems(signal);
     return () => { signal.cancelled = true; };
   }, [user?.uid, loadCustomLists, loadAllItems]);
@@ -367,6 +396,7 @@ const LibraryMasterPage = () => {
               viewMode={viewMode}
               handleItemClick={handleItemClick}
               handleRemove={handleRemove}
+              onQuickActions={handleQuickActions}
               getImdbRating={getImdbRating}
               getImdbVotes={getImdbVotes}
             />
@@ -389,6 +419,7 @@ const LibraryMasterPage = () => {
           setSelectedListId={(id) => updateFilters({ lists: id ? [id] : [] })}
           handleItemClick={handleItemClick}
           handleRemove={handleRemove}
+          onQuickActions={handleQuickActions}
           getImdbRating={getImdbRating}
           getImdbVotes={getImdbVotes}
           message={message}
@@ -400,6 +431,14 @@ const LibraryMasterPage = () => {
         onClose={() => setSortBottomSheetOpen(false)}
         sortState={sortState}
         onSortChange={setSortState}
+      />
+
+      <QuickActionsModal
+        isOpen={quickActionsOpen}
+        onClose={() => setQuickActionsOpen(false)}
+        media={activeMedia}
+        userId={user?.uid}
+        onMutation={loadAllItems}
       />
     </LibraryFiltersContext.Provider>
   );

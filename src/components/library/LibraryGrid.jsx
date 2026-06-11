@@ -1,5 +1,4 @@
 import React from 'react';
-import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import LibraryMediaCard from './LibraryMediaCard';
 import { useGridVirtualization } from '../../hooks/library/useGridVirtualization';
 
@@ -8,11 +7,11 @@ const LibraryGrid = ({
   viewMode, 
   handleItemClick, 
   handleRemove, 
+  onQuickActions,
   getImdbRating, 
   getImdbVotes,
   isMobileView = false 
 }) => {
-  const { spring } = useMotionPreferences();
 
   const gapSize = isMobileView
     ? (window.innerWidth < 768 ? 8 : 12)
@@ -61,6 +60,7 @@ const LibraryGrid = ({
           viewMode={viewMode}
           onClick={handleItemClick}
           onRemove={handleRemove}
+          onQuickActions={onQuickActions}
           imdbRating={getImdbRating ? getImdbRating(item) : undefined}
           imdbVotes={getImdbVotes ? getImdbVotes(item) : undefined}
           data-card-item="true"

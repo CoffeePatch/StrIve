@@ -4,6 +4,7 @@ import {
   setDoc,
   getDocs,
   getDoc,
+  deleteDoc,
   deleteField,
   Timestamp,
   query,
@@ -550,4 +551,16 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     console.error("Error getting library by list ID:", error);
     throw error;
   }
+};
+
+/**
+ * Deletes a library item document entirely.
+ */
+export const deleteLibraryItem = async (userId, mediaItem) => {
+  if (!userId) throw new Error("Missing userId");
+  if (!mediaItem) throw new Error("Missing media item");
+
+  const { ref, titleKey } = resolveLibraryItemRef(userId, mediaItem);
+  await deleteDoc(ref);
+  return titleKey;
 };

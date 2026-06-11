@@ -18,6 +18,7 @@ import { useLists } from "../../domain/lists/useLists";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
 import { Settings, X } from "lucide-react";
+import QuickActionsModal from "../ui/QuickActionsModal";
 
 const Browse = () => {
   const navigate = useNavigate();
@@ -28,8 +29,17 @@ const Browse = () => {
     recentlyWatched: recentlyWatchedItems,
     watchlistPicks: watchlistPicksItems,
     stats,
-    loading
+    loading,
+    refetch
   } = useBrowseLibraryData(user?.uid);
+
+  const [activeMedia, setActiveMedia] = useState(null);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+
+  const handleQuickActions = (media) => {
+    setActiveMedia(media);
+    setQuickActionsOpen(true);
+  };
 
   useNowPlayingMedia("movie");
   const upcomingMovies = useUpcomingMedia("movie");
@@ -109,7 +119,7 @@ const Browse = () => {
     }
   };
 
-  const MediaList = ({ title, items, icon, onCardClick, viewAllPath, emptyMessage }) => {
+  const MediaList = ({ title, items, icon, onCardClick, viewAllPath, emptyMessage, onQuickActions }) => {
     if ((!items || items.length === 0) && !emptyMessage) return null;
 
     return (
@@ -137,6 +147,7 @@ const Browse = () => {
                       navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`);
                     }
                   }}
+                  onQuickActions={onQuickActions}
                 />
               );
             })}
@@ -326,6 +337,7 @@ const Browse = () => {
             icon="play_circle"
             viewAllPath="/library?status=watching&sort=lastWatched:desc"
             emptyMessage="No shows or movies in progress."
+            onQuickActions={handleQuickActions}
             onCardClick={(media) => {
               const isTV = media.mediaType === 'tv' || media.media_type === 'tv';
               navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`, {
@@ -343,6 +355,7 @@ const Browse = () => {
             icon="history"
             viewAllPath="/library?sort=dateAdded:desc"
             emptyMessage="Your recently added items will appear here."
+            onQuickActions={handleQuickActions}
           />
         )}
 
@@ -354,6 +367,7 @@ const Browse = () => {
             icon="visibility"
             viewAllPath="/library?sort=lastWatched:desc"
             emptyMessage="Items you finish watching will appear here."
+            onQuickActions={handleQuickActions}
           />
         )}
 
@@ -365,6 +379,7 @@ const Browse = () => {
             icon="thumb_up"
             viewAllPath="/library?status=plan_to_watch&sort=imdb:desc"
             emptyMessage="Add titles to your watchlist to see recommendations."
+            onQuickActions={handleQuickActions}
           />
         )}
 
@@ -372,69 +387,88 @@ const Browse = () => {
           title="Popular Movies"
           items={popularMovies}
           icon="trending_up"
+          onQuickActions={handleQuickActions}
         />
         
         <MediaList
           title="Top Rated Movies"
           items={topRatedMovies}
           icon="star"
+          onQuickActions={handleQuickActions}
         />
         
         <MediaList
           title="Upcoming Movies"
           items={upcomingMovies}
           icon="event"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Action"
           items={actionMovies}
           icon="sports_martial_arts"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Adventure"
           items={adventureMovies}
           icon="explore"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Romance"
           items={romanceMovies}
           icon="favorite"
+          onQuickActions={handleQuickActions}
         />
         
         <MediaList
           title="On The Air TV Shows"
           items={onTheAirTVShows}
           icon="live_tv"
+          onQuickActions={handleQuickActions}
         />
         
         <MediaList
           title="Popular TV Shows"
           items={popularTVShows}
           icon="trending_up"
+          onQuickActions={handleQuickActions}
         />
         
         <MediaList
           title="Top Rated TV Shows"
           items={topRatedTVShows}
           icon="star"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Action & Adventure"
           items={actionAdventureTVShows}
           icon="sports_martial_arts"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Comedy"
           items={comedyTVShows}
           icon="mood"
+          onQuickActions={handleQuickActions}
         />
         <MediaList
           title="Romance"
           items={romanceTVShows}
           icon="favorite"
+          onQuickActions={handleQuickActions}
         />
       </div>
       <DashboardPreferencesModal />
+      <QuickActionsModal
+        isOpen={quickActionsOpen}
+        onClose={() => setQuickActionsOpen(false)}
+        media={activeMedia}
+        userId={user?.uid}
+        onMutation={refetch}
+      />
     </div>
   );
 };

@@ -22,7 +22,8 @@ export {
   setLibraryItemStatus,
   getAllLibraryItems,
   getLibraryByStatus,
-  getLibraryByListId
+  getLibraryByListId,
+  deleteLibraryItem
 } from '../../services/libraryService';
 
 export {

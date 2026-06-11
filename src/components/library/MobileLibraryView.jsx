@@ -16,6 +16,7 @@ const MobileLibraryView = ({
   setSelectedListId,
   handleItemClick,
   handleRemove,
+  onQuickActions,
   getImdbRating,
   getImdbVotes,
   message
@@ -275,6 +276,7 @@ const MobileLibraryView = ({
                 viewMode="grid"
                 handleItemClick={handleItemClick}
                 handleRemove={handleRemove}
+                onQuickActions={onQuickActions}
                 getImdbRating={getImdbRating}
                 getImdbVotes={getImdbVotes}
                 isMobileView={true}

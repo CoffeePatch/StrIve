@@ -3,7 +3,7 @@ import { tmdbAdapter } from '../../domain/media';
 import MediaCard from '../ui/MediaCard';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
-const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, imdbRating, imdbVotes, ...rest }, ref) => {
+const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick, onRemove, onQuickActions, imdbRating, imdbVotes, ...rest }, ref) => {
   const media = tmdbAdapter(item);
   if (!media) return null;
 
@@ -86,17 +86,31 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
           </div>
         </div>
 
-        <button
-          className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white/40 hover:text-red-500 hover:bg-black/60 transition-all opacity-0 group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onRemove) onRemove(item);
-          }}
-          aria-label="Remove from list"
-          title="Remove from Library"
-        >
-          <span className="material-symbols-outlined text-[16px]">delete</span>
-        </button>
+        {onQuickActions ? (
+          <button
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white/40 hover:text-white hover:bg-black/60 transition-all opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickActions(item);
+            }}
+            aria-label="Quick actions"
+            title="Quick Actions"
+          >
+            <span className="material-symbols-outlined text-[16px]">more_vert</span>
+          </button>
+        ) : onRemove ? (
+          <button
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 text-white/40 hover:text-red-500 hover:bg-black/60 transition-all opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onRemove) onRemove(item);
+            }}
+            aria-label="Remove from list"
+            title="Remove from Library"
+          >
+            <span className="material-symbols-outlined text-[16px]">delete</span>
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -108,6 +122,7 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
         variant="library"
         onClick={() => onClick(item)}
         onRemove={onRemove ? () => onRemove(item) : undefined}
+        onQuickActions={onQuickActions ? () => onQuickActions(item) : undefined}
         imdbRating={imdbRating}
         imdbVotes={imdbVotes}
       />
@@ -120,7 +135,8 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
     prevProps.imdbRating === nextProps.imdbRating &&
     prevProps.imdbVotes === nextProps.imdbVotes &&
     prevProps.onClick === nextProps.onClick &&
-    prevProps.onRemove === nextProps.onRemove
+    prevProps.onRemove === nextProps.onRemove &&
+    prevProps.onQuickActions === nextProps.onQuickActions
   );
 });
 

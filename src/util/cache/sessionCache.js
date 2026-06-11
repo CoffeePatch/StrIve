@@ -26,6 +26,12 @@ export const invalidateContinueWatching = (userId) => {
   sessionCache.remove(CACHE_KEYS.BROWSE_LIBRARY(userId));
 };
 
+export const invalidateBrowseLibrary = (userId) => {
+  if (!userId) return;
+  sessionCache.remove(CACHE_KEYS.CONTINUE_WATCHING(userId));
+  sessionCache.remove(CACHE_KEYS.BROWSE_LIBRARY(userId));
+};
+
 export const sessionCache = {
   get: (key) => {
     const prefixedKey = `${PREFIX}${key}`;

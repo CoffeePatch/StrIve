@@ -1,7 +1,7 @@
 import React from 'react';
 import BaseCard from './BaseCard';
 import Badge from './Badge';
-import { Star, Tv, Film, Trash2, Play } from 'lucide-react';
+import { Star, Tv, Film, Trash2, Play, MoreVertical } from 'lucide-react';
 import { IMG_CDN_URL } from '../../util/core/constants';
 
 const formatCount = (num) => {
@@ -27,6 +27,7 @@ const MediaCard = ({
   variant = 'carousel',
   onClick,
   onRemove,
+  onQuickActions,
   className = "",
   imdbRating,
   imdbVotes
@@ -105,8 +106,20 @@ const MediaCard = ({
           )}
         </div>
 
-        {/* Remove Button for Library Variant */}
-        {onRemove && (
+        {/* Remove or Quick Actions Button */}
+        {onQuickActions ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickActions(media);
+            }}
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-gray-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
+            aria-label="Quick Actions"
+            title="Quick Actions"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+        ) : onRemove ? (
           <button
             onClick={handleRemoveClick}
             className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-gray-300 hover:text-red-500 hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
@@ -114,7 +127,7 @@ const MediaCard = ({
           >
             <Trash2 className="w-4 h-4" />
           </button>
-        )}
+        ) : null}
 
         {/* TV Progress Bar */}
         {(media.tracking?.status === 'completed' || (media.tvProgress && media.tvProgress.completionPercent !== undefined && media.tvProgress.completionPercent > 0)) && (
@@ -176,6 +189,7 @@ export default React.memo(MediaCard, (prevProps, nextProps) => {
     prevProps.imdbVotes === nextProps.imdbVotes &&
     prevProps.onClick === nextProps.onClick &&
     prevProps.onRemove === nextProps.onRemove &&
+    prevProps.onQuickActions === nextProps.onQuickActions &&
     prevProps.media?.id === nextProps.media?.id &&
     prevProps.media?.title === nextProps.media?.title &&
     prevProps.media?.name === nextProps.media?.name &&
