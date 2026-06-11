@@ -59,6 +59,9 @@ export const useAutoSeasonSelection = ({
     isAutoSelected: autoSelectedRef.current,
     resetAutoSelection: () => {
       autoSelectedRef.current = false;
+    },
+    lockAutoSelection: () => {
+      autoSelectedRef.current = true;
     }
   };
 };

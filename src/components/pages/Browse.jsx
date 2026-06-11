@@ -335,7 +335,7 @@ const Browse = () => {
             title="Continue Watching"
             items={continueWatchingItems}
             icon="play_circle"
-            viewAllPath="/library?status=watching&sort=lastWatched:desc"
+            viewAllPath="/library?status=watching&type=all&sort=lastWatched:desc"
             emptyMessage="No shows or movies in progress."
             onQuickActions={handleQuickActions}
             onCardClick={(media) => {
@@ -353,7 +353,7 @@ const Browse = () => {
             title="Recently Added"
             items={recentlyAddedItems}
             icon="history"
-            viewAllPath="/library?sort=dateAdded:desc"
+            viewAllPath="/library?sort=dateAdded:desc&type=all"
             emptyMessage="Your recently added items will appear here."
             onQuickActions={handleQuickActions}
           />
@@ -365,7 +365,7 @@ const Browse = () => {
             title="Recently Watched"
             items={recentlyWatchedItems}
             icon="visibility"
-            viewAllPath="/library?sort=lastWatched:desc"
+            viewAllPath="/library?sort=lastWatched:desc&type=all"
             emptyMessage="Items you finish watching will appear here."
             onQuickActions={handleQuickActions}
           />
@@ -377,7 +377,7 @@ const Browse = () => {
             title="Watchlist Picks"
             items={watchlistPicksItems}
             icon="thumb_up"
-            viewAllPath="/library?status=plan_to_watch&sort=imdb:desc"
+            viewAllPath="/library?status=plan_to_watch&sort=imdb:desc&type=all"
             emptyMessage="Add titles to your watchlist to see recommendations."
             onQuickActions={handleQuickActions}
           />

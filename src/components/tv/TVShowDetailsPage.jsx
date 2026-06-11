@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { ArrowLeft, Play, AlertTriangle } from "lucide-react";
@@ -31,22 +31,11 @@ import MediaDetailSkeleton from "../media/MediaDetailSkeleton";
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
 
-const formatCount = (num) => {
-  if (num === null || num === undefined) return null;
-  const value = typeof num === 'number' ? num : Number(num);
-  if (!Number.isFinite(value)) return null;
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-  return `${value}`;
-};
-
 const TVShowDetailsPage = () => {
   const { tvId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const popoverRef = useRef(null);
-  const recomputeKeyRef = useRef(null);
 
   const {
     user,
@@ -70,9 +59,7 @@ const TVShowDetailsPage = () => {
   const [viewMode, setViewMode] = useState('list');
   const [allSeasonsData, setAllSeasonsData] = useState(null);
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false);
-  const [showPopover, setShowPopover] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [hoverTimeout, setHoverTimeout] = useState(null);
   const [showUnwatchModal, setShowUnwatchModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [showWatchChoiceModal, setShowWatchChoiceModal] = useState(false);
@@ -86,7 +73,7 @@ const TVShowDetailsPage = () => {
 
   const titleKey = `tmdb_tv_${tvId}`;
 
-  const fetchAllSeasonDetails = async () => {
+  const fetchAllSeasonDetails = useCallback(async () => {
     if (!showDetails || !showDetails.numberOfSeasons) return;
 
     setIsLoadingMatrix(true);
@@ -127,12 +114,11 @@ const TVShowDetailsPage = () => {
     } finally {
       setIsLoadingMatrix(false);
     }
-  };
+  }, [showDetails, tvId]);
 
   // Domain Tracking Hook
   const {
     watchedSet,
-    seriesProgress,
     pendingProgress,
     applyWatchMode,
     handleUnwatchSeries,
@@ -173,13 +159,18 @@ const TVShowDetailsPage = () => {
     window.scrollTo(0, 0);
   }, [tvId]);
 
-  const { isAutoSelected, resetAutoSelection } = useAutoSeasonSelection({
+  const { isAutoSelected, resetAutoSelection, lockAutoSelection } = useAutoSeasonSelection({
     showDetails,
     watchedSet,
     selectedSeason,
     setSelectedSeason,
     seasonData,
   });
+
+  const changeSeason = useCallback((season) => {
+    setSelectedSeason(season);
+    lockAutoSelection();
+  }, [lockAutoSelection]);
 
   // Reset auto selection lock if TV ID changes
   useEffect(() => {
@@ -225,7 +216,7 @@ const TVShowDetailsPage = () => {
     if (viewMode === 'matrix' && allSeasonsData === null && showDetails) {
       fetchAllSeasonDetails();
     }
-  }, [viewMode, allSeasonsData, showDetails]);
+  }, [viewMode, allSeasonsData, showDetails, fetchAllSeasonDetails]);
 
   const trailer = videos?.find(
     (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
@@ -444,26 +435,7 @@ const TVShowDetailsPage = () => {
     }
   }, [dispatch, user]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-        setShowPopover(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout) clearTimeout(hoverTimeout);
-    };
-  }, [hoverTimeout]);
-
-
-
   const handleCreateNew = () => {
-    setShowPopover(false);
     setShowCreateModal(true);
   };
 
@@ -593,7 +565,7 @@ const TVShowDetailsPage = () => {
                 <SeasonTabs
                   totalSeasons={showDetails.numberOfSeasons}
                   selectedSeason={selectedSeason}
-                  onSeasonChange={setSelectedSeason}
+                  onSeasonChange={changeSeason}
                 />
               )}
 
@@ -602,7 +574,7 @@ const TVShowDetailsPage = () => {
                 isLoadingMatrix={isLoadingMatrix}
                 allSeasonsData={allSeasonsData}
                 showDetails={showDetails}
-                setSelectedSeason={setSelectedSeason}
+                setSelectedSeason={changeSeason}
                 handleEpisodeClick={handleEpisodeClick}
                 episodesLoading={episodesLoading}
                 seasonData={seasonData}

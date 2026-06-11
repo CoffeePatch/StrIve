@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Play } from 'lucide-react';
+import { logImageLoad } from '../../util/core/performanceLogger';
 
 /**
  * BaseCard
@@ -29,6 +30,15 @@ const BaseCard = ({
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  const mountTimeRef = useRef(Date.now());
+  const imageUrlRef = useRef(imageUrl);
+
+  // Reset tracking if the image URL changes on an already mounted card
+  if (imageUrl !== imageUrlRef.current) {
+    mountTimeRef.current = Date.now();
+    imageUrlRef.current = imageUrl;
+  }
 
   // Compute standard aspect ratio class
   const aspectRatioClass = aspectRatio === "16/9" ? "aspect-video" : "aspect-[2/3]";
@@ -69,7 +79,15 @@ const BaseCard = ({
             src={imageUrl}
             alt={imageAlt}
             className={`w-full h-full object-cover transition-opacity duration-200 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              setImageLoaded(true);
+              logImageLoad({
+                source: fallbackText || imageAlt || 'Card',
+                url: imageUrl,
+                mountTime: mountTimeRef.current,
+                loadTime: Date.now()
+              });
+            }}
             onError={() => setImageError(true)}
             loading="lazy"
             decoding="async"
