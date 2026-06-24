@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addGenreMovies } from "../../util/store/moviesSlice";
 import { addGenreTVShows } from "../../util/store/tvShowsSlice";
@@ -14,8 +14,11 @@ const useMediaByGenre = (mediaType, genreId) => {
       : state.tvShows.genreTVShows?.[genreId]
   );
 
+  const rawDataRef = useRef(rawData);
+  rawDataRef.current = rawData;
+
   const fetchMedia = useCallback(async () => {
-    if (rawData && rawData.length > 0) return;
+    if (rawDataRef.current && rawDataRef.current.length > 0) return;
     
     try {
       const json = await tmdbApiService.get(`/discover/${mediaType}`, {
@@ -33,7 +36,7 @@ const useMediaByGenre = (mediaType, genreId) => {
     } catch (error) {
       console.error(`Error fetching ${mediaType} by genre ${genreId}:`, error);
     }
-  }, [dispatch, mediaType, genreId, rawData]);
+  }, [dispatch, mediaType, genreId]);
 
   useEffect(() => {
     fetchMedia();

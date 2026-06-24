@@ -24,6 +24,16 @@ import LibraryGridSkeleton from './LibraryGridSkeleton';
 import SortBottomSheet from './SortBottomSheet';
 import QuickActionsModal from '../ui/QuickActionsModal';
 
+const SORT_OPTIONS = [
+  { id: 'imdb', label: 'IMDb' },
+  { id: 'tmdb', label: 'TMDB' },
+  { id: 'dateAdded', label: 'Date Added' },
+  { id: 'dateUpdated', label: 'Date Updated' },
+  { id: 'lastWatched', label: 'Last Watched' },
+  { id: 'releaseYear', label: 'Release Year' },
+  { id: 'title', label: 'Title' },
+];
+
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
   const navigate = useNavigate();
@@ -54,22 +64,30 @@ const LibraryMasterPage = () => {
 
   const [activeMedia, setActiveMedia] = useState(null);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [quickActionsAnchor, setQuickActionsAnchor] = useState(null);
 
-  const handleQuickActions = useCallback((media) => {
+  const handleQuickActions = useCallback((media, e) => {
     setActiveMedia(media);
+    if (e && e.currentTarget) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setQuickActionsAnchor({ x: rect.left, y: rect.bottom, right: window.innerWidth - rect.right });
+    } else {
+      setQuickActionsAnchor(null);
+    }
     setQuickActionsOpen(true);
   }, []);
 
   const sortedAndFilteredItems = filteredItems;
 
   // Legacy mappings for MobileView
-  const activePrimaryTab = type === 'tv' ? 'shows' : 'movies';
-  const setActivePrimaryTab = (t) => updateFilters({ type: t === 'shows' ? 'tv' : 'movie' });
+  const activePrimaryTab = type === 'tv' ? 'shows' : type === 'movie' ? 'movies' : 'all';
+  const setActivePrimaryTab = (t) => updateFilters({ type: t === 'shows' ? 'tv' : t === 'movies' ? 'movie' : 'all' });
 
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [searchFocused, setSearchFocused] = useState(false);
   const [sortBottomSheetOpen, setSortBottomSheetOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   const loadCustomLists = useCallback(async () => {
     if (!user?.uid) return;
@@ -281,12 +299,53 @@ const LibraryMasterPage = () => {
 
             <div className="relative">
               <button 
-                onClick={() => setSortBottomSheetOpen(true)}
+                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
                 className="bg-white/5 border border-white/10 h-[40px] px-4 rounded-lg text-[14px] text-white focus:outline-none cursor-pointer font-secondary hover:border-white/30 transition-colors flex items-center gap-2"
               >
                 Sort
                 <span className="material-symbols-outlined text-[16px] text-white/60">sort</span>
               </button>
+
+              {/* Desktop Sort Dropdown Menu */}
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <div className="absolute right-[1px] mt-2 w-44 glass-effect rounded-lg border border-white/10 bg-[#141414]/98 p-1.5 shadow-2xl z-50 flex flex-col">
+                    {SORT_OPTIONS.map((option) => {
+                      const isActive = sortState?.key === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => {
+                            if (sortState?.key === option.id) {
+                              setSortState({
+                                key: option.id,
+                                direction: sortState.direction === 'asc' ? 'desc' : 'asc'
+                              });
+                            } else {
+                              setSortState({
+                                key: option.id,
+                                direction: 'desc'
+                              });
+                            }
+                            setSortDropdownOpen(false);
+                          }}
+                          className={`w-full px-2 py-1.5 flex items-center justify-between rounded transition-colors text-xs font-semibold font-secondary ${
+                            isActive ? 'bg-red-600/10 text-red-500 font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <span>{option.label}</span>
+                          {isActive && (
+                            <span className="material-symbols-outlined text-red-500 text-sm font-bold">
+                              {sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
@@ -415,8 +474,6 @@ const LibraryMasterPage = () => {
           filteredItems={sortedAndFilteredItems}
           loading={loading}
           customLists={customLists}
-          selectedListId={customListIds[0] || null}
-          setSelectedListId={(id) => updateFilters({ lists: id ? [id] : [] })}
           handleItemClick={handleItemClick}
           handleRemove={handleRemove}
           onQuickActions={handleQuickActions}
@@ -439,6 +496,7 @@ const LibraryMasterPage = () => {
         media={activeMedia}
         userId={user?.uid}
         onMutation={loadAllItems}
+        anchor={quickActionsAnchor}
       />
     </LibraryFiltersContext.Provider>
   );

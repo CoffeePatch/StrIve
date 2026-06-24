@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addNowPlayingMovies } from "../../util/store/moviesSlice";
 import { addAiringTodayTVShows } from "../../util/store/tvShowsSlice";
@@ -14,8 +14,11 @@ const useNowPlayingMedia = (mediaType) => {
       : state.tvShows.airingTodayTVShows
   );
 
+  const rawDataRef = useRef(rawData);
+  rawDataRef.current = rawData;
+
   const fetchMedia = useCallback(async () => {
-    if (rawData && rawData.length > 0) return;
+    if (rawDataRef.current && rawDataRef.current.length > 0) return;
     
     try {
       const endpoint = mediaType === "movie" ? "movie/now_playing" : "tv/airing_today";
@@ -31,7 +34,7 @@ const useNowPlayingMedia = (mediaType) => {
     } catch (error) {
       console.error(`Error fetching now_playing/airing_today ${mediaType}:`, error);
     }
-  }, [dispatch, mediaType, rawData]);
+  }, [dispatch, mediaType]);
 
   useEffect(() => {
     fetchMedia();

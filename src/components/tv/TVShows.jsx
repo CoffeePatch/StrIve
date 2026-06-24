@@ -49,7 +49,7 @@ const TVShows = () => {
     <div className="min-h-screen premium-page">
       <Header />
 
-      <div className="pt-24 pb-12 px-6 lg:px-12">
+      <div className="pt-24 pb-12 px-4 sm:px-8 lg:px-12">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-6">
             <span className="material-symbols-outlined text-8xl gradient-accent leading-none">tv</span>
@@ -61,7 +61,7 @@ const TVShows = () => {
         </div>
       </div>
 
-      <div className="w-full px-6 lg:px-12 pb-20">
+      <div className="w-full px-4 sm:px-8 lg:px-12 pb-20">
         <TVShowList title="On The Air" mediaItems={onTheAirTVShows} icon="live_tv" />
         <TVShowList title="Popular TV Shows" mediaItems={popularTVShows} icon="trending_up" />
         <TVShowList title="Top Rated" mediaItems={topRatedTVShows} icon="star" />

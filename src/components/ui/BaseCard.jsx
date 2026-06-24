@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Play } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { logImageLoad } from '../../util/core/performanceLogger';
 
 /**
@@ -24,6 +25,7 @@ const BaseCard = ({
   overlay,
   isHoverable = true,
   onClick,
+  to,
   fallbackText,
   orientation = "vertical",
   className = ""
@@ -50,22 +52,23 @@ const BaseCard = ({
     : `group flex flex-col w-full ${isHoverable ? 'cursor-pointer' : ''} ${className}`;
 
   const imageWrapperClasses = isHorizontal
-    ? `relative w-full sm:w-1/3 xl:w-1/4 shrink-0 ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-200 ${
-        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)] group-hover:scale-[1.03] sm:group-hover:scale-[1.02] group-active:scale-[0.98]' : ''
+    ? `relative w-full sm:w-1/3 xl:w-1/4 shrink-0 ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-300 ${
+        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]' : ''
       }`
-    : `relative w-full ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-200 ${
-        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)] group-hover:scale-[1.03] group-active:scale-[0.98]' : ''
+    : `relative w-full ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-300 ${
+        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]' : ''
       }`;
 
   const contentClasses = isHorizontal
     ? "flex-1 flex flex-col py-2"
     : "mt-3 flex flex-col gap-1 px-1";
 
+  // Use Link if `to` is provided, otherwise a standard div
+  const Component = to ? Link : 'div';
+  const componentProps = to ? { to, className: containerClasses, onClick } : { className: containerClasses, onClick };
+
   return (
-    <div 
-      className={containerClasses}
-      onClick={onClick}
-    >
+    <Component {...componentProps}>
       {/* Image Container with strict 12px rounding and unified hover scale */}
       <div className={imageWrapperClasses}>
         {/* Loading Skeleton */}
@@ -103,12 +106,12 @@ const BaseCard = ({
         )}
 
         {/* Hover Overlay Gradient (Darkens image slightly to make overlay items pop) */}
-        {isHoverable && (
+        {isHoverable && (!imageUrl || imageLoaded || imageError) && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 pointer-events-none" />
         )}
 
         {/* Custom Overlays (Badges, Track buttons, Play buttons) */}
-        {overlay}
+        {(!imageUrl || imageLoaded || imageError) && overlay}
       </div>
 
       {/* Content Area (Title, Metadata) */}
@@ -117,7 +120,7 @@ const BaseCard = ({
           {children}
         </div>
       )}
-    </div>
+    </Component>
   );
 };
 

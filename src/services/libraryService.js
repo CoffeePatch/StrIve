@@ -14,6 +14,39 @@ import { db } from '../util/firebase/firebase';
 import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
 import { hydrateItemsFromCatalog, hydrateItemsFromTmdb, normalizeLibraryItem } from './tmdbHydrationService';
 import { normalizeWatchStatus } from '../util/library/watchStatus';
+import tmdbApiService from './tmdb/tmdbApiService';
+
+const selfHealLibraryItems = (userId, items) => {
+  if (!userId || !Array.isArray(items)) return;
+  const itemsNeedHeal = items.filter(item => item?.id && !item.poster_path);
+  if (itemsNeedHeal.length === 0) return;
+
+  // Process in background
+  (async () => {
+    console.debug(`[Self-Healing] Found ${itemsNeedHeal.length} items lacking poster path. Repairing...`);
+    for (const item of itemsNeedHeal) {
+      const mediaType = item.media_type === "tv" ? "tv" : "movie";
+      const id = Number(item.id);
+      if (!Number.isFinite(id)) continue;
+      try {
+        const data = await tmdbApiService.get(`/${mediaType}/${id}`, { language: 'en-US' });
+        if (data && (data.poster_path || data.backdrop_path)) {
+          const titleKey = item.titleKey || (mediaType === 'tv' ? `tmdb_tv_${id}` : `tmdb_movie_${id}`);
+          const docRef = doc(db, 'users', userId, 'library_items', titleKey);
+          await setDoc(docRef, {
+            images: {
+              tmdbPoster: data.poster_path || null,
+              tmdbBackdrop: data.backdrop_path || null
+            }
+          }, { merge: true });
+          console.debug(`[Self-Healing] Successfully repaired poster/backdrop for ${titleKey}`);
+        }
+      } catch (err) {
+        console.warn(`[Self-Healing] Failed to repair ${mediaType} ${id}:`, err?.message || err);
+      }
+    }
+  })();
+};
 
 const normalizeGenres = (genres) => {
   if (!Array.isArray(genres)) return [];
@@ -82,6 +115,8 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
 
   const releaseDate = mediaItem.release_date || 
                       mediaItem.first_air_date || 
+                      mediaItem.releaseDate || 
+                      mediaItem.firstAirDate || 
                       existingData.releaseDate || 
                       null;
 
@@ -114,7 +149,8 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
     lastEnrichmentAttempt: existingData?.lastEnrichmentAttempt ?? null,
     nextEnrichmentAttempt: existingData?.nextEnrichmentAttempt ?? null,
     images: {
-      tmdbPoster: mediaItem.poster_path || existingData?.images?.tmdbPoster || null,
+      tmdbPoster: mediaItem.poster_path || mediaItem.posterPath || existingData?.images?.tmdbPoster || null,
+      tmdbBackdrop: mediaItem.backdrop_path || mediaItem.backdropPath || existingData?.images?.tmdbBackdrop || null,
       imdbPoster,
     },
     releaseDate,
@@ -377,6 +413,8 @@ export const getAllLibraryItems = async (userId, options = {}) => {
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()));
 
+    selfHealLibraryItems(userId, items);
+
     const sortValue = (item) => {
       if (sortBy === "sort.imdbRating") {
         return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
@@ -454,6 +492,8 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
         return itemStatus === targetStatus;
       });
 
+    selfHealLibraryItems(userId, items);
+
     const sortValue = (item) => {
       if (sortBy === "sort.imdbRating") {
         return Number(item?.ratings?.imdbScore ?? item?.sort?.imdbRating) || 0;
@@ -516,6 +556,8 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()))
       .filter((item) => Array.isArray(item?.tracking?.listIds) && item.tracking.listIds.includes(listId));
+
+    selfHealLibraryItems(userId, items);
 
     const sortValue = (item) => {
       if (sortBy === "sort.imdbRating") {

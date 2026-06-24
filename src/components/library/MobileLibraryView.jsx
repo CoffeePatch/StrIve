@@ -12,8 +12,6 @@ const MobileLibraryView = ({
   filteredItems,
   loading,
   customLists,
-  selectedListId,
-  setSelectedListId,
   handleItemClick,
   handleRemove,
   onQuickActions,
@@ -39,24 +37,9 @@ const MobileLibraryView = ({
     activeSecondaryFilterCount
   } = filters;
 
-  // Client-side filtering by media type
-  const displayItems = useMemo(() => {
-    return activePrimaryTab === 'movies'
-      ? filteredItems.filter(item => item.media_type === 'movie' || item.mediaType === 'movie')
-      : activePrimaryTab === 'shows'
-      ? filteredItems.filter(item => item.media_type === 'tv' || item.mediaType === 'tv' || item.first_air_date)
-      : filteredItems; // 'lists' shows everything in the list
-  }, [filteredItems, activePrimaryTab]);
-
   // Primary Tabs click handlers
   const handleTabClick = (tab) => {
     setActivePrimaryTab(tab);
-    if (tab === 'lists') {
-      filters.updateFilters({ type: 'all' });
-      setSelectedListId(null);
-    } else {
-      filters.updateFilters({ type: tab === 'shows' ? 'tv' : 'movie' });
-    }
   };
 
   // Active filters summary text under header
@@ -109,8 +92,6 @@ const MobileLibraryView = ({
     return parts.join(' • ');
   }, [status, type, genres, runtimes, imdbRatingMin, yearFrom, yearTo, customListIds, customLists]);
 
-  const isRootListsView = activePrimaryTab === 'lists' && !selectedListId;
-
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Top App Bar */}
@@ -129,7 +110,7 @@ const MobileLibraryView = ({
 
       {/* Primary Tabs */}
       <div className="flex h-12 border-b border-white/10 relative">
-        {['movies', 'shows', 'lists'].map((tab) => (
+        {['all', 'movies', 'shows'].map((tab) => (
           <button
             key={tab}
             onClick={() => handleTabClick(tab)}
@@ -137,7 +118,7 @@ const MobileLibraryView = ({
               activePrimaryTab === tab ? 'text-white' : 'text-[#9CA3AF]'
             }`}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'all' ? 'All' : tab === 'movies' ? 'Movies' : 'Shows'}
           </button>
         ))}
         {/* Animated Indicator */}
@@ -146,57 +127,55 @@ const MobileLibraryView = ({
           style={{
             width: '33.333%',
             transform: `translateX(${
-              activePrimaryTab === 'movies' ? '0%' : activePrimaryTab === 'shows' ? '100%' : '200%'
+              activePrimaryTab === 'all' ? '0%' : activePrimaryTab === 'movies' ? '100%' : '200%'
             })`
           }}
         />
       </div>
 
-      {/* Search and Filter Row (Hidden on Lists root view) */}
-      {!isRootListsView && (
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-black">
-          {/* Search Input */}
-          <div className="flex-1 relative flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-10">
-            <span className="material-symbols-outlined text-white/50 text-[18px] absolute left-3 pointer-events-none">search</span>
-            <input
-              type="text"
-              className="w-full h-full bg-transparent pl-10 pr-8 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary"
-              placeholder="Search library..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
-              >
-                <span className="material-symbols-outlined text-[14px]">close</span>
-              </button>
-            )}
-          </div>
-
-          {/* Filter Trigger Button */}
-          <button
-            onClick={() => setFilterSheetOpen(true)}
-            className={`h-10 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 border transition-all ${
-              activeSecondaryFilterCount > 0
-                ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-md shadow-red-500/5'
-                : 'bg-white/5 border-white/10 text-white/80'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">tune</span>
-            <span>Filter</span>
-            {activeSecondaryFilterCount > 0 && (
-              <span className="bg-[#E50914] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                {activeSecondaryFilterCount}
-              </span>
-            )}
-          </button>
+      {/* Search and Filter Row */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-black">
+        {/* Search Input */}
+        <div className="flex-1 relative flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-10">
+          <span className="material-symbols-outlined text-white/50 text-[18px] absolute left-3 pointer-events-none">search</span>
+          <input
+            type="text"
+            className="w-full h-full bg-transparent pl-10 pr-8 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary"
+            placeholder="Search library..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
+            >
+              <span className="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          )}
         </div>
-      )}
 
-      {/* Active Filter Summary Row (Hidden on Lists root view) */}
-      {!isRootListsView && activeSecondaryFilterCount > 0 && (
+        {/* Filter Trigger Button */}
+        <button
+          onClick={() => setFilterSheetOpen(true)}
+          className={`h-10 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 border transition-all ${
+            activeSecondaryFilterCount > 0
+              ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-md shadow-red-500/5'
+              : 'bg-white/5 border-white/10 text-white/80'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">tune</span>
+          <span>Filter</span>
+          {activeSecondaryFilterCount > 0 && (
+            <span className="bg-[#E50914] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {activeSecondaryFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Active Filter Summary Row */}
+      {activeSecondaryFilterCount > 0 && (
         <div 
           onClick={() => setFilterSheetOpen(true)}
           className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2 overflow-x-auto hide-scrollbar cursor-pointer select-none active:bg-white/10 transition-colors"
@@ -210,13 +189,11 @@ const MobileLibraryView = ({
       )}
 
       {/* Count Info Area */}
-      {!isRootListsView && (
-        <div className="flex justify-between items-center px-4 h-10">
-          <span className="text-[13px] text-[#9CA3AF]">
-            {displayItems.length} item{displayItems.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
+      <div className="flex justify-between items-center px-4 h-10">
+        <span className="text-[13px] text-[#9CA3AF]">
+          {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
+        </span>
+      </div>
 
       {/* Content Area */}
       <main className="flex-1 pb-24 px-4 relative">
@@ -233,56 +210,20 @@ const MobileLibraryView = ({
             <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/20 border-t-[#E50914] mb-4" />
             <p className="text-white/60 text-sm">Loading...</p>
           </div>
-        ) : isRootListsView ? (
-          // Grid of Custom Lists
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            {customLists.map(list => (
-              <div
-                key={list.id}
-                onClick={() => setSelectedListId(list.id)}
-                className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col justify-between aspect-video cursor-pointer hover:bg-white/10 transition-colors"
-              >
-                <h3 className="font-semibold text-white truncate">{list.name}</h3>
-                <span className="text-xs text-white/50">{list.items?.length || 0} items</span>
-              </div>
-            ))}
-            {customLists.length === 0 && (
-              <div className="col-span-2 text-center py-10 text-white/50 text-sm">
-                No custom lists found.
-              </div>
-            )}
-          </div>
-        ) : displayItems.length > 0 ? (
+        ) : filteredItems.length > 0 ? (
           // Media Grid
-          <>
-            {activePrimaryTab === 'lists' && selectedListId && (
-              <div className="mb-4 flex items-center gap-2">
-                <button 
-                  onClick={() => setSelectedListId(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white"
-                >
-                  <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                </button>
-                <h2 className="text-white font-semibold">
-                  {customLists.find(l => l.id === selectedListId)?.name}
-                </h2>
-              </div>
-            )}
-            
-            {/* Custom wrapper to force 2 columns on mobile */}
-            <div className="mobile-grid-override">
-              <LibraryGrid 
-                items={displayItems}
-                viewMode="grid"
-                handleItemClick={handleItemClick}
-                handleRemove={handleRemove}
-                onQuickActions={onQuickActions}
-                getImdbRating={getImdbRating}
-                getImdbVotes={getImdbVotes}
-                isMobileView={true}
-              />
-            </div>
-          </>
+          <div className="mobile-grid-override">
+            <LibraryGrid 
+              items={filteredItems}
+              viewMode="grid"
+              handleItemClick={handleItemClick}
+              handleRemove={handleRemove}
+              onQuickActions={onQuickActions}
+              getImdbRating={getImdbRating}
+              getImdbVotes={getImdbVotes}
+              isMobileView={true}
+            />
+          </div>
         ) : (
           // Empty State
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -290,7 +231,7 @@ const MobileLibraryView = ({
               inbox
             </span>
             <p className="text-white/60 text-sm max-w-[200px]">
-              {activePrimaryTab === 'movies' ? "No movies found." : activePrimaryTab === 'shows' ? "No shows found." : "This list is empty."}
+              {activePrimaryTab === 'movies' ? "No movies found." : activePrimaryTab === 'shows' ? "No shows found." : "No items found."}
             </p>
           </div>
         )}

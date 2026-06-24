@@ -2,7 +2,7 @@ import React from 'react';
 import BaseCard from './BaseCard';
 import Badge from './Badge';
 import { Star, Tv, Film, Trash2, Play, MoreVertical } from 'lucide-react';
-import { IMG_CDN_URL } from '../../util/core/constants';
+import { POSTER_CDN_URL, BACKDROP_CDN_URL } from '../../util/core/constants';
 
 const formatCount = (num) => {
   if (num === null || num === undefined) return null;
@@ -40,39 +40,47 @@ const MediaCard = ({
   const year = media.releaseYear && media.releaseYear !== "N/A" ? media.releaseYear : (rawDate ? new Date(rawDate).getFullYear() : null);
   const rating = media.rating?.score || media.voteAverage || media.vote_average;
   const type = media.mediaType || media.media_type || (media.firstAirDate || media.first_air_date || media.name ? 'tv' : 'movie');
+  
+  // URL for the card to enable middle-click, right-click, etc.
+  const toUrl = media.id ? `/${type === 'tv' ? 'shows' : 'movie'}/${media.id}` : undefined;
 
   // 2. Image Resolution
   const rawPosterPath = media.posterPath || media.poster_path;
   const rawBackdropPath = media.backdropPath || media.backdrop_path;
 
   const posterUrl = rawPosterPath
-    ? (rawPosterPath.startsWith('http') ? rawPosterPath : `${IMG_CDN_URL}${rawPosterPath}`)
+    ? (rawPosterPath.startsWith('http') ? rawPosterPath : `${POSTER_CDN_URL}${rawPosterPath}`)
     : null;
     
   const backdropUrl = rawBackdropPath
-    ? (rawBackdropPath.startsWith('http') ? rawBackdropPath : `${IMG_CDN_URL}${rawBackdropPath}`)
+    ? (rawBackdropPath.startsWith('http') ? rawBackdropPath : `${BACKDROP_CDN_URL}${rawBackdropPath}`)
     : null;
 
   // Determine standard image and aspect ratio based on variant
   // Usually, posters are 2:3. For some specific recommendation variants, we might want 16:9 backdrops.
   // For standard Browse/Grid/Carousel/Library -> 2:3
-  const isBackdrop = variant === 'recommendation_backdrop';
+  const isBackdrop = variant === 'recommendation_backdrop' || variant === 'continue_watching';
   const imageUrl = isBackdrop ? backdropUrl : posterUrl;
   const aspectRatio = isBackdrop ? "16/9" : "2/3";
 
   // 3. Variant Sizing
   // Standardizing widths so cards don't jitter across different screens
   let widthClass = "";
-  if (variant === 'carousel') widthClass = "w-40 sm:w-48 lg:w-52"; // Responsive width for carousels
+  if (variant === 'carousel') widthClass = "w-36 sm:w-44 lg:w-48"; // Responsive width for carousels
+  else if (variant === 'continue_watching') widthClass = "w-64 sm:w-72 lg:w-80"; // Wider for 16:9
   else if (variant === 'recommendation') widthClass = "w-32 sm:w-36 md:w-40 lg:w-44"; // Smaller responsive width for recommendations
   else if (variant === 'grid' || variant === 'library') widthClass = "w-full"; // Grid handles its own column sizing
   else widthClass = "w-full"; // Default fluid
 
-  const handleCardClick = () => {
-    if (onClick) onClick(media);
+  const handleCardClick = (e) => {
+    if (onClick) {
+      e.preventDefault(); // If onClick is provided, prevent standard navigation to handle it custom
+      onClick(media);
+    }
   };
 
   const handleRemoveClick = (e) => {
+    e.preventDefault();
     e.stopPropagation();
     if (onRemove) onRemove(media);
   };
@@ -110,8 +118,9 @@ const MediaCard = ({
         {onQuickActions ? (
           <button
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
-              onQuickActions(media);
+              onQuickActions(media, e);
             }}
             className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-gray-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
             aria-label="Quick Actions"
@@ -151,31 +160,44 @@ const MediaCard = ({
         imageAlt={title}
         aspectRatio={aspectRatio}
         onClick={handleCardClick}
+        to={toUrl}
         fallbackText={title}
         overlay={renderOverlay()}
       >
-        {/* Standardized Metadata Hierarchy: Title -> Year & Type -> Rating */}
-        <h3 className="text-sm sm:text-base font-bold text-white truncate group-hover:text-[var(--color-accent-primary)] transition-colors mt-2 block w-full">
-          {title}
-        </h3>
-        
-        <div className="flex items-center justify-between text-xs text-gray-400 mt-1.5 w-full">
-          <div className="flex items-center gap-1.5">
-            <span className="leading-none mt-[1px]">{year && !isNaN(year) ? year : ''}</span>
-            <div className="text-gray-500 flex items-center">
-              {type === 'tv' ? <Tv className="w-3.5 h-3.5" /> : <Film className="w-3.5 h-3.5" />}
+        {/* Only show metadata text if not a standard carousel (posters look better without text) */}
+        {variant !== 'carousel' && (
+          <div className="flex flex-col mt-2">
+            <h3 className="text-sm sm:text-base font-bold text-white truncate group-hover:text-[var(--color-accent-primary)] transition-colors block w-full">
+              {title}
+            </h3>
+            
+            <div className="flex items-center justify-between text-xs text-gray-400 mt-1 w-full">
+              <div className="flex items-center gap-1.5">
+                {variant === 'continue_watching' && media.tracking?.nextEpisodeLabel ? (
+                  <span className="leading-none text-white/60">{media.tracking.nextEpisodeLabel}</span>
+                ) : (
+                  <>
+                    <span className="leading-none mt-[1px]">{year && !isNaN(year) ? year : ''}</span>
+                    <div className="text-gray-500 flex items-center">
+                      {type === 'tv' ? <Tv className="w-3.5 h-3.5" /> : <Film className="w-3.5 h-3.5" />}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {variant !== 'continue_watching' && (
+                <div className="flex items-center">
+                  {rating > 0 && (
+                    <div className="flex items-center gap-1 text-yellow-500 font-medium">
+                      <Star className="w-3.5 h-3.5 mb-[1px]" fill="currentColor" />
+                      <span className="leading-none mt-[1px]">{Number(rating).toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-
-          <div className="flex items-center">
-            {rating > 0 && (
-              <div className="flex items-center gap-1 text-yellow-500 font-medium">
-                <Star className="w-3.5 h-3.5 mb-[1px]" fill="currentColor" />
-                <span className="leading-none mt-[1px]">{Number(rating).toFixed(1)}</span>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </BaseCard>
     </div>
   );

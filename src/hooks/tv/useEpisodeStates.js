@@ -84,7 +84,12 @@ export const useEpisodeStates = ({ userId, titleKey }) => {
     setWatchedSet(new Set());
   }, []);
 
-  return { watchedSet, loading, error, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal };
+  /** Rollback watched set to a previous state on sync failure */
+  const rollbackLocal = useCallback((backupSet) => {
+    setWatchedSet(new Set(backupSet));
+  }, []);
+
+  return { watchedSet, loading, error, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal };
 };
 
 export default useEpisodeStates;

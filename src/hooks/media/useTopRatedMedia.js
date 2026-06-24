@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addTopRatedMovies } from "../../util/store/moviesSlice";
 import { addTopRatedTVShows } from "../../util/store/tvShowsSlice";
@@ -14,8 +14,11 @@ const useTopRatedMedia = (mediaType) => {
       : state.tvShows.topRatedTVShows
   );
 
+  const rawDataRef = useRef(rawData);
+  rawDataRef.current = rawData;
+
   const fetchMedia = useCallback(async () => {
-    if (rawData && rawData.length > 0) return;
+    if (rawDataRef.current && rawDataRef.current.length > 0) return;
     
     try {
       const json = await tmdbApiService.get(`/${mediaType}/top_rated`, { page: 1 });
@@ -30,7 +33,7 @@ const useTopRatedMedia = (mediaType) => {
     } catch (error) {
       console.error(`Error fetching top rated ${mediaType}:`, error);
     }
-  }, [dispatch, mediaType, rawData]);
+  }, [dispatch, mediaType]);
 
   useEffect(() => {
     fetchMedia();

@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addPopularMovies } from "../../util/store/moviesSlice";
 import { addPopularTVShows } from "../../util/store/tvShowsSlice";
@@ -14,11 +14,15 @@ const usePopularMedia = (mediaType) => {
       : state.tvShows.popularTVShows
   );
 
+  const rawDataRef = useRef(rawData);
+  rawDataRef.current = rawData;
+
   const fetchMedia = useCallback(async () => {
-    if (rawData && rawData.length > 0) return;
+    if (rawDataRef.current && rawDataRef.current.length > 0) return;
     
     try {
-      const json = await tmdbApiService.get(`/${mediaType}/popular`, { page: 1 });
+      const endpoint = mediaType === "movie" ? "trending/movie/day" : `${mediaType}/popular`;
+      const json = await tmdbApiService.get(`/${endpoint}`, { page: 1 });
       
       if (!json) return;
       
@@ -30,7 +34,7 @@ const usePopularMedia = (mediaType) => {
     } catch (error) {
       console.error(`Error fetching popular ${mediaType}:`, error);
     }
-  }, [dispatch, mediaType, rawData]);
+  }, [dispatch, mediaType]);
 
   useEffect(() => {
     fetchMedia();

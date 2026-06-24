@@ -1,16 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, Play, Clock, CheckCircle, Check, Lock } from "lucide-react";
 import { useSelector } from "react-redux";
-import useMarkEpisodeWatched from "../../../hooks/tv/useMarkEpisodeWatched";
+
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
-const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWatched = false, onWatchedChange }) => {
+const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWatched = false, onWatchedChange, applyWatchMode }) => {
   const overlayRef = useRef(null);
   const user = useSelector((store) => store.user?.user);
   const [showDialog, setShowDialog] = useState(false);
   const [toast, setToast] = useState(null);
-  const { markEpisodeWatched, loading, error, clearError } = useMarkEpisodeWatched();
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
@@ -39,7 +38,6 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
       alert("Log in");
       return;
     }
-    clearError();
     if (!Number.isInteger(currentSeasonNumber) || !Number.isInteger(currentEpisodeNumber)) {
       setToast({ type: "error", message: "Episode metadata is invalid. Reload and try again." });
       return;
@@ -49,35 +47,20 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
 
   const handleMutation = async (mode) => {
     try {
-      const normalizedEpisodes = (allEpisodes || [])
-        .map((ep, index) => ({
-          seasonNumber: Number(ep.seasonNumber ?? ep.season_number),
-          episodeNumber: Number(ep.episodeNumber ?? ep.episode_number),
-          absoluteOrder:
-            Number(ep.absoluteOrder) ||
-            (Number(ep.seasonNumber ?? ep.season_number) * 1000 + Number(ep.episodeNumber ?? ep.episode_number)) ||
-            index + 1,
-          isAired: ep.isAired !== false,
-        }))
-        .filter((ep) => Number.isInteger(ep.seasonNumber) && Number.isInteger(ep.episodeNumber));
-
-      const result = await markEpisodeWatched({
-        titleKey,
-        seasonNumber: currentSeasonNumber,
-        episodeNumber: currentEpisodeNumber,
-        mode,
-        episodeCatalog: normalizedEpisodes,
-      });
-
       setShowDialog(false);
-      const written = result?.writtenCount ?? 0;
 
       if (mode === "single") {
         setToast({ type: "success", message: "✓ Episode marked as watched" });
       } else if (mode === "backfill_to_episode") {
-        setToast({ type: "success", message: `✓ Backfill complete — ${written} episode${written !== 1 ? 's' : ''} updated` });
+        setToast({ type: "success", message: `✓ Backfill complete` });
       } else {
-        setToast({ type: "success", message: `✓ Season updated — ${written} episode${written !== 1 ? 's' : ''} marked` });
+        setToast({ type: "success", message: `✓ Season updated` });
+      }
+
+      if (applyWatchMode) {
+        applyWatchMode(episode, mode).catch(err => {
+          setToast({ type: "error", message: err?.message || "Failed to update watched status." });
+        });
       }
 
       // Notify parent of change
@@ -132,11 +115,7 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
             {episode.runtime && <span><Clock className="w-4 h-4 inline" /> {episode.runtime}min</span>}
             {episode.voteAverage > 0 && <span>⭐ {episode.voteAverage.toFixed(1)}</span>}
           </div>
-          {error && (
-            <div className="mb-4 rounded bg-red-900/40 border border-red-500/40 px-3 py-2 text-sm text-red-200">
-              {error}
-            </div>
-          )}
+
           <div className="flex gap-4">
             <button 
               aria-disabled="true"
@@ -149,11 +128,10 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
             {!isWatched && (
               <button
                 onClick={handleWatch}
-                disabled={loading}
-                className="flex items-center gap-2 px-6 py-3 rounded bg-green-600 text-white font-semibold disabled:opacity-50 cursor-pointer hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-6 py-3 rounded bg-green-600 text-white font-semibold cursor-pointer hover:bg-green-700 transition-colors"
               >
                 <CheckCircle className="w-5 h-5" />
-                {loading ? "Saving..." : "Mark Watched"}
+                Mark Watched
               </button>
             )}
             {isWatched && (
@@ -179,39 +157,31 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
           <p className="text-gray-300 mb-6">
             Choose how to mark watched for S{currentSeasonNumber}E{currentEpisodeNumber}.
           </p>
-          {error && (
-            <div className="mb-4 rounded bg-red-900/40 border border-red-500/40 px-3 py-2 text-sm text-red-200">
-              {error}
-            </div>
-          )}
+
           <div className="flex gap-3">
             <button 
               onClick={() => handleMutation("backfill_to_episode")}
-              disabled={loading} 
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:opacity-50 cursor-pointer transition-colors"
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 cursor-pointer transition-colors"
             >
-              {loading ? "Saving..." : "Backfill to This Episode"}
+              Backfill to This Episode
             </button>
             <button 
               onClick={() => handleMutation("single")}
-              disabled={loading} 
-              className="flex-1 px-4 py-2 bg-gray-700 text-white rounded font-semibold hover:bg-gray-600 disabled:opacity-50 cursor-pointer transition-colors"
+              className="flex-1 px-4 py-2 bg-gray-700 text-white rounded font-semibold hover:bg-gray-600 cursor-pointer transition-colors"
             >
-              {loading ? "Saving..." : "Only This Episode"}
+              Only This Episode
             </button>
           </div>
           <div className="mt-3">
             <button
               onClick={() => handleMutation("season_all")}
-              disabled={loading}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-50 cursor-pointer transition-colors"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 cursor-pointer transition-colors"
             >
-              {loading ? "Saving..." : `Mark Entire Season ${currentSeasonNumber}`}
+              Mark Entire Season {currentSeasonNumber}
             </button>
           </div>
           <button 
             onClick={handleCancel}
-            disabled={loading}
             className="w-full mt-3 px-4 py-2 text-gray-400 hover:text-white text-sm cursor-pointer"
           >
             Cancel

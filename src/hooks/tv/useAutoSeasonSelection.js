@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 /**
  * Custom Hook: Manages intelligent season tab auto-selection on TV show mount.
@@ -55,14 +55,18 @@ export const useAutoSeasonSelection = ({
     }
   }, [showDetails, watchedSet, selectedSeason, seasonData, setSelectedSeason]);
 
+  const resetAutoSelection = useCallback(() => {
+    autoSelectedRef.current = false;
+  }, []);
+
+  const lockAutoSelection = useCallback(() => {
+    autoSelectedRef.current = true;
+  }, []);
+
   return {
     isAutoSelected: autoSelectedRef.current,
-    resetAutoSelection: () => {
-      autoSelectedRef.current = false;
-    },
-    lockAutoSelection: () => {
-      autoSelectedRef.current = true;
-    }
+    resetAutoSelection,
+    lockAutoSelection,
   };
 };
 

@@ -133,7 +133,8 @@ const TVShowDetailsPage = () => {
     fetchAllSeasonDetails,
     mediaItemForLists,
     isWatched,
-    isWatchlisted
+    isWatchlisted,
+    onError: (msg) => setToast({ type: 'error', message: msg })
   });
 
   const handleToggleWatchedClick = async () => {
@@ -175,7 +176,7 @@ const TVShowDetailsPage = () => {
   // Reset auto selection lock if TV ID changes
   useEffect(() => {
     resetAutoSelection();
-  }, [tvId, resetAutoSelection]);
+  }, [tvId]);
 
   useEffect(() => {
     let isActive = true;
@@ -597,6 +598,7 @@ const TVShowDetailsPage = () => {
           allEpisodes={getAllEpisodes()}
           isWatched={watchedSet.has(`${Number(selectedEpisode?.seasonNumber ?? selectedEpisode?.season_number)}:${Number(selectedEpisode?.episodeNumber ?? selectedEpisode?.episode_number)}`)}
           onWatchedChange={() => {}}
+          applyWatchMode={applyWatchMode}
           onClose={() => {
             setShowEpisodeOverlay(false);
             setSelectedEpisode(null);

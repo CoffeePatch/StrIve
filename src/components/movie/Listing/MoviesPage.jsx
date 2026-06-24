@@ -49,7 +49,7 @@ const MoviesPage = () => {
     <div className="min-h-screen premium-page pt-20">
       <Header />
       
-      <div className="pt-4 pb-12 px-6 lg:px-12">
+      <div className="pt-4 pb-12 px-4 sm:px-8 lg:px-12">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-6">
             <span className="material-symbols-outlined text-8xl gradient-accent leading-none">
@@ -66,7 +66,7 @@ const MoviesPage = () => {
         </div>
       </div>
 
-      <div className="w-full px-6 lg:px-12 pb-20">
+      <div className="w-full px-4 sm:px-8 lg:px-12 pb-20">
         <MovieList
           title="Popular Movies"
           mediaItems={popularMovies}

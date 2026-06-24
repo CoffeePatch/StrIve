@@ -93,6 +93,9 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
     genre: false,
     year: false,
     rating: false,
+    tmdbRating: false,
+    imdbVotes: false,
+    tmdbVotes: false,
     runtime: false,
     lists: false
   });
@@ -238,12 +241,40 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
 
 
 
-    // Rating
+    // Rating & Votes
     if (draftFilters.imdbRatingMin !== null) {
       chips.push({
         id: 'imdbRatingMin',
         label: `IMDb: ${draftFilters.imdbRatingMin}+`,
         onClear: () => updateDraft('imdbRatingMin', null)
+      });
+    }
+
+    if (draftFilters.tmdbRatingMin !== null) {
+      chips.push({
+        id: 'tmdbRatingMin',
+        label: `TMDB: ${draftFilters.tmdbRatingMin}+`,
+        onClear: () => updateDraft('tmdbRatingMin', null)
+      });
+    }
+
+    if (draftFilters.imdbVotesMin !== null) {
+      const val = draftFilters.imdbVotesMin;
+      const label = val >= 1000000 ? `${val/1000000}M+` : val >= 1000 ? `${val/1000}K+` : `${val}+`;
+      chips.push({
+        id: 'imdbVotesMin',
+        label: `IMDb Votes: ${label}`,
+        onClear: () => updateDraft('imdbVotesMin', null)
+      });
+    }
+
+    if (draftFilters.tmdbVotesMin !== null) {
+      const val = draftFilters.tmdbVotesMin;
+      const label = val >= 1000000 ? `${val/1000000}M+` : val >= 1000 ? `${val/1000}K+` : `${val}+`;
+      chips.push({
+        id: 'tmdbVotesMin',
+        label: `TMDB Votes: ${label}`,
+        onClear: () => updateDraft('tmdbVotesMin', null)
       });
     }
 
@@ -548,6 +579,82 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
                       <AnimatedChip
                         key={opt.label}
                         onClick={() => updateDraft('imdbRatingMin', opt.value)}
+                        isActive={isSelected}
+                      >
+                        {opt.label}
+                      </AnimatedChip>
+                    );
+                  })}
+                </div>
+              </AccordionSection>
+
+              <AccordionSection
+                title="TMDB Rating"
+                isExpanded={expandedSections.tmdbRating}
+                onToggle={() => toggleSection('tmdbRating')}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {RATING_OPTIONS.map(opt => {
+                    const isSelected = draftFilters.tmdbRatingMin === opt.value;
+                    return (
+                      <AnimatedChip
+                        key={opt.label}
+                        onClick={() => updateDraft('tmdbRatingMin', opt.value)}
+                        isActive={isSelected}
+                      >
+                        {opt.label}
+                      </AnimatedChip>
+                    );
+                  })}
+                </div>
+              </AccordionSection>
+
+              <AccordionSection
+                title="IMDb Votes"
+                isExpanded={expandedSections.imdbVotes}
+                onToggle={() => toggleSection('imdbVotes')}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Any', value: null },
+                    { label: '10K+', value: 10000 },
+                    { label: '50K+', value: 50000 },
+                    { label: '100K+', value: 100000 },
+                    { label: '500K+', value: 500000 },
+                  ].map(opt => {
+                    const isSelected = draftFilters.imdbVotesMin === opt.value;
+                    return (
+                      <AnimatedChip
+                        key={opt.label}
+                        onClick={() => updateDraft('imdbVotesMin', opt.value)}
+                        isActive={isSelected}
+                      >
+                        {opt.label}
+                      </AnimatedChip>
+                    );
+                  })}
+                </div>
+              </AccordionSection>
+
+              <AccordionSection
+                title="TMDB Votes"
+                isExpanded={expandedSections.tmdbVotes}
+                onToggle={() => toggleSection('tmdbVotes')}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Any', value: null },
+                    { label: '100+', value: 100 },
+                    { label: '1K+', value: 1000 },
+                    { label: '5K+', value: 5000 },
+                    { label: '10K+', value: 10000 },
+                    { label: '50K+', value: 50000 },
+                  ].map(opt => {
+                    const isSelected = draftFilters.tmdbVotesMin === opt.value;
+                    return (
+                      <AnimatedChip
+                        key={opt.label}
+                        onClick={() => updateDraft('tmdbVotesMin', opt.value)}
                         isActive={isSelected}
                       >
                         {opt.label}

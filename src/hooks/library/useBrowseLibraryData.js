@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getAllLibraryItems } from '../../services/libraryService';
 import { getOrFetch, CACHE_KEYS, TTL, invalidateBrowseLibrary } from '../../util/cache/sessionCache';
+import { normalizeWatchStatus } from '../../util/library/watchStatus';
 
 export function useBrowseLibraryData(userId) {
   const [continueWatching, setContinueWatching] = useState([]);
@@ -10,7 +11,7 @@ export function useBrowseLibraryData(userId) {
   const [watchlistPicks, setWatchlistPicks] = useState([]);
   const [stats, setStats] = useState({ watchingCount: 0, completedCount: 0, watchlistCount: 0 });
   const [totalLibraryCount, setTotalLibraryCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const location = useLocation();
   const isBrowsePage = location.pathname === '/';
   
@@ -43,7 +44,7 @@ export function useBrowseLibraryData(userId) {
       // 1. Derive Continue Watching: watchStatus === 'watching'
       const watchingItems = (allItems || []).filter(item => {
         const status = item.tracking?.watchStatus ?? item.watchStatus ?? item.status;
-        return status === 'watching';
+        return normalizeWatchStatus(status) === 'watching';
       });
 
       // TV-first sort, then order by updatedAt descending
@@ -59,8 +60,17 @@ export function useBrowseLibraryData(userId) {
         return rightTime - leftTime;
       });
 
-      // 2. Derive Recently Added: sort by addedAt descending
-      const sortedRecentlyAdded = [...(allItems || [])].sort((left, right) => {
+      // 2. Derive Recently Added: exclude items that have been watched or are currently being watched
+      const unengagedItems = (allItems || []).filter(item => {
+        const status = normalizeWatchStatus(item.tracking?.watchStatus ?? item.watchStatus ?? item.status);
+        const hasBeenWatched = !!(item.tracking?.lastWatchedAt || item.lastWatchedAt);
+        if (status === 'completed' || status === 'watching' || hasBeenWatched) {
+          return false;
+        }
+        return true;
+      });
+
+      const sortedRecentlyAdded = [...unengagedItems].sort((left, right) => {
         const leftTime = left.tracking?.addedAt?.toMillis ? left.tracking.addedAt.toMillis() : new Date(left.tracking?.addedAt || left.tracking?.updatedAt || 0).getTime();
         const rightTime = right.tracking?.addedAt?.toMillis ? right.tracking.addedAt.toMillis() : new Date(right.tracking?.addedAt || right.tracking?.updatedAt || 0).getTime();
         return rightTime - leftTime;
@@ -83,7 +93,7 @@ export function useBrowseLibraryData(userId) {
       // 4. Derive Watchlist Picks: filter items with watchStatus === 'plan_to_watch', sort descending by score
       const watchlistItems = (allItems || []).filter(item => {
         const status = item.tracking?.watchStatus ?? item.watchStatus ?? item.status;
-        return status === 'plan_to_watch';
+        return normalizeWatchStatus(status) === 'plan_to_watch';
       });
 
       const getMediaScore = (item) => {
@@ -105,15 +115,15 @@ export function useBrowseLibraryData(userId) {
         watchingCount: watchingItems.length,
         completedCount: (allItems || []).filter(item => {
           const status = item.tracking?.watchStatus ?? item.watchStatus ?? item.status;
-          return status === 'completed';
+          return normalizeWatchStatus(status) === 'completed';
         }).length,
         watchlistCount: watchlistItems.length,
       };
 
-      setContinueWatching(sortedWatching.slice(0, 15));
-      setRecentlyAdded(sortedRecentlyAdded.slice(0, 15));
-      setRecentlyWatched(sortedRecentlyWatched.slice(0, 15));
-      setWatchlistPicks(sortedWatchlistPicks.slice(0, 15));
+      setContinueWatching(sortedWatching.slice(0, 25));
+      setRecentlyAdded(sortedRecentlyAdded.slice(0, 25));
+      setRecentlyWatched(sortedRecentlyWatched.slice(0, 25));
+      setWatchlistPicks(sortedWatchlistPicks.slice(0, 25));
       setStats(computedStats);
 
     } catch (err) {

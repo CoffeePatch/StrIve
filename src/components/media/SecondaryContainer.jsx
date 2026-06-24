@@ -18,7 +18,7 @@ const SecondaryContainer = () => {
     if (!movies || movies.length === 0) return null;
 
     return (
-      <div className="mb-10 px-6 lg:px-12">
+      <div className="mb-10 px-4 sm:px-8 lg:px-12">
         <SectionHeader title={title} icon={icon} />
         <Carousel>
           {movies.map((movie) => {

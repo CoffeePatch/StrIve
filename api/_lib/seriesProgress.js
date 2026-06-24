@@ -95,6 +95,7 @@ export function upsertSeriesProgressAndLibrary(tx, args) {
 
   const nextTracking = {
     ...(args.tracking || {}),
+    watchStatus: args.status,
     updatedAt: args.updatedAt,
     lastWatchedAt: args.lastWatchedAt,
   };

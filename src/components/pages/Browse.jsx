@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import useNowPlayingMedia from "../../hooks/media/useNowPlayingMedia";
 import useUpcomingMedia from "../../hooks/media/useUpcomingMedia";
-
 import usePopularMedia from "../../hooks/media/usePopularMedia";
 import useTopRatedMedia from "../../hooks/media/useTopRatedMedia";
 import useMediaByGenre from "../../hooks/media/useMediaByGenre";
@@ -18,6 +17,181 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
 import { Settings, X } from "lucide-react";
 import QuickActionsModal from "../ui/QuickActionsModal";
+import BecauseYouWatched from "./BecauseYouWatched";
+import Hero from "../ui/Hero";
+
+// Static skeleton loader for lazy shelves
+const MediaShelfSkeleton = ({ title, icon, variant = "carousel" }) => {
+  return (
+    <div className="mb-12">
+      <SectionHeader 
+        title={title} 
+        icon={<span className="material-symbols-outlined">{icon}</span>} 
+      />
+      <Carousel>
+        {Array.from({ length: 8 }).map((_, idx) => (
+          <div key={idx} className={`flex-none ${variant === 'continue_watching' ? 'w-64 sm:w-72 lg:w-80' : 'w-36 sm:w-44 lg:w-48'} flex flex-col`}>
+            <div 
+              className={`w-full aspect-${variant === 'continue_watching' ? 'video' : '[2/3]'} bg-gray-800/60 border border-white/5 animate-pulse rounded-[12px]`} 
+            />
+            {variant !== 'carousel' && (
+              <div className="mt-2 flex flex-col gap-1.5 px-1 animate-pulse">
+                <div className="h-4 w-3/4 bg-gray-800/60 rounded" />
+                <div className="h-3 w-1/2 bg-gray-800/60 rounded" />
+              </div>
+            )}
+          </div>
+        ))}
+      </Carousel>
+    </div>
+  );
+};
+
+// Skeleton loader for the Hero section to prevent CLS
+const HeroSkeleton = () => {
+  return (
+    <div className="relative w-full h-[70vh] lg:h-[80vh] flex items-end pb-12 sm:pb-16 md:pb-20 lg:pb-24 mb-12 overflow-hidden bg-black/40">
+      <div className="absolute inset-0 bg-gray-900/20 animate-pulse z-0" />
+      {/* Custom UI/UX Spec Gradients */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-10" 
+        style={{
+          background: `linear-gradient(to right, rgba(0, 0, 0, 0.95) 35%, rgba(0, 0, 0, 0.4) 65%, rgba(0, 0, 0, 0) 100%), linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 25%)`
+        }}
+      />
+      <div className="relative z-20 px-4 sm:px-8 lg:px-12 w-full max-w-full">
+        {/* Title/Logo placeholder */}
+        <div className="h-[120px] sm:h-[140px] md:h-[160px] w-[35vw] max-w-[300px] bg-white/5 rounded-xl animate-pulse mb-6" />
+        
+        {/* Rating / Year / Category row placeholder */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="h-5 w-16 bg-white/5 rounded-md animate-pulse" />
+          <div className="h-5 w-16 bg-white/5 rounded-md animate-pulse" />
+          <div className="h-5 w-20 bg-white/5 rounded-md animate-pulse" />
+        </div>
+
+        {/* Synopsis placeholder */}
+        <div className="space-y-2 mb-8 w-full max-w-[35vw]">
+          <div className="h-4 w-full bg-white/5 rounded-md animate-pulse" />
+          <div className="h-4 w-11/12 bg-white/5 rounded-md animate-pulse" />
+          <div className="h-4 w-4/5 bg-white/5 rounded-md animate-pulse" />
+        </div>
+
+        {/* Buttons placeholder */}
+        <div className="flex items-center gap-4">
+          <div className="w-32 h-12 rounded-full bg-white/10 animate-pulse" />
+          <div className="w-12 h-12 rounded-full bg-white/5 animate-pulse" />
+          <div className="w-12 h-12 rounded-full bg-white/5 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Content loader for lazy shelves (calls hooks internally)
+const MediaShelfContent = React.memo(({ title, type, mediaType, genreId, icon, onQuickActions, variant = "carousel" }) => {
+  let items = null;
+  
+  if (type === "upcoming") {
+    items = useUpcomingMedia(mediaType);
+  } else if (type === "popular") {
+    items = usePopularMedia(mediaType);
+  } else if (type === "top_rated") {
+    items = useTopRatedMedia(mediaType);
+  } else if (type === "genre") {
+    items = useMediaByGenre(mediaType, genreId);
+  } else if (type === "now_playing") {
+    items = useNowPlayingMedia(mediaType);
+  }
+
+  const navigate = useNavigate();
+
+  if (!items) {
+    return <MediaShelfSkeleton title={title} icon={icon} variant={variant} />;
+  }
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mb-12">
+      <SectionHeader 
+        title={title} 
+        icon={<span className="material-symbols-outlined">{icon}</span>} 
+      />
+      <Carousel>
+        {items.map((media) => {
+          if (!media) return null;
+          return (
+            <MediaCard 
+              key={media.id} 
+              media={media} 
+              variant={variant}
+              onClick={() => {
+                const isTV = media.mediaType === 'tv' || media.media_type === 'tv';
+                navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`);
+              }}
+              onQuickActions={onQuickActions}
+            />
+          );
+        })}
+      </Carousel>
+    </div>
+  );
+});
+
+MediaShelfContent.displayName = "MediaShelfContent";
+
+// Intersection observer wrapper for lazy loading
+const MediaShelf = React.memo(({ title, type, mediaType, genreId, icon, onQuickActions, variant = "carousel" }) => {
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasBeenVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "1000px 0px" } // Pre-load when within 1000px of viewport (approx 3 rows below)
+    );
+    
+    const el = containerRef.current;
+    if (el) {
+      observer.observe(el);
+    }
+    
+    return () => {
+      if (el) {
+        observer.unobserve(el);
+      }
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="min-h-[220px]">
+      {hasBeenVisible ? (
+        <MediaShelfContent
+          title={title}
+          type={type}
+          mediaType={mediaType}
+          genreId={genreId}
+          icon={icon}
+          onQuickActions={onQuickActions}
+          variant={variant}
+        />
+      ) : (
+        <MediaShelfSkeleton title={title} icon={icon} variant={variant} />
+      )}
+    </div>
+  );
+});
+
+MediaShelf.displayName = "MediaShelf";
 
 const Browse = () => {
   const navigate = useNavigate();
@@ -35,28 +209,22 @@ const Browse = () => {
 
   const [activeMedia, setActiveMedia] = useState(null);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [quickActionsAnchor, setQuickActionsAnchor] = useState(null);
 
-  const handleQuickActions = (media) => {
+  const handleQuickActions = (media, e) => {
     setActiveMedia(media);
+    if (e && e.currentTarget) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setQuickActionsAnchor({ x: rect.left, y: rect.bottom, right: window.innerWidth - rect.right });
+    } else {
+      setQuickActionsAnchor(null);
+    }
     setQuickActionsOpen(true);
   };
 
-  useNowPlayingMedia("movie");
-  const upcomingMovies = useUpcomingMedia("movie");
-  const onTheAirTVShows = useUpcomingMedia("tv");
-
+  // Eagerly loaded for Hero at top of viewport
   const popularMovies = usePopularMedia("movie");
-  const topRatedMovies = useTopRatedMedia("movie");
-  const popularTVShows = usePopularMedia("tv");
-  const topRatedTVShows = useTopRatedMedia("tv");
 
-  const actionMovies = useMediaByGenre("movie", 28);
-  const adventureMovies = useMediaByGenre("movie", 12);
-  const romanceMovies = useMediaByGenre("movie", 10749);
-  
-  const actionAdventureTVShows = useMediaByGenre("tv", 10759);
-  const comedyTVShows = useMediaByGenre("tv", 35);
-  const romanceTVShows = useMediaByGenre("tv", 10749);
   const { lists: customLists = [], loadLists } = useLists(user?.uid);
   const [preferences, setPreferences] = useState({
     continueWatching: true,
@@ -119,8 +287,8 @@ const Browse = () => {
     }
   };
 
-  const MediaList = ({ title, items, icon, onCardClick, viewAllPath, emptyMessage, onQuickActions }) => {
-    if ((!items || items.length === 0) && !emptyMessage) return null;
+  const MediaList = ({ title, items, icon, onCardClick, viewAllPath, emptyMessage, onQuickActions, variant = "carousel", loading }) => {
+    if ((!items || items.length === 0) && !emptyMessage && !loading) return null;
 
     return (
       <div className="mb-12">
@@ -130,7 +298,23 @@ const Browse = () => {
           actionText={viewAllPath && items && items.length > 0 ? "View All" : undefined}
           onAction={viewAllPath && items && items.length > 0 ? () => navigate(viewAllPath) : undefined}
         />
-        {items && items.length > 0 ? (
+        {loading ? (
+          <Carousel>
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <div key={idx} className={`flex-none ${variant === 'continue_watching' ? 'w-64 sm:w-72 lg:w-80' : 'w-36 sm:w-44 lg:w-48'} flex flex-col`}>
+                <div 
+                  className={`w-full aspect-${variant === 'continue_watching' ? 'video' : '[2/3]'} bg-gray-800/60 border border-white/5 animate-pulse rounded-[12px]`} 
+                />
+                {variant !== 'carousel' && (
+                  <div className="mt-2 flex flex-col gap-1.5 px-1 animate-pulse">
+                    <div className="h-4 w-3/4 bg-gray-800/60 rounded" />
+                    <div className="h-3 w-1/2 bg-gray-800/60 rounded" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </Carousel>
+        ) : items && items.length > 0 ? (
           <Carousel>
             {items.map((media) => {
               if (!media) return null;
@@ -138,7 +322,7 @@ const Browse = () => {
                 <MediaCard 
                   key={media.id} 
                   media={media} 
-                  variant="carousel"
+                  variant={variant}
                   onClick={() => {
                     if (onCardClick) {
                       onCardClick(media);
@@ -310,7 +494,13 @@ const Browse = () => {
     <div className="min-h-screen premium-page">
       <Header />
       
-      <div className="w-full px-6 lg:px-12 pt-24 pb-8">
+      {popularMovies === null ? (
+        <HeroSkeleton />
+      ) : popularMovies.length > 0 ? (
+        <Hero movies={popularMovies.slice(0, 5)} />
+      ) : null}
+      
+      <div className={`w-full px-4 sm:px-8 lg:px-12 pb-8 ${(!popularMovies || popularMovies.length === 0) && popularMovies !== null ? 'pt-24' : ''}`}>
         {user && (
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-white font-secondary">
@@ -362,6 +552,7 @@ const Browse = () => {
                   viewAllPath="/library?status=watching&type=all&sort=lastWatched:desc"
                   emptyMessage="No shows or movies in progress."
                   onQuickActions={handleQuickActions}
+                  loading={loading}
                   onCardClick={(media) => {
                     const isTV = media.mediaType === 'tv' || media.media_type === 'tv';
                     navigate(isTV ? `/shows/${media.id}` : `/movie/${media.id}`, {
@@ -379,17 +570,7 @@ const Browse = () => {
                   viewAllPath="/library?sort=dateAdded:desc&type=all"
                   emptyMessage="Your recently added items will appear here."
                   onQuickActions={handleQuickActions}
-                />
-              )}
-
-              {preferences.recentlyWatched && (
-                <MediaList
-                  title="Recently Watched"
-                  items={recentlyWatchedItems}
-                  icon="visibility"
-                  viewAllPath="/library?sort=lastWatched:desc&type=all"
-                  emptyMessage="Items you finish watching will appear here."
-                  onQuickActions={handleQuickActions}
+                  loading={loading}
                 />
               )}
 
@@ -401,86 +582,120 @@ const Browse = () => {
                   viewAllPath="/library?status=plan_to_watch&sort=imdb:desc&type=all"
                   emptyMessage="Add titles to your watchlist to see recommendations."
                   onQuickActions={handleQuickActions}
+                  loading={loading}
+                />
+              )}
+
+              <BecauseYouWatched 
+                recentlyWatchedItems={recentlyWatchedItems} 
+                onQuickActions={handleQuickActions} 
+              />
+
+              {preferences.recentlyWatched && (
+                <MediaList
+                  title="Recently Watched"
+                  items={recentlyWatchedItems}
+                  icon="visibility"
+                  viewAllPath="/library?sort=lastWatched:desc&type=all"
+                  emptyMessage="Items you finish watching will appear here."
+                  onQuickActions={handleQuickActions}
+                  loading={loading}
                 />
               )}
             </>
           )
         )}
-
-        <MediaList
+        
+        <MediaShelf
+          title="Upcoming Movies"
+          type="upcoming"
+          mediaType="movie"
+          icon="event"
+          onQuickActions={handleQuickActions}
+        />
+        <MediaShelf
           title="Popular Movies"
-          items={popularMovies}
+          type="popular"
+          mediaType="movie"
           icon="trending_up"
           onQuickActions={handleQuickActions}
         />
         
-        <MediaList
+        <MediaShelf
           title="Top Rated Movies"
-          items={topRatedMovies}
+          type="top_rated"
+          mediaType="movie"
           icon="star"
           onQuickActions={handleQuickActions}
         />
-        
-        <MediaList
-          title="Upcoming Movies"
-          items={upcomingMovies}
-          icon="event"
-          onQuickActions={handleQuickActions}
-        />
-        <MediaList
-          title="Action"
-          items={actionMovies}
-          icon="sports_martial_arts"
-          onQuickActions={handleQuickActions}
-        />
-        <MediaList
-          title="Adventure"
-          items={adventureMovies}
-          icon="explore"
-          onQuickActions={handleQuickActions}
-        />
-        <MediaList
-          title="Romance"
-          items={romanceMovies}
-          icon="favorite"
-          onQuickActions={handleQuickActions}
-        />
-        
-        <MediaList
+        <MediaShelf
           title="On The Air TV Shows"
-          items={onTheAirTVShows}
+          type="upcoming"
+          mediaType="tv"
           icon="live_tv"
           onQuickActions={handleQuickActions}
         />
         
-        <MediaList
+        <MediaShelf
           title="Popular TV Shows"
-          items={popularTVShows}
+          type="popular"
+          mediaType="tv"
           icon="trending_up"
           onQuickActions={handleQuickActions}
         />
         
-        <MediaList
+        <MediaShelf
           title="Top Rated TV Shows"
-          items={topRatedTVShows}
+          type="top_rated"
+          mediaType="tv"
           icon="star"
           onQuickActions={handleQuickActions}
         />
-        <MediaList
-          title="Action & Adventure"
-          items={actionAdventureTVShows}
+        <MediaShelf
+          title="Action"
+          type="genre"
+          mediaType="movie"
+          genreId={28}
           icon="sports_martial_arts"
           onQuickActions={handleQuickActions}
         />
-        <MediaList
+        <MediaShelf
+          title="Adventure"
+          type="genre"
+          mediaType="movie"
+          genreId={12}
+          icon="explore"
+          onQuickActions={handleQuickActions}
+        />
+        <MediaShelf
+          title="Romance"
+          type="genre"
+          mediaType="movie"
+          genreId={10749}
+          icon="favorite"
+          onQuickActions={handleQuickActions}
+        />
+        <MediaShelf
+          title="Action & Adventure"
+          type="genre"
+          mediaType="tv"
+          genreId={10759}
+          icon="sports_martial_arts"
+          onQuickActions={handleQuickActions}
+        />
+        <MediaShelf
           title="Comedy"
-          items={comedyTVShows}
+          type="genre"
+          mediaType="tv"
+          genreId={35}
           icon="mood"
           onQuickActions={handleQuickActions}
         />
-        <MediaList
+        <MediaShelf
           title="Romance"
-          items={romanceTVShows}
+          type="genre"
+          mediaType="tv"
+          genreId={10749}
           icon="favorite"
           onQuickActions={handleQuickActions}
         />
@@ -492,6 +707,7 @@ const Browse = () => {
         media={activeMedia}
         userId={user?.uid}
         onMutation={refetch}
+        anchor={quickActionsAnchor}
       />
     </div>
   );

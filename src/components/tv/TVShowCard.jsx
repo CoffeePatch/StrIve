@@ -12,6 +12,8 @@ const TVShowCard = ({
   cardSize = "default",
 }) => {
   const navigate = useNavigate();
+  const [imageLoaded, setImageLoaded] = React.useState(false);
+  const [imageError, setImageError] = React.useState(false);
 
   const cardWidthClass = cardSize === "compact" ? "w-44" : "w-52";
   const data = show || tvShow;
@@ -50,7 +52,7 @@ const TVShowCard = ({
     return votes;
   };
 
-  if (!data.poster_path || data.poster_path === "") return null;
+  const hasPoster = data.poster_path && data.poster_path !== "";
 
   const handleClick = () => {
     navigate(`/shows/${data.id}`);
@@ -69,18 +71,32 @@ const TVShowCard = ({
         className="cursor-pointer group transition-all duration-200 hover:scale-105 relative"
         onClick={handleClick}
       >
-        <div className="relative overflow-hidden rounded-sm aspect-[2/3]">
-          <img
-            src={
-              data.poster_path
-                ? data.poster_path.startsWith("http")
-                  ? data.poster_path
-                  : `https://image.tmdb.org/t/p/w342${data.poster_path}`
-                : "https://placehold.co/342x513/202020/606060?text=No+Poster"
-            }
-            alt={data.name}
-            className="w-full h-full object-cover"
-          />
+        <div className="relative overflow-hidden rounded-sm aspect-[2/3] bg-gray-800/40">
+          {hasPoster && !imageError ? (
+            <>
+              <img
+                src={
+                  data.poster_path.startsWith("http")
+                    ? data.poster_path
+                    : `https://image.tmdb.org/t/p/w342${data.poster_path}`
+                }
+                alt={data.name}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
+              />
+              {!imageLoaded && (
+                <div className="absolute inset-0 bg-gray-800/80 animate-pulse flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white/15 text-lg animate-bounce">live_tv</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-white/5 flex flex-col items-center justify-center p-2 text-center">
+              <span className="material-symbols-outlined text-white/20 text-lg mb-1">live_tv</span>
+              <span className="text-[10px] text-white/40 font-secondary line-clamp-3 leading-tight">{data.name}</span>
+            </div>
+          )}
 
           {enableImdb && displayRating && displayRating.score && (
             <div className="absolute top-2 right-2 bg-black/90 backdrop-blur-md px-2 py-1 rounded flex items-center gap-1.5 border border-yellow-500/50 shadow-lg z-10 animate-in">
@@ -132,18 +148,32 @@ const TVShowCard = ({
 
   return (
     <div className={`flex-none ${cardWidthClass} cursor-pointer group transition-all duration-300`} onClick={handleClick}>
-      <div className="relative overflow-hidden rounded-2xl shadow-lg">
-        <img
-          src={
-            data.poster_path
-              ? data.poster_path.startsWith("http")
-                ? data.poster_path
-                : `${IMG_CDN_URL}${data.poster_path}`
-              : "https://placehold.co/500x750/202020/606060?text=No+Poster"
-          }
-          alt={data.name}
-          className="w-full aspect-[2/3] object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-        />
+      <div className="relative overflow-hidden rounded-2xl shadow-lg aspect-[2/3] bg-gray-800/40">
+        {hasPoster && !imageError ? (
+          <>
+            <img
+              src={
+                data.poster_path.startsWith("http")
+                  ? data.poster_path
+                  : `${IMG_CDN_URL}${data.poster_path}`
+              }
+              alt={data.name}
+              className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageError(true)}
+            />
+            {!imageLoaded && (
+              <div className="absolute inset-0 bg-gray-800/80 animate-pulse flex items-center justify-center">
+                <span className="material-symbols-outlined text-white/15 text-2xl animate-bounce">live_tv</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-white/5 flex flex-col items-center justify-center p-3 text-center border border-white/5 rounded-2xl">
+            <span className="material-symbols-outlined text-white/20 text-3xl mb-2">live_tv</span>
+            <span className="text-xs text-white/50 font-secondary line-clamp-3 px-1 leading-tight font-medium">{data.name}</span>
+          </div>
+        )}
 
         {enableImdb && displayRating && displayRating.score && (
           <div className="absolute top-3 left-3 z-20 animate-in">
@@ -160,13 +190,15 @@ const TVShowCard = ({
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="rounded-full p-4 transform scale-90 group-hover:scale-100 transition-transform duration-300">
-              <span className="material-symbols-outlined text-5xl text-white">play_circle</span>
+        {hasPoster && !imageError && imageLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="rounded-full p-4 transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                <span className="material-symbols-outlined text-5xl text-white">play_circle</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="mt-3 px-1">

@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import tmdbApiService from "../../services/tmdb/tmdbApiService";
 import { addUpcomingMovies } from "../../util/store/moviesSlice";
 import { addOnTheAirTVShows } from "../../util/store/tvShowsSlice";
@@ -14,8 +14,11 @@ const useUpcomingMedia = (mediaType) => {
       : state.tvShows.onTheAirTVShows
   );
 
+  const rawDataRef = useRef(rawData);
+  rawDataRef.current = rawData;
+
   const fetchMedia = useCallback(async () => {
-    if (rawData && rawData.length > 0) return;
+    if (rawDataRef.current && rawDataRef.current.length > 0) return;
     
     try {
       const endpoint = mediaType === "movie" ? "movie/upcoming" : "tv/on_the_air";
@@ -31,7 +34,7 @@ const useUpcomingMedia = (mediaType) => {
     } catch (error) {
       console.error(`Error fetching upcoming ${mediaType}:`, error);
     }
-  }, [dispatch, mediaType, rawData]);
+  }, [dispatch, mediaType]);
 
   useEffect(() => {
     fetchMedia();

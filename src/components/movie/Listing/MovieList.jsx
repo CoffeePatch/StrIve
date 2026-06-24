@@ -9,7 +9,7 @@ const MovieList = ({ title, movies, icon }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="mb-12 px-6 lg:px-12">
+    <div className="mb-12 px-4 sm:px-8 lg:px-12">
       <SectionHeader 
         title={title} 
         icon={icon ? <span className="material-symbols-outlined text-3xl">{icon}</span> : null} 

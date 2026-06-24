@@ -29,32 +29,38 @@ const Carousel = ({
   };
 
   return (
-    <div className={`relative group/carousel ${className}`}>
+    <div className={`relative group/carousel -mx-4 sm:-mx-8 lg:-mx-12 ${className}`}>
       {/* Scroll Buttons (visible on hover on desktop) */}
       {showControls && (
         <>
-          <button 
-            onClick={() => scroll('left')}
-            className="absolute left-0 top-[40%] -translate-y-1/2 -ml-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="w-6 h-6 ml-[-2px]" />
-          </button>
+          {/* Left Overlay */}
+          <div className="absolute left-0 top-2 bottom-6 w-16 z-20 opacity-0 group-hover/carousel:opacity-100 transition-opacity duration-300 hidden md:flex items-center justify-center bg-gradient-to-r from-[#0f1014] via-[#0f1014]/80 to-transparent pointer-events-none rounded-l-xl -ml-1">
+            <button 
+              onClick={() => scroll('left')}
+              className="w-full h-full flex items-center justify-center text-white/80 hover:text-white hover:scale-125 transition-all duration-300 focus:outline-none pointer-events-auto"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-10 h-10" />
+            </button>
+          </div>
           
-          <button 
-            onClick={() => scroll('right')}
-            className="absolute right-0 top-[40%] -translate-y-1/2 -mr-4 z-20 w-10 h-10 rounded-full bg-black/60 border border-[var(--color-border)] text-white flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 disabled:opacity-0 transition-opacity duration-300 hover:bg-black/80 hover:scale-110 focus:outline-none hidden md:flex"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-6 h-6 mr-[-2px]" />
-          </button>
+          {/* Right Overlay */}
+          <div className="absolute right-0 top-2 bottom-6 w-16 z-20 opacity-0 group-hover/carousel:opacity-100 transition-opacity duration-300 hidden md:flex items-center justify-center bg-gradient-to-l from-[#0f1014] via-[#0f1014]/80 to-transparent pointer-events-none rounded-r-xl -mr-1">
+            <button 
+              onClick={() => scroll('right')}
+              className="w-full h-full flex items-center justify-center text-white/80 hover:text-white hover:scale-125 transition-all duration-300 focus:outline-none pointer-events-auto"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-10 h-10" />
+            </button>
+          </div>
         </>
       )}
 
       {/* Scroll Container */}
       <div 
         ref={scrollContainerRef}
-        className="flex overflow-x-auto gap-4 md:gap-6 pb-6 pt-2 px-1 -mx-1 snap-x snap-mandatory hide-horizontal-scrollbar scroll-smooth"
+        className="flex overflow-x-auto gap-4 md:gap-6 pb-6 pt-2 px-4 sm:px-8 lg:px-12 snap-x snap-mandatory hide-horizontal-scrollbar scroll-smooth disable-mouse-scroll"
         data-horizontal-scroll="true"
       >
         {React.Children.map(children, (child) => (

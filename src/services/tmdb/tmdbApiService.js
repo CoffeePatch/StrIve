@@ -49,6 +49,7 @@ class TmdbApiService {
   async getMovieDetails(tmdbId) {
     return this._fetch(`/movie/${tmdbId}`, {
       append_to_response: "credits,images,videos",
+      include_image_language: "en,null",
     });
   }
 
@@ -60,6 +61,7 @@ class TmdbApiService {
   async getShowDetails(tmdbId) {
     return this._fetch(`/tv/${tmdbId}`, {
       append_to_response: "credits,images,videos",
+      include_image_language: "en,null",
     });
   }
 

@@ -161,9 +161,17 @@ export default async function handler(req, res) {
   try {
     const titleRef = db.collection("catalog_titles").doc(titleKey);
 
+    const expectedEpisodesCount = Number(payload.expectedEpisodesCount) || 0;
+    const tvId = titleKey.substring("tmdb_tv_".length);
+
     const allEpisodes = await loadEpisodesForMutation(
       titleRef,
       inputEpisodeCatalog,
+      expectedEpisodesCount,
+      tvId,
+      seasonNumber,
+      episodeNumber,
+      mode,
     );
     const { selected } = selectEpisodesForMode(
       allEpisodes,
@@ -171,37 +179,6 @@ export default async function handler(req, res) {
       seasonNumber,
       episodeNumber,
     );
-
-    // Upsert missing catalog episodes when the client provides a catalog payload
-    if (inputEpisodeCatalog && inputEpisodeCatalog.length > 0) {
-      const episodesSnap = await titleRef.collection("episodes").get();
-      const existingKeys = new Set(episodesSnap.docs.map((doc) => doc.id));
-      const seedWrites = [];
-
-      if (episodesSnap.empty || allEpisodes.length > existingKeys.size) {
-        seedWrites.push({
-          ref: titleRef,
-          data: {
-            titleKey,
-            mediaType: "tv",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-        });
-
-        for (const ep of allEpisodes) {
-          const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
-          if (existingKeys.has(epId)) continue;
-          seedWrites.push({
-            ref: titleRef.collection("episodes").doc(epId),
-            data: ep,
-          });
-        }
-
-        if (seedWrites.length > 0) {
-          await commitMergeWritesInChunks(db, seedWrites, 500);
-        }
-      }
-    }
 
     // Preload existing states so we can avoid unnecessary writes.
     const stateRefs = selected.map((e) => {

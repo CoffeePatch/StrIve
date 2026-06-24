@@ -22,6 +22,13 @@ const getItemYear = (item) => {
   return null;
 };
 
+const getDateMs = (val) => {
+  if (!val) return 0;
+  if (typeof val.toMillis === 'function') return val.toMillis();
+  const time = new Date(val).getTime();
+  return isNaN(time) ? 0 : time;
+};
+
 const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item?.vote_average);
 const getTmdbVotes = (item) => toNumber(item?.ratings?.tmdbVotes ?? item?.vote_count);
 const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item?.imdbRating ?? item?.imdb_rating);
@@ -355,27 +362,21 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
         return bScore - aScore;
       },
       dateAdded: (a, b) => {
-        const aMs = a.tracking?.addedAt?.toMillis?.() ?? 0;
-        const bMs = b.tracking?.addedAt?.toMillis?.() ?? 0;
+        const aMs = getDateMs(a.tracking?.addedAt);
+        const bMs = getDateMs(b.tracking?.addedAt);
         return bMs - aMs;
       },
       dateUpdated: (a, b) => {
-        const aMs = a.tracking?.lastUserInteractionAt?.toMillis?.()
-          ?? a.tracking?.updatedAt?.toMillis?.()
-          ?? 0;
-        const bMs = b.tracking?.lastUserInteractionAt?.toMillis?.()
-          ?? b.tracking?.updatedAt?.toMillis?.()
-          ?? 0;
+        const aMs = getDateMs(a.tracking?.lastUserInteractionAt) || getDateMs(a.tracking?.updatedAt);
+        const bMs = getDateMs(b.tracking?.lastUserInteractionAt) || getDateMs(b.tracking?.updatedAt);
         return bMs - aMs;
       },
       lastWatched: (a, b) => {
-        const aMs = a.tracking?.lastWatchedAt?.toMillis?.() 
-          ?? a.tracking?.addedAt?.toMillis?.() 
-          ?? 0;
-        const bMs = b.tracking?.lastWatchedAt?.toMillis?.() 
-          ?? b.tracking?.addedAt?.toMillis?.() 
-          ?? 0;
-        return bMs - aMs;
+        const aMs = getDateMs(a.tracking?.lastWatchedAt);
+        const bMs = getDateMs(b.tracking?.lastWatchedAt);
+        if (bMs !== aMs) return bMs - aMs;
+        // Tie-breaker: if neither was watched, sort by recently added
+        return getDateMs(b.tracking?.addedAt) - getDateMs(a.tracking?.addedAt);
       },
       releaseYear: (a, b) => {
         const aYear = a.releaseDate ? new Date(a.releaseDate).getFullYear() : 0;

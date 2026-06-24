@@ -58,6 +58,7 @@ export const tmdbAdapter = (data) => {
     posterPath: finalPosterPath,
     backdropPath: finalBackdropPath,
     releaseYear,
+    overview: data.overview || data.description || "",
     tracking: {
       status: normalizedStatus,
       nextEpisodeLabel

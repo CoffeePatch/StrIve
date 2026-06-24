@@ -22,7 +22,8 @@ export const useSeriesTracking = ({
   fetchAllSeasonDetails,
   mediaItemForLists,
   isWatched,
-  isWatchlisted
+  isWatchlisted,
+  onError
 }) => {
   const titleKey = `tmdb_tv_${tvId}`;
 
@@ -31,7 +32,7 @@ export const useSeriesTracking = ({
   const recomputeKeyRef = useRef(null);
 
   // Existing Tracking Hooks
-  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
+  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
   const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
   const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
@@ -107,7 +108,7 @@ export const useSeriesTracking = ({
 
     // Fetch full catalog if not loaded and required
     let fullCatalogData = allSeasonsData;
-    if (!fullCatalogData || fullCatalogData.length === 0) {
+    if (!fullCatalogData || fullCatalogData.length === 0 || (showDetails?.numberOfSeasons && fullCatalogData.length < showDetails.numberOfSeasons)) {
       fullCatalogData = await fetchAllSeasonDetails();
     }
 
@@ -124,14 +125,22 @@ export const useSeriesTracking = ({
       optimisticSet.add(createEpisodeKey(ep.seasonNumber, ep.episodeNumber));
     });
 
+    const backupSet = new Set(watchedSet);
+    const backupProgress = pendingProgress ? { ...pendingProgress } : null;
+
     if (selected.length === 1) {
       markLocallyWatched(sn, en);
     } else {
       markLocallyWatchedBulk(selected);
     }
 
-    const airedCount = catalog.filter((ep) => ep.isAired).length
-      || Number(seriesProgress?.airedEpisodesCount ?? showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0);
+    const catalogAired = catalog.filter((ep) => ep.isAired).length;
+    const previousAired = Number(seriesProgress?.airedEpisodesCount ?? 0);
+    const showTotal = Number(showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0);
+    
+    // We want the true aired count. If catalog doesn't cover the whole series,
+    // catalogAired will be too small. Use the max of known values.
+    const airedCount = Math.max(catalogAired, previousAired, catalogAired > 0 ? catalogAired : showTotal);
 
     setPendingProgress({
       watchedCount: optimisticSet.size,
@@ -147,23 +156,29 @@ export const useSeriesTracking = ({
       }
     }
 
-    try {
-      await markEpisodeWatched({
-        titleKey,
-        seasonNumber: sn,
-        episodeNumber: en,
-        mode,
-        episodeCatalog: catalog,
-      });
+    // Fire background network sync
+    markEpisodeWatched({
+      titleKey,
+      seasonNumber: sn,
+      episodeNumber: en,
+      mode,
+      episodeCatalog: catalog,
+      expectedEpisodesCount: Number(showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0),
+      expectedSeasonsCount: Number(showDetails?.numberOfSeasons ?? showDetails?.number_of_seasons ?? 0),
+    }).then(() => {
       invalidateContinueWatching(user.uid);
-      return selected;
-    } catch (err) {
-      setPendingProgress(null);
-      throw err;
-    }
+    }).catch((err) => {
+      console.error("Background sync failed for markEpisodeWatched:", err);
+      rollbackLocal(backupSet);
+      setPendingProgress(backupProgress);
+      if (onError) onError(err.message || "Connection timed out. Unable to save watch history.");
+    });
+    
+    return selected;
   }, [
     user,
     watchedSet,
+    pendingProgress,
     allSeasonsData,
     currentSeasonEpisodes,
     fetchAllSeasonDetails,

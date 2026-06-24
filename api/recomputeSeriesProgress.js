@@ -6,6 +6,8 @@ import {
   parseCatalogEpisodes,
   upsertSeriesProgressAndLibrary,
 } from "./_lib/seriesProgress.js";
+import { fetchEpisodesFromTmdb } from "./_lib/tmdbHelper.js";
+import { commitMergeWritesInChunks } from "./_lib/watchMutation.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -35,37 +37,74 @@ export default async function handler(req, res) {
   try {
     const titleSnap = await titleRef.get();
     if (!titleSnap.exists) {
-      return sendError(res, 404, "not-found", "Title not found in catalog.");
-    }
-    const titleData = titleSnap.data() || {};
-    if (titleData.mediaType !== "tv") {
-      return sendError(
-        res,
-        400,
-        "failed-precondition",
-        "recomputeSeriesProgress only supports TV titles.",
-      );
+      console.log(`recomputeSeriesProgress: Title ${titleKey} not found in catalog. Seeding title document...`);
+      await titleRef.set({
+        titleKey,
+        mediaType: "tv",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      const titleData = titleSnap.data() || {};
+      if (titleData.mediaType !== "tv") {
+        return sendError(
+          res,
+          400,
+          "failed-precondition",
+          "recomputeSeriesProgress only supports TV titles.",
+        );
+      }
     }
 
-    const [episodesSnap, watchedStatesSnap] = await Promise.all([
-      titleRef.collection("episodes").get(),
-      db
-        .collection("users")
-        .doc(uid)
-        .collection("episode_states")
-        .where("titleKey", "==", titleKey)
-        .where("state", "==", "watched")
-        .get(),
-    ]);
+    const tvId = titleKey.substring("tmdb_tv_".length);
+    let episodesSnap = await titleRef.collection("episodes").get();
+
+    // Fetch TMDB episodes to ensure correctness
+    let tmdbEpisodes = [];
+    try {
+      tmdbEpisodes = await fetchEpisodesFromTmdb(tvId);
+    } catch (tmdbErr) {
+      console.warn("Failed to fetch TMDB details during recompute:", tmdbErr);
+    }
+
+    if (tmdbEpisodes.length > 0 && (episodesSnap.empty || episodesSnap.size < tmdbEpisodes.length)) {
+      console.log(`recomputeSeriesProgress: Seeding/healing catalog for TV ${tvId} (DB size=${episodesSnap.size}, TMDB size=${tmdbEpisodes.length})`);
+      const existingKeys = new Set(episodesSnap.docs.map((doc) => doc.id));
+      const seedWrites = [];
+
+      for (const ep of tmdbEpisodes) {
+        const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
+        if (!existingKeys.has(epId)) {
+          seedWrites.push({
+            ref: titleRef.collection("episodes").doc(epId),
+            data: ep,
+          });
+        }
+      }
+
+      if (seedWrites.length > 0) {
+        console.log(`recomputeSeriesProgress: Seeding ${seedWrites.length} missing episodes to DB for TV ${tvId}...`);
+        await commitMergeWritesInChunks(db, seedWrites, 500);
+        // Reload episodesSnap
+        episodesSnap = await titleRef.collection("episodes").get();
+      }
+    }
 
     if (episodesSnap.empty) {
       return sendError(
         res,
         404,
         "not-found",
-        "No catalog episodes found for this title.",
+        "No catalog episodes found for this title and TMDB fetch failed.",
       );
     }
+
+    const watchedStatesSnap = await db
+      .collection("users")
+      .doc(uid)
+      .collection("episode_states")
+      .where("titleKey", "==", titleKey)
+      .where("state", "==", "watched")
+      .get();
 
     const {
       episodes: catalogEpisodes,

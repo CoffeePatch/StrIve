@@ -1,3 +1,6 @@
+import { db, admin } from "./firebaseAdmin.js";
+import { fetchEpisodesFromTmdb } from "./tmdbHelper.js";
+
 export function resolveExpiresAtMs(rawValue) {
   if (!rawValue) return 0;
   if (typeof rawValue === "number")
@@ -31,50 +34,100 @@ export function resolveExpiresAtMs(rawValue) {
 export async function loadEpisodesForMutation(
   titleRef,
   inputEpisodeCatalog = [],
+  expectedEpisodesCount = 0,
+  tvId = null,
+  targetSeason = null,
+  targetEpisodeNum = null,
+  mode = null,
 ) {
   const allEpisodes = [];
   const episodeKeys = new Set();
 
-  // Primary source: global catalog
-  try {
-    const titleSnap = await titleRef.get();
-    const titleData = titleSnap.exists ? titleSnap.data() || {} : null;
+  const loadFromDb = async () => {
+    allEpisodes.length = 0;
+    episodeKeys.clear();
+    const episodesSnap = await titleRef.collection("episodes").get();
+    for (const doc of episodesSnap.docs) {
+      const d = doc.data() || {};
+      const sn = Number(d.seasonNumber ?? d.season_number);
+      const en = Number(d.episodeNumber ?? d.episode_number);
+      const ao = Number(d.absoluteOrder);
+      const isAired = d.isAired !== false;
 
-    if (titleData && titleData.mediaType === "tv") {
-      const episodesSnap = await titleRef.collection("episodes").get();
-      for (const doc of episodesSnap.docs) {
-        const d = doc.data() || {};
-        const sn = Number(d.seasonNumber ?? d.season_number);
-        const en = Number(d.episodeNumber ?? d.episode_number);
-        const ao = Number(d.absoluteOrder);
-        const isAired = d.isAired !== false;
+      if (
+        !Number.isInteger(sn) ||
+        !Number.isInteger(en) ||
+        !Number.isFinite(ao)
+      ) {
+        continue;
+      }
 
-        if (
-          !Number.isInteger(sn) ||
-          !Number.isInteger(en) ||
-          !Number.isFinite(ao)
-        ) {
-          continue;
+      allEpisodes.push({
+        seasonNumber: sn,
+        episodeNumber: en,
+        absoluteOrder: ao,
+        isAired,
+      });
+      episodeKeys.add(`${sn}:${en}`);
+    }
+    return episodesSnap.size;
+  };
+
+  // 1. Load what we currently have in DB
+  let dbCount = await loadFromDb();
+
+  // 2. Check if we have a target episode and if it's missing from DB
+  const hasTarget = mode !== "all" && Number.isInteger(targetSeason) && Number.isInteger(targetEpisodeNum);
+  const targetKey = hasTarget ? `${targetSeason}:${targetEpisodeNum}` : null;
+  const isTargetMissing = targetKey && !episodeKeys.has(targetKey);
+
+  // 3. Determine if the catalog is incomplete
+  const isIncomplete = dbCount === 0 || isTargetMissing || (expectedEpisodesCount > 0 && dbCount < expectedEpisodesCount);
+
+  if (isIncomplete && tvId) {
+    try {
+      console.log(`loadEpisodesForMutation: Catalog incomplete (dbCount=${dbCount}, isTargetMissing=${isTargetMissing}, expected=${expectedEpisodesCount}). Fetching TMDB for TV ${tvId}...`);
+      const tmdbEpisodes = await fetchEpisodesFromTmdb(tvId);
+
+      if (tmdbEpisodes && tmdbEpisodes.length > 0) {
+        // Find missing episodes by comparing keys
+        const seedWrites = [{
+          ref: titleRef,
+          data: {
+            titleKey: `tmdb_tv_${tvId}`,
+            mediaType: "tv",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        }];
+
+        let newEpisodesAdded = 0;
+        for (const ep of tmdbEpisodes) {
+          const epKey = `${ep.seasonNumber}:${ep.episodeNumber}`;
+          if (!episodeKeys.has(epKey)) {
+            const epId = `${ep.seasonNumber}_${ep.episodeNumber}`;
+            seedWrites.push({
+              ref: titleRef.collection("episodes").doc(epId),
+              data: ep,
+            });
+            newEpisodesAdded++;
+          }
         }
 
-        allEpisodes.push({
-          seasonNumber: sn,
-          episodeNumber: en,
-          absoluteOrder: ao,
-          isAired,
-        });
-        episodeKeys.add(`${sn}:${en}`);
+        if (newEpisodesAdded > 0) {
+          console.log(`loadEpisodesForMutation: Seeding ${newEpisodesAdded} missing episodes to DB for TV ${tvId}...`);
+          await commitMergeWritesInChunks(db, seedWrites, 500);
+          // Reload from DB to get the complete list
+          await loadFromDb();
+        }
       }
+    } catch (tmdbErr) {
+      console.warn("Failed to self-heal episodes from TMDB during mutation:", tmdbErr);
     }
-  } catch (catalogErr) {
-    console.warn(
-      "markEpisodeWatched catalog read failed; trying payload fallback:",
-      catalogErr,
-    );
   }
 
-  // Fallback/merge source: client-provided episode catalog
-  if (inputEpisodeCatalog.length > 0) {
+  // Fallback: If still empty, use inputEpisodeCatalog as a last resort
+  if (allEpisodes.length === 0 && inputEpisodeCatalog && inputEpisodeCatalog.length > 0) {
+    console.log("loadEpisodesForMutation: DB catalog empty and TMDB fetch failed. Using client payload fallback.");
     for (let i = 0; i < inputEpisodeCatalog.length; i++) {
       const ep = inputEpisodeCatalog[i] || {};
       const sn = Number(ep.seasonNumber);

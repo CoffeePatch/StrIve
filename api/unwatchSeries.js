@@ -77,6 +77,7 @@ export default async function handler(req, res) {
       const totalEpisodesCount = Number(progressData.totalEpisodesCount || 0);
       const nextTracking = {
         ...(libraryData.tracking || {}),
+        watchStatus: "plan_to_watch",
         updatedAt: now,
         lastUserInteractionAt: now,
         lastWatchedAt: null,
