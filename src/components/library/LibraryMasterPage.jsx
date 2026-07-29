@@ -267,23 +267,23 @@ const LibraryMasterPage = () => {
 
   return (
     <LibraryFiltersContext.Provider value={libraryFilters}>
-      <div className="hidden md:flex min-h-screen premium-page flex-col bg-[#0f1014]">
+      <div className="hidden md:flex min-h-screen premium-page flex-col bg-background">
       <Header />
 
       <div className="pt-[100px] pb-8 w-full">
         {/* Library Header Bar */}
         <div className="flex justify-between items-end px-8 max-w-[1440px] mx-auto w-full mb-6">
           <div className="flex flex-col gap-1">
-            <h1 className="text-[32px] font-bold text-white leading-none font-display">My Library</h1>
-            <span className="text-[14px] text-white/60 leading-none mt-1 font-secondary">{sortedAndFilteredItems.length} items</span>
+            <h1 className="text-[32px] font-bold text-primary leading-none font-display">My Library</h1>
+            <span className="text-[14px] text-secondary leading-none mt-1 font-secondary">{sortedAndFilteredItems.length} items</span>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className={`relative flex items-center bg-white/5 border ${searchFocused ? 'border-red-600' : 'border-white/10'} rounded-lg transition-all duration-200 overflow-hidden h-[40px]`} style={{ width: searchFocused ? '320px' : '240px' }}>
-              <span className="material-symbols-outlined text-white/60 text-base absolute left-3 pointer-events-none">search</span>
+            <div className={`relative flex items-center bg-surface border ${searchFocused ? 'border-accent' : 'border-border-subtle'} rounded-lg transition-all duration-200 overflow-hidden h-[40px]`} style={{ width: searchFocused ? '320px' : '240px' }}>
+              <span className="material-symbols-outlined text-muted text-base absolute left-3 pointer-events-none">search</span>
               <input 
                 type="text" 
-                className="w-full h-full bg-transparent pl-10 pr-3 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary" 
+                className="w-full h-full bg-transparent pl-10 pr-3 text-[14px] text-primary placeholder:text-muted focus:outline-none font-secondary" 
                 placeholder="Search library..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -292,25 +292,25 @@ const LibraryMasterPage = () => {
               />
             </div>
 
-            <div className="flex items-center bg-white/5 rounded-lg p-1 h-[40px]">
-               <AnimatedIconButton onClick={() => setViewMode('grid')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'text-white/60 hover:text-white'}`}><span className="material-symbols-outlined text-[18px]">grid_view</span></AnimatedIconButton>
-               <AnimatedIconButton onClick={() => setViewMode('bookshelf')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'bookshelf' ? 'bg-red-600 text-white' : 'text-white/60 hover:text-white'}`}><span className="material-symbols-outlined text-[18px]">view_agenda</span></AnimatedIconButton>
+            <div className="flex items-center bg-surface rounded-lg p-1 h-[40px]">
+               <AnimatedIconButton onClick={() => setViewMode('grid')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-accent text-inverse' : 'text-secondary hover:text-primary hover:bg-surface-hover'}`}><span className="material-symbols-outlined text-[18px]">grid_view</span></AnimatedIconButton>
+               <AnimatedIconButton onClick={() => setViewMode('bookshelf')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'bookshelf' ? 'bg-accent text-inverse' : 'text-secondary hover:text-primary hover:bg-surface-hover'}`}><span className="material-symbols-outlined text-[18px]">view_agenda</span></AnimatedIconButton>
             </div>
 
             <div className="relative">
               <button 
                 onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                className="bg-white/5 border border-white/10 h-[40px] px-4 rounded-lg text-[14px] text-white focus:outline-none cursor-pointer font-secondary hover:border-white/30 transition-colors flex items-center gap-2"
+                className="bg-surface border border-border-subtle h-[40px] px-4 rounded-lg text-[14px] text-primary focus:outline-none cursor-pointer font-secondary hover:border-border hover:bg-surface-hover transition-colors flex items-center gap-2"
               >
                 Sort
-                <span className="material-symbols-outlined text-[16px] text-white/60">sort</span>
+                <span className="material-symbols-outlined text-[16px] text-secondary">sort</span>
               </button>
 
               {/* Desktop Sort Dropdown Menu */}
               {sortDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <div className="absolute right-[1px] mt-2 w-44 glass-effect rounded-lg border border-white/10 bg-[#141414]/98 p-1.5 shadow-2xl z-50 flex flex-col">
+                  <div className="absolute right-[1px] mt-2 w-44 glass-effect rounded-lg border border-border-subtle bg-surface/98 p-1.5 shadow-2xl z-50 flex flex-col">
                     {SORT_OPTIONS.map((option) => {
                       const isActive = sortState?.key === option.id;
                       return (
@@ -331,12 +331,12 @@ const LibraryMasterPage = () => {
                             setSortDropdownOpen(false);
                           }}
                           className={`w-full px-2 py-1.5 flex items-center justify-between rounded transition-colors text-xs font-semibold font-secondary ${
-                            isActive ? 'bg-red-600/10 text-red-500 font-bold' : 'text-white/80 hover:text-white hover:bg-white/5'
+                            isActive ? 'bg-accent/10 text-accent font-bold' : 'text-secondary hover:text-primary hover:bg-surface-hover'
                           }`}
                         >
                           <span>{option.label}</span>
                           {isActive && (
-                            <span className="material-symbols-outlined text-red-500 text-sm font-bold">
+                            <span className="material-symbols-outlined text-accent text-sm font-bold">
                               {sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
                             </span>
                           )}
@@ -348,42 +348,42 @@ const LibraryMasterPage = () => {
               )}
             </div>
 
-            <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
+            <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-surface hover:bg-surface-hover border border-border-subtle text-primary flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
           </div>
         </div>
 
         {/* Filter Bar */}
         <div className="px-8 max-w-[1440px] mx-auto w-full mb-6">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center justify-between border-b border-border-subtle pb-4">
              <div className="flex items-center">
                <div className="flex items-center gap-2">
                  {['all', 'watchlist', 'watching', 'completed'].map(s => (
-                   <AnimatedButton key={s} onClick={() => updateFilters({ status: s })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border ${status === s ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                   <AnimatedButton key={s} onClick={() => updateFilters({ status: s })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border ${status === s ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
                       {s === 'all' ? 'All' : s === 'watchlist' ? 'Plan to Watch' : s.charAt(0).toUpperCase() + s.slice(1)}
                    </AnimatedButton>
                  ))}
                </div>
 
-               <div className="w-[1px] h-[24px] bg-white/10 mx-4"></div>
+               <div className="w-[1px] h-[24px] bg-divider mx-4"></div>
 
                 <div className="flex items-center gap-2">
-                 <AnimatedButton onClick={() => updateFilters({ type: 'all' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'all' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                 <AnimatedButton onClick={() => updateFilters({ type: 'all' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'all' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
                    All Types
                  </AnimatedButton>
-                 <AnimatedButton onClick={() => updateFilters({ type: 'movie' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'movie' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                 <AnimatedButton onClick={() => updateFilters({ type: 'movie' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'movie' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
                    <span className="material-symbols-outlined text-[16px]">movie</span> Movies
                  </AnimatedButton>
-                 <AnimatedButton onClick={() => updateFilters({ type: 'tv' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'tv' ? 'bg-red-600 text-white border-red-600 font-semibold' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30 hover:text-white'}`}>
+                 <AnimatedButton onClick={() => updateFilters({ type: 'tv' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'tv' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
                    <span className="material-symbols-outlined text-[16px]">tv</span> Shows
                  </AnimatedButton>
                </div>
              </div>
              
              <div className="flex items-center">
-                <AnimatedButton onClick={() => setFiltersOpen(!filtersOpen)} className={`h-[36px] px-[14px] rounded-full border text-[14px] flex items-center gap-[6px] transition-colors font-secondary ${activeSecondaryFilterCount > 0 ? 'bg-red-600/20 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white/80 hover:text-white hover:border-white/30'}`}>
+                <AnimatedButton onClick={() => setFiltersOpen(!filtersOpen)} className={`h-[36px] px-[14px] rounded-full border text-[14px] flex items-center gap-[6px] transition-colors font-secondary ${activeSecondaryFilterCount > 0 ? 'bg-accent/20 border-accent text-primary' : 'bg-surface border-border-subtle text-secondary hover:text-primary hover:border-border hover:bg-surface-hover'}`}>
                    <span className="material-symbols-outlined text-[16px]">tune</span>
                    Filters
-                   {activeSecondaryFilterCount > 0 && <span className="w-[6px] h-[6px] rounded-full bg-red-600 ml-1"></span>}
+                   {activeSecondaryFilterCount > 0 && <span className="w-[6px] h-[6px] rounded-full bg-accent ml-1"></span>}
                 </AnimatedButton>
              </div>
           </div>
@@ -407,15 +407,15 @@ const LibraryMasterPage = () => {
           {activeSecondaryFilterCount > 0 && (
             <div className="flex items-center gap-2 pt-4 flex-wrap">
                <AnimatePresence mode="popLayout">
-                 {customListIds.map(id => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={id} className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">List: {customLists?.find(l => l.id === id)?.name || id} <button onClick={() => updateFilters({ lists: customListIds.filter(x => x !== id) })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
-                 {imdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbRatingMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">IMDb: {imdbRatingMin}+ <button onClick={() => updateFilters({ imdbMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {imdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbVotesMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">IMDb Votes: {imdbVotesMin >= 1000000 ? `${imdbVotesMin/1000000}M` : imdbVotesMin >= 1000 ? `${imdbVotesMin/1000}K` : imdbVotesMin}+ <button onClick={() => updateFilters({ imdbVotesMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {tmdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbRatingMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">TMDB: {tmdbRatingMin}+ <button onClick={() => updateFilters({ tmdbMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {tmdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbVotesMin" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">TMDB Votes: {tmdbVotesMin >= 1000000 ? `${tmdbVotesMin/1000000}M` : tmdbVotesMin >= 1000 ? `${tmdbVotesMin/1000}K` : tmdbVotesMin}+ <button onClick={() => updateFilters({ tmdbVotesMin: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {genres.map(g => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={`g-${g}`} className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">{g} <button onClick={() => updateFilters({ genres: genres.filter(x => x !== g) })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
-                 {(yearFrom || yearTo) && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="year" className="px-3 py-1.5 rounded-full bg-white/10 text-[12px] text-white/80 font-secondary border border-white/5 flex items-center gap-1.5">Year: {yearFrom || '...'} - {yearTo || '...'} <button onClick={() => updateFilters({ yearFrom: null, yearTo: null })} className="hover:text-white"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {customListIds.map(id => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={id} className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">List: {customLists?.find(l => l.id === id)?.name || id} <button onClick={() => updateFilters({ lists: customListIds.filter(x => x !== id) })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
+                 {imdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbRatingMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">IMDb: {imdbRatingMin}+ <button onClick={() => updateFilters({ imdbMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {imdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbVotesMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">IMDb Votes: {imdbVotesMin >= 1000000 ? `${imdbVotesMin/1000000}M` : imdbVotesMin >= 1000 ? `${imdbVotesMin/1000}K` : imdbVotesMin}+ <button onClick={() => updateFilters({ imdbVotesMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {tmdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbRatingMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">TMDB: {tmdbRatingMin}+ <button onClick={() => updateFilters({ tmdbMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {tmdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbVotesMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">TMDB Votes: {tmdbVotesMin >= 1000000 ? `${tmdbVotesMin/1000000}M` : tmdbVotesMin >= 1000 ? `${tmdbVotesMin/1000}K` : tmdbVotesMin}+ <button onClick={() => updateFilters({ tmdbVotesMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
+                 {genres.map(g => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={`g-${g}`} className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">{g} <button onClick={() => updateFilters({ genres: genres.filter(x => x !== g) })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
+                 {(yearFrom || yearTo) && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="year" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">Year: {yearFrom || '...'} - {yearTo || '...'} <button onClick={() => updateFilters({ yearFrom: null, yearTo: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
                </AnimatePresence>
-               <AnimatedButton onClick={clearAdvancedFilters} className="text-[12px] text-white/50 font-secondary hover:text-white bg-transparent ml-2">Clear all</AnimatedButton>
+               <AnimatedButton onClick={clearAdvancedFilters} className="text-[12px] text-muted font-secondary hover:text-primary bg-transparent ml-2">Clear all</AnimatedButton>
             </div>
           )}
         </div>
@@ -424,7 +424,7 @@ const LibraryMasterPage = () => {
       <main className="flex-grow w-full px-8 pb-20 max-w-[1440px] mx-auto">
         <div className="max-w-full mx-auto space-y-8">
           {message && (
-            <div className={`glass-effect px-6 py-4 rounded-lg ${message.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-green-500/20 text-green-300 border border-green-500/30'}`}>
+            <div className={`glass-effect px-6 py-4 rounded-lg ${message.type === 'error' ? 'bg-error/20 text-error border border-error/30' : 'bg-success/20 text-success border border-success/30'}`}>
               {message.text}
             </div>
           )}
@@ -436,16 +436,16 @@ const LibraryMasterPage = () => {
           )}
 
           {!loading && items.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center border border-white/5 bg-white/5">
-              <span className="material-symbols-outlined text-6xl text-white/20 mb-4 block">inbox</span>
-              <p className="text-white/60 font-secondary text-base">Your library is empty. Search for movies or shows to add them!</p>
+            <div className="glass-effect rounded-2xl p-12 text-center border border-border-subtle bg-surface">
+              <span className="material-symbols-outlined text-6xl text-muted mb-4 block">inbox</span>
+              <p className="text-secondary font-secondary text-base">Your library is empty. Search for movies or shows to add them!</p>
             </div>
           )}
 
           {!loading && items.length > 0 && sortedAndFilteredItems.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center border border-white/5 bg-white/5">
-              <span className="material-symbols-outlined text-6xl text-white/20 mb-4 block">search_off</span>
-              <p className="text-white/60 font-secondary text-base">No items match your filters.</p>
+            <div className="glass-effect rounded-2xl p-12 text-center border border-border-subtle bg-surface">
+              <span className="material-symbols-outlined text-6xl text-muted mb-4 block">search_off</span>
+              <p className="text-secondary font-secondary text-base">No items match your filters.</p>
             </div>
           )}
 

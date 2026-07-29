@@ -1,42 +1,58 @@
 @import "tailwindcss";
 
-/* Prevent white overscroll background */
 html {
-  background-color: #000000;
+  background-color: var(--theme-background);
   overscroll-behavior: none;
 }
 
 body {
-  background-color: #000000;
+  background-color: var(--theme-background);
   overscroll-behavior: none;
 }
 
 /* Premium Design Tokens */
+@theme {
+  /* Surface */
+  --color-background: var(--theme-background);
+  --color-surface: var(--theme-surface);
+  --color-surface-hover: var(--theme-surface-hover);
+  --color-card: var(--theme-card);
+  --color-card-hover: var(--theme-card-hover);
+  --color-overlay: var(--theme-overlay);
+  --color-backdrop: var(--theme-backdrop);
+
+  /* Hero Gradients */
+  --color-hero-top: var(--theme-hero-top);
+  --color-hero-mid: var(--theme-hero-mid);
+  --color-hero-bottom: var(--theme-hero-bottom);
+  --color-hero-radial: var(--theme-hero-radial);
+
+  /* Typography */
+  --color-primary: var(--theme-text-primary);
+  --color-secondary: var(--theme-text-secondary);
+  --color-muted: var(--theme-text-muted);
+  --color-inverse: var(--theme-text-inverse);
+
+  /* Borders */
+  --color-border: var(--theme-border);
+  --color-border-subtle: var(--theme-border-subtle);
+  --color-divider: var(--theme-divider);
+
+  /* Status */
+  --color-success: var(--theme-success);
+  --color-warning: var(--theme-warning);
+  --color-error: var(--theme-error);
+  --color-info: var(--theme-info);
+
+  /* Interactive */
+  --color-accent: var(--theme-accent);
+  --color-accent-hover: var(--theme-accent-hover);
+  --color-accent-secondary: var(--theme-accent-secondary);
+  --color-focus: var(--theme-focus);
+}
+
+/* Neutral Variables */
 :root {
-  /* Colors - AMOLED Pure Black Theme */
-  --color-bg-primary: #000000;
-  --color-bg-elevated: #141414;
-  --color-bg-surface: #1C1C1E;
-  --color-bg-card: #1F1F23;
-  --color-bg-hover: #252529;
-  
-  /* Text Colors */
-  --color-text-primary: #FFFFFF;
-  --color-text-secondary: #B3B3B3;
-  --color-text-tertiary: #737373;
-  --color-text-muted: #4A4A4A;
-  
-  /* Accent Colors - Premium Gold & Red */
-  --color-accent-primary: #E50914;
-  --color-accent-secondary: #FFB800;
-  --color-accent-hover: #F40612;
-  --color-accent-active: #C20813;
-  
-  /* UI Elements */
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-hover: rgba(255, 255, 255, 0.15);
-  --color-shadow: rgba(0, 0, 0, 0.5);
-  
   /* Typography */
   --font-display: 'Playfair Display', serif;
   --font-primary: 'Inter', -apple-system, sans-serif;
@@ -57,6 +73,86 @@ body {
   --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Theme: Dark (Default) */
+[data-theme="dark"] {
+  --theme-background: #000000;
+  --theme-surface: #141414;
+  --theme-surface-hover: #1f1f1f;
+  --theme-card: #1C1C1E;
+  --theme-card-hover: #252529;
+  --theme-overlay: rgba(28, 28, 30, 0.7);
+  --theme-backdrop: rgba(0, 0, 0, 0.85);
+
+  --theme-hero-top: rgba(0, 0, 0, 0.3);
+  --theme-hero-mid: rgba(0, 0, 0, 0.6);
+  --theme-hero-bottom: rgba(0, 0, 0, 1);
+  --theme-hero-radial: rgba(0, 0, 0, 0.6);
+
+  --theme-text-primary: #FFFFFF;
+  --theme-text-secondary: #B3B3B3;
+  --theme-text-muted: #737373;
+  --theme-text-inverse: #000000;
+
+  --theme-border: rgba(255, 255, 255, 0.15);
+  --theme-border-subtle: rgba(255, 255, 255, 0.08);
+  --theme-divider: rgba(255, 255, 255, 0.1);
+  
+  --theme-accent: #E50914;
+  --theme-accent-hover: #F40612;
+  --theme-accent-secondary: #FFB800;
+  --theme-focus: rgba(229, 9, 20, 0.5);
+
+  --theme-success: #16a34a;
+  --theme-warning: #f59e0b;
+  --theme-error: #ef4444;
+  --theme-info: #3b82f6;
+
+  /* Scrollbars */
+  --theme-scrollbar-track: #141414;
+  --theme-scrollbar-thumb: #1C1C1E;
+  --theme-scrollbar-hover: #252529;
+}
+
+/* Theme: Light */
+[data-theme="light"] {
+  --theme-background: #f4f4f5;
+  --theme-surface: #ffffff;
+  --theme-surface-hover: #f9fafb;
+  --theme-card: #ffffff;
+  --theme-card-hover: #f3f4f6;
+  --theme-overlay: rgba(255, 255, 255, 0.85);
+  --theme-backdrop: rgba(0, 0, 0, 0.6);
+
+  --theme-hero-top: rgba(244, 244, 245, 0.5);
+  --theme-hero-mid: rgba(244, 244, 245, 0.8);
+  --theme-hero-bottom: rgba(244, 244, 245, 1);
+  --theme-hero-radial: rgba(244, 244, 245, 0.8);
+
+  --theme-text-primary: #111827;
+  --theme-text-secondary: #4b5563;
+  --theme-text-muted: #9ca3af;
+  --theme-text-inverse: #ffffff;
+
+  --theme-border: rgba(0, 0, 0, 0.15);
+  --theme-border-subtle: rgba(0, 0, 0, 0.08);
+  --theme-divider: rgba(0, 0, 0, 0.1);
+  
+  --theme-accent: #E50914; /* Keep brand red */
+  --theme-accent-hover: #C20813;
+  --theme-accent-secondary: #eab308;
+  --theme-focus: rgba(229, 9, 20, 0.3);
+
+  --theme-success: #16a34a;
+  --theme-warning: #d97706;
+  --theme-error: #dc2626;
+  --theme-info: #2563eb;
+
+  /* Scrollbars */
+  --theme-scrollbar-track: #e5e7eb;
+  --theme-scrollbar-thumb: #d1d5db;
+  --theme-scrollbar-hover: #9ca3af;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -64,16 +160,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-elevated);
+  background: var(--theme-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-bg-surface);
+  background: var(--theme-scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-bg-hover);
+  background: var(--theme-scrollbar-hover);
 }
 
 /* Hide scrollbar for movie lists */
@@ -99,6 +195,7 @@ body {
 /* Smooth scrolling for vertical scroll */
 html, body {
   scroll-behavior: smooth;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
 /* GPU acceleration for horizontal scroll containers */
@@ -122,9 +219,8 @@ body {
   font-family: var(--font-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #000000 0%, #141414 100%);
-  background-attachment: fixed;
-  color: var(--color-text-primary);
+  background-color: var(--theme-background);
+  color: var(--theme-text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -210,9 +306,9 @@ a[aria-disabled="true"] {
 
 /* Premium Page Wrapper */
 .premium-page {
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-background);
   min-height: 100vh;
-  color: var(--color-text-primary);
+  color: var(--color-primary);
 }
 
 .premium-container {

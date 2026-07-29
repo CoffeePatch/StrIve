@@ -14,7 +14,7 @@ const MediaTrailers = ({ videos }) => {
   return (
     <div className="mb-10 lg:mb-16">
       <div className="flex justify-center mb-6">
-        <h2 className="text-xl md:text-2xl font-bold text-white tracking-wide">
+        <h2 className="text-xl md:text-2xl font-bold text-primary tracking-wide">
           Trailers
         </h2>
       </div>
@@ -26,7 +26,7 @@ const MediaTrailers = ({ videos }) => {
             href={`https://www.youtube.com/watch?v=${video.key}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative aspect-video rounded-[12px] overflow-hidden bg-black/40 border border-white/5 hover:border-white/20 transition-colors shadow-lg block"
+            className="group relative aspect-video rounded-[12px] overflow-hidden bg-black/40 border border-border hover:border-border-subtle transition-colors shadow-lg block"
           >
             <img
               src={`https://img.youtube.com/vi/${video.key}/hqdefault.jpg`}
@@ -37,7 +37,7 @@ const MediaTrailers = ({ videos }) => {
             
             {/* Play Button Overlay */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors duration-300">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black/60 group-hover:bg-[#E50914] flex items-center justify-center backdrop-blur-md transition-all duration-300 shadow-[0_0_20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_20px_rgba(229,9,20,0.4)] group-hover:scale-110 border border-white/10">
+              <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-black/60 group-hover:bg-accent flex items-center justify-center backdrop-blur-md transition-all duration-300 shadow-[0_0_20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_20px_var(--color-accent)] group-hover:scale-110 border border-border">
                 <Play className="w-5 h-5 md:w-6 md:h-6 text-white ml-1" fill="currentColor" />
               </div>
             </div>
@@ -50,7 +50,7 @@ const MediaTrailers = ({ videos }) => {
               <h3 className="text-white font-bold text-sm md:text-base line-clamp-1 group-hover:text-white transition-colors">
                 {video.name}
               </h3>
-              <p className="text-xs text-[#9CA3AF] mt-0.5">
+              <p className="text-xs text-white/70 mt-0.5">
                 {video.type}
               </p>
             </div>

@@ -52,11 +52,11 @@ const BaseCard = ({
     : `group flex flex-col w-full ${isHoverable ? 'cursor-pointer' : ''} ${className}`;
 
   const imageWrapperClasses = isHorizontal
-    ? `relative w-full sm:w-1/3 xl:w-1/4 shrink-0 ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-300 ${
-        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]' : ''
+    ? `relative w-full sm:w-1/3 xl:w-1/4 shrink-0 ${aspectRatioClass} rounded-[12px] overflow-hidden bg-card border border-border-subtle transition-all duration-300 ${
+        isHoverable ? 'group-hover:border-border group-hover:shadow-lg' : ''
       }`
-    : `relative w-full ${aspectRatioClass} rounded-[12px] overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all duration-300 ${
-        isHoverable ? 'group-hover:border-[var(--color-border-hover)] group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]' : ''
+    : `relative w-full ${aspectRatioClass} rounded-[12px] overflow-hidden bg-card border border-border-subtle transition-all duration-300 ${
+        isHoverable ? 'group-hover:border-border group-hover:shadow-lg' : ''
       }`;
 
   const contentClasses = isHorizontal
@@ -73,7 +73,7 @@ const BaseCard = ({
       <div className={imageWrapperClasses}>
         {/* Loading Skeleton */}
         {!imageLoaded && !imageError && imageUrl && (
-          <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+          <div className="absolute inset-0 bg-surface-hover animate-pulse" />
         )}
 
         {/* Image */}
@@ -92,15 +92,14 @@ const BaseCard = ({
               });
             }}
             onError={() => setImageError(true)}
-            loading="lazy"
             decoding="async"
           />
         ) : (
           /* Fallback State */
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-[var(--color-bg-surface)]">
-            <span className="material-symbols-outlined text-4xl text-gray-600 mb-2">image_not_supported</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-surface">
+            <span className="material-symbols-outlined text-4xl text-muted mb-2">image_not_supported</span>
             {fallbackText && (
-              <span className="text-xs text-center text-gray-500 font-medium">{fallbackText}</span>
+              <span className="text-xs text-center text-secondary font-medium">{fallbackText}</span>
             )}
           </div>
         )}

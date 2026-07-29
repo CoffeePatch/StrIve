@@ -23,8 +23,8 @@ const EpisodeList = ({
         isLoadingMatrix ? (
           <div className="flex justify-center py-12">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-4 mx-auto" style={{ borderColor: 'var(--color-accent-primary)' }}></div>
-              <p className="mt-4" style={{ color: 'var(--color-text-secondary)' }}>Loading all season data...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 mx-auto border-accent"></div>
+              <p className="mt-4 text-secondary">Loading all season data...</p>
             </div>
           </div>
         ) : allSeasonsData ? (
@@ -38,14 +38,14 @@ const EpisodeList = ({
           />
         ) : (
           <div className="text-center py-12">
-            <p className="text-red-500">Could not load matrix data.</p>
+            <p className="text-error">Could not load matrix data.</p>
           </div>
         )
       )}
 
       {viewMode !== 'matrix' && episodesLoading && (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4" style={{ borderColor: 'var(--color-accent-primary)' }}></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-accent"></div>
         </div>
       )}
 
@@ -98,7 +98,7 @@ const EpisodeList = ({
 
       {viewMode !== 'matrix' && !episodesLoading && (!seasonData?.episodes || seasonData.episodes.length === 0) && (
         <div className="text-center py-12">
-          <p style={{ color: 'var(--color-text-secondary)' }}>No episodes available for this season</p>
+          <p className="text-secondary">No episodes available for this season</p>
         </div>
       )}
     </div>

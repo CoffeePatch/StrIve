@@ -10,8 +10,10 @@ import {
 import { downloadTemplateCsv } from "../../util/export/csvTemplate";
 import Header from "../layout/Header";
 import LibraryHealthPanel from "../library/LibraryHealthPanel";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const SettingsPage = () => {
+  const { theme, setTheme } = useTheme();
   const isDev = import.meta.env.DEV;
   const { user } = useSelector((store) => store.user);
   const navigate = useNavigate();
@@ -378,7 +380,7 @@ const SettingsPage = () => {
                   Settings
                 </h1>
               </div>
-              <p className="text-white/60 font-secondary text-lg">
+              <p className="text-secondary font-secondary text-lg">
                 Manage metadata, imports/exports, and library maintenance
               </p>
             </div>
@@ -386,7 +388,7 @@ const SettingsPage = () => {
 
           {message && messageUi && (
             <div
-              className={`mt-6 glass-effect rounded-2xl p-4 border ${messageUi.border} ${messageUi.bg}`}
+              className={`mt-6 bg-surface rounded-2xl p-4 border ${messageUi.border} ${messageUi.bg}`}
               role="status"
             >
               <div className="flex items-start gap-3">
@@ -399,14 +401,14 @@ const SettingsPage = () => {
           )}
 
           {refreshProgress && isRefreshing && (
-            <div className="mt-6 glass-effect rounded-2xl p-4 border border-white/10">
-              <div className="flex items-center justify-between text-sm text-white/70 mb-2">
+            <div className="mt-6 bg-surface rounded-2xl p-4 border border-border">
+              <div className="flex items-center justify-between text-sm text-secondary mb-2">
                 <span>Refreshing metadata...</span>
                 <span>
                   {refreshProgress.current || 0}/{refreshProgress.total || 0}
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-2 rounded-full bg-surface-hover overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all"
                   style={{
@@ -421,16 +423,42 @@ const SettingsPage = () => {
           )}
 
           <div className="mt-8 space-y-6 max-w-6xl mx-auto">
-            <section className="glass-effect rounded-2xl p-8">
+            <section className="bg-surface border border-border rounded-2xl p-8">
+              <h2 className="text-2xl font-bold font-display text-[var(--theme-text-primary)] flex items-center gap-3">
+                <span className="material-symbols-outlined text-3xl text-[var(--theme-text-secondary)]">
+                  palette
+                </span>
+                Appearance
+              </h2>
+              <p className="text-[var(--theme-text-secondary)] text-sm font-secondary mt-2">
+                Customize the application theme.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-4">
+                <label className={`cursor-pointer rounded-xl border p-4 flex flex-col items-center gap-2 transition-all ${theme === 'dark' ? 'border-[var(--theme-accent)] bg-[var(--theme-focus)]' : 'border-[var(--theme-border)] bg-[var(--theme-surface)] hover:bg-[var(--theme-surface-hover)]'}`} onClick={() => setTheme('dark')}>
+                  <span className="material-symbols-outlined text-3xl text-[var(--theme-text-primary)]">dark_mode</span>
+                  <span className="font-semibold text-[var(--theme-text-primary)]">Dark</span>
+                </label>
+
+                <label className={`cursor-pointer rounded-xl border p-4 flex flex-col items-center gap-2 transition-all ${theme === 'light' ? 'border-[var(--theme-accent)] bg-[var(--theme-focus)]' : 'border-[var(--theme-border)] bg-[var(--theme-surface)] hover:bg-[var(--theme-surface-hover)]'}`} onClick={() => setTheme('light')}>
+                  <span className="material-symbols-outlined text-3xl text-[var(--theme-text-primary)]">light_mode</span>
+                  <span className="font-semibold text-[var(--theme-text-primary)]">Light</span>
+                </label>
+                
+                {/* Hidden system theme logic can be added later if needed */}
+              </div>
+            </section>
+
+            <section className="bg-surface border border-border rounded-2xl p-8">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
-                    <span className="material-symbols-outlined text-3xl text-white/80">
+                  <h2 className="text-2xl font-bold font-display text-primary flex items-center gap-3">
+                    <span className="material-symbols-outlined text-3xl text-secondary">
                       database
                     </span>
                     Library Metadata
                   </h2>
-                  <p className="text-white/60 text-sm font-secondary mt-1">
+                  <p className="text-secondary text-sm font-secondary mt-1">
                     Stats and maintenance tools for ratings and vote counts.
                   </p>
                 </div>
@@ -447,26 +475,26 @@ const SettingsPage = () => {
               </div>
 
               {loading ? (
-                <div className="text-white/60 text-sm font-secondary mt-6 flex items-center gap-3">
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                <div className="text-secondary text-sm font-secondary mt-6 flex items-center gap-3">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-primary" />
                 </div>
               ) : metadata ? (
                 <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
-                    <p className="text-white/60 text-xs font-secondary">Library items</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                  <div className="rounded-xl p-4 border bg-surface-hover border-border">
+                    <p className="text-secondary text-xs font-secondary">Library items</p>
+                    <p className="text-2xl font-bold mt-1 text-accent-secondary">
                       {metadata.libraryItems || 0}
                     </p>
                   </div>
-                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
-                    <p className="text-white/60 text-xs font-secondary">Watchlist</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                  <div className="rounded-xl p-4 border bg-surface-hover border-border">
+                    <p className="text-secondary text-xs font-secondary">Watchlist</p>
+                    <p className="text-2xl font-bold mt-1 text-accent-secondary">
                       {metadata.watchlist || 0}
                     </p>
                   </div>
-                  <div className="rounded-xl p-4 border" style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}>
-                    <p className="text-white/60 text-xs font-secondary">Completed</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent-secondary)" }}>
+                  <div className="rounded-xl p-4 border bg-surface-hover border-border">
+                    <p className="text-secondary text-xs font-secondary">Completed</p>
+                    <p className="text-2xl font-bold mt-1 text-accent-secondary">
                       {metadata.completed || 0}
                     </p>
                   </div>
@@ -512,36 +540,35 @@ const SettingsPage = () => {
                 </button>
               </div>
 
-              <p className="text-white/60 text-sm leading-relaxed mt-5">
-                <span className="text-white/80 font-semibold">Refresh Missing Metadata:</span>{" "}
+              <p className="text-secondary text-sm leading-relaxed mt-5">
+                <span className="text-primary font-semibold">Refresh Missing Metadata:</span>{" "}
                 Updates items that do not have IMDb ratings, votes, or TMDB vote counts across your library.
                 <br />
-                <span className="text-white/80 font-semibold">Force Refresh All:</span>{" "}
+                <span className="text-primary font-semibold">Force Refresh All:</span>{" "}
                 Re-fetches IMDb data for your entire library and can be used for stale ratings or repairs.
               </p>
             </section>
 
-            <section className="glass-effect rounded-2xl p-8">
-              <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
-                <span className="material-symbols-outlined text-3xl text-white/80">
+            <section className="bg-surface border border-border rounded-2xl p-8">
+              <h2 className="text-2xl font-bold font-display text-primary flex items-center gap-3">
+                <span className="material-symbols-outlined text-3xl text-secondary">
                   import_export
                 </span>
                 Import & Export
               </h2>
-              <p className="text-white/70 text-sm font-secondary mt-2">
+              <p className="text-secondary text-sm font-secondary mt-2">
                 Keep a portable backup, or import items via CSV.
               </p>
 
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div
-                  className="rounded-2xl p-5 border"
-                  style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
+                  className="rounded-2xl p-5 border bg-surface-hover border-border"
                 >
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
                     <span className="material-symbols-outlined">download</span>
                     Export Library
                   </h3>
-                  <p className="text-white/60 text-sm mt-2">
+                  <p className="text-secondary text-sm mt-2">
                     Exports your unified Library (watchlist + watched) with ratings and metadata.
                   </p>
 
@@ -584,7 +611,7 @@ const SettingsPage = () => {
                     </button>
                   </div>
 
-                  <div className="mt-4 text-white/60 text-sm space-y-1">
+                  <div className="mt-4 text-secondary text-sm space-y-1">
                     <div>✓ Includes watchlist + watched</div>
                     <div>✓ Includes IMDb + TMDB ratings/votes</div>
                     <div>✓ Timestamped filenames</div>
@@ -592,14 +619,13 @@ const SettingsPage = () => {
                 </div>
 
                 <div
-                  className="rounded-2xl p-5 border"
-                  style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
+                  className="rounded-2xl p-5 border bg-surface-hover border-border"
                 >
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
                     <span className="material-symbols-outlined">upload</span>
                     Import Library
                   </h3>
-                  <p className="text-white/60 text-sm mt-2">
+                  <p className="text-secondary text-sm mt-2">
                     Import items into your library using the supported CSV format.
                   </p>
 
@@ -621,7 +647,7 @@ const SettingsPage = () => {
                     </button>
                   </div>
 
-                  <p className="text-white/50 text-xs leading-relaxed mt-4">
+                  <p className="text-muted text-xs leading-relaxed mt-4">
                     Tip: For custom list CSV exports, use the export button from a specific list.
                   </p>
                 </div>
@@ -630,16 +656,16 @@ const SettingsPage = () => {
 
             {isDev && <LibraryHealthPanel userId={user?.uid} />}
 
-            <section className="glass-effect rounded-2xl p-8">
-              <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
-                <span className="material-symbols-outlined text-3xl text-white/80">
+            <section className="bg-surface border border-border rounded-2xl p-8">
+              <h2 className="text-2xl font-bold font-display text-primary flex items-center gap-3">
+                <span className="material-symbols-outlined text-3xl text-secondary">
                   info
                 </span>
                 About
               </h2>
-              <div className="mt-3 text-white/70 text-sm leading-relaxed">
-                <div className="text-white font-semibold">Movie & TV Show Tracking App</div>
-                <div className="text-white/50">Version 1.0.0</div>
+              <div className="mt-3 text-secondary text-sm leading-relaxed">
+                <div className="text-primary font-semibold">Movie & TV Show Tracking App</div>
+                <div className="text-muted">Version 1.0.0</div>
                 <div className="mt-2">
                   This app combines TMDB and IMDb data to provide comprehensive information about movies and TV
                   shows.

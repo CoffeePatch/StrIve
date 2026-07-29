@@ -13,12 +13,14 @@ import { libraryAdapter } from "../../domain/library/libraryAdapter";
  */
 export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) => {
 	const [status, setStatus] = useState(null);
+	const [trackingData, setTrackingData] = useState(null);
 	const [loading, setLoading] = useState(Boolean(userId && mediaItem?.id));
 	const [error, setError] = useState(null);
 
 	useEffect(() => {
 		if (!userId || !mediaItem?.id) {
 			setStatus(null);
+			setTrackingData(null);
 			setLoading(false);
 			setError(null);
 			return;
@@ -31,8 +33,9 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			const unsub = libraryAdapter.subscribeToLibraryStatus(
 				userId,
 				mediaItem,
-				(trackingStatus) => {
+				(trackingStatus, trackData) => {
 					setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
+					setTrackingData(trackData);
 					setLoading(false);
 				},
 				(err) => {
@@ -45,8 +48,9 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 		}
 
 		libraryAdapter.getLibraryStatus(userId, mediaItem)
-			.then((trackingStatus) => {
+			.then(({ status: trackingStatus, tracking: trackData }) => {
 				setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
+				setTrackingData(trackData);
 			})
 			.catch((err) => {
 				console.warn("useLibraryItemStatus getLibraryStatus error:", err);
@@ -63,6 +67,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 
 	return {
 		status,
+		trackingData,
 		isWatchlisted,
 		isWatching,
 		isCompleted,

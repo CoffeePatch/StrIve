@@ -15,7 +15,7 @@ const STATUS_CONFIG = {
   'Plan to Watch': { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' },
   
   // Default
-  'default': { bg: 'bg-white/10', text: 'text-white/80', border: 'border-white/20' }
+  'default': { bg: 'bg-surface-hover', text: 'text-secondary', border: 'border-border-subtle' }
 };
 
 /**

@@ -22,27 +22,27 @@ const ProfilePage = () => {
     <div className="min-h-screen premium-page flex flex-col">
       <Header />
       <main className="flex-grow flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center mb-6 border border-white/20">
-          <span className="material-symbols-outlined text-4xl text-white/50">
+        <div className="w-24 h-24 rounded-full bg-surface flex items-center justify-center mb-6 border border-border">
+          <span className="material-symbols-outlined text-4xl text-muted">
             person
           </span>
         </div>
-        <h1 className="text-2xl font-semibold text-white mb-2">
+        <h1 className="text-2xl font-semibold text-primary mb-2">
           {user?.name || user?.email || 'User Profile'}
         </h1>
-        <p className="text-white/60 mb-8">{user?.email}</p>
+        <p className="text-secondary mb-8">{user?.email}</p>
 
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <button
             onClick={() => navigate('/settings')}
-            className="w-full px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors font-medium border border-white/10"
+            className="w-full px-6 py-3 bg-surface hover:bg-surface-hover text-primary rounded-xl transition-colors font-medium border border-border"
           >
             Settings
           </button>
           
           <button
             onClick={handleLogout}
-            className="w-full px-6 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-500 rounded-xl transition-colors font-medium border border-red-500/20"
+            className="w-full px-6 py-3 bg-error/20 hover:bg-error/30 text-error rounded-xl transition-colors font-medium border border-error/20"
           >
             Sign Out
           </button>

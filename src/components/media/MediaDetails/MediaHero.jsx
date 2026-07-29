@@ -37,20 +37,23 @@ const MediaHero = ({
           {/* TV Specific Gradient Overlay */}
           <div 
             className="absolute inset-0" 
-            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,1) 100%)' }}
+            style={{ background: 'linear-gradient(180deg, var(--color-hero-top) 0%, var(--color-hero-mid) 50%, var(--color-hero-bottom) 100%)' }}
           ></div>
           {/* Radial darkening behind the poster on desktop */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_left,_var(--tw-gradient-stops))] from-black/60 via-transparent to-transparent hidden md:block"></div>
+          <div 
+            className="absolute inset-0 hidden md:block"
+            style={{ background: 'radial-gradient(ellipse at left, var(--color-hero-radial), transparent)' }}
+          ></div>
         </div>
 
         {/* Back Button */}
         {onBack && (
           <button
             onClick={onBack}
-            className="absolute top-6 left-6 z-20 p-3 rounded-full focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] focus-visible:outline-none transition-all cursor-pointer bg-black/60 hover:bg-black/80 shadow-lg"
+            className="absolute top-6 left-6 z-20 p-3 rounded-full focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none transition-all cursor-pointer bg-surface/50 hover:bg-surface/80 backdrop-blur shadow-lg border border-border"
             aria-label="Back to Shows"
           >
-            <ArrowLeft className="w-6 h-6 text-white" />
+            <ArrowLeft className="w-6 h-6 text-primary" />
           </button>
         )}
 
@@ -81,7 +84,7 @@ const MediaHero = ({
             {/* Title Logo Block */}
             <div className="mb-4 lg:mb-6 flex justify-center md:justify-start w-full">
               {/* Semantic hidden title for accessibility when logo is shown */}
-              <h1 className={logoUrl ? "sr-only" : "text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-lg"}>
+              <h1 className={logoUrl ? "sr-only" : "text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-primary drop-shadow-lg"}>
                 {title}
               </h1>
               
@@ -100,20 +103,20 @@ const MediaHero = ({
               {ratingsComponent}
               
               {releaseYear && (
-                <div className="flex items-center gap-1.5 text-[14px] text-[#E5E7EB]">
-                  <Calendar className="w-4 h-4 text-[#9CA3AF]" />
+                <div className="flex items-center gap-1.5 text-[14px] text-secondary">
+                  <Calendar className="w-4 h-4 text-muted" />
                   <span>{releaseYear}</span>
                 </div>
               )}
               
               {durationOrSeasons && (
-                <div className="text-[14px] text-[#E5E7EB]">
+                <div className="text-[14px] text-secondary">
                   {durationOrSeasons}
                 </div>
               )}
 
               {status && (
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-white/10 text-white border border-white/20">
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-surface/50 backdrop-blur text-primary border border-border">
                   {status}
                 </span>
               )}
@@ -128,7 +131,7 @@ const MediaHero = ({
             {/* Synopsis Block */}
             {overview && (
               <div className="mb-8 w-full max-w-[700px]">
-                <p className="text-[15px] lg:text-[16px] leading-relaxed text-[#D1D5DB] line-clamp-3">
+                <p className="text-[15px] lg:text-[16px] leading-relaxed text-secondary line-clamp-3">
                   {overview}
                 </p>
               </div>

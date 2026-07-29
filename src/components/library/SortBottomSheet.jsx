@@ -51,7 +51,7 @@ const SortBottomSheet = ({ isOpen, onClose, sortState, onSortChange }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-backdrop backdrop-blur-sm"
           />
 
           {/* Bottom Sheet / Modal */}
@@ -60,19 +60,19 @@ const SortBottomSheet = ({ isOpen, onClose, sortState, onSortChange }) => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={spring}
-            className="w-full bg-[#1A1C20] rounded-t-3xl md:rounded-2xl md:max-w-sm overflow-hidden z-10 border border-white/10 flex flex-col"
+            className="w-full bg-surface rounded-t-3xl md:rounded-2xl md:max-w-sm overflow-hidden z-10 border border-border-subtle flex flex-col"
             style={{ maxHeight: '90vh' }}
           >
             {/* Handle bar for mobile */}
             <div className="w-full flex justify-center pt-3 pb-1 md:hidden">
-              <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+              <div className="w-12 h-1.5 bg-divider rounded-full" />
             </div>
 
-            <div className="px-6 py-4 flex justify-between items-center border-b border-white/5">
-              <h2 className="text-lg font-bold text-white">Sort By</h2>
+            <div className="px-6 py-4 flex justify-between items-center border-b border-border-subtle">
+              <h2 className="text-lg font-bold text-primary">Sort By</h2>
               <button 
                 onClick={onClose}
-                className="p-1 rounded-full hover:bg-white/10 text-white/60 transition-colors"
+                className="p-1 rounded-full hover:bg-surface-hover text-secondary transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
@@ -87,20 +87,20 @@ const SortBottomSheet = ({ isOpen, onClose, sortState, onSortChange }) => {
                     key={option.id}
                     onClick={() => handleOptionClick(option.id)}
                     className={`w-full px-6 py-3.5 flex items-center justify-between transition-colors ${
-                      isActive ? 'bg-white/5' : 'hover:bg-white/5'
+                      isActive ? 'bg-surface-hover' : 'hover:bg-surface-hover'
                     }`}
                   >
-                    <span className={`text-[15px] font-medium ${isActive ? 'text-[#E50914]' : 'text-white'}`}>
+                    <span className={`text-[15px] font-medium ${isActive ? 'text-accent' : 'text-primary'}`}>
                       {option.label}
                     </span>
                     
                     {isActive && (
-                      <span className="material-symbols-outlined text-[#E50914] text-[20px]">
+                      <span className="material-symbols-outlined text-accent text-[20px]">
                         {sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
                       </span>
                     )}
                     {!isActive && (
-                      <span className="material-symbols-outlined text-white/20 text-[20px]">
+                      <span className="material-symbols-outlined text-muted text-[20px]">
                         arrow_downward
                       </span>
                     )}

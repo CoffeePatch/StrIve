@@ -33,12 +33,12 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
   };
 
   return (
-    <div className="glass-effect rounded-xl p-6 border border-white/10 bg-white/5 space-y-6">
+    <div className="glass-effect rounded-xl p-6 border border-border-subtle bg-surface space-y-6">
        
        {/* Custom Lists */}
        {customLists && customLists.length > 0 && (
          <div className="space-y-3">
-           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Custom Lists</h3>
+           <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Custom Lists</h3>
            <div className="flex flex-wrap gap-2">
              {customLists.map(list => {
                const isActive = customListIds.includes(list.id);
@@ -59,7 +59,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
        {/* Ratings */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Rating</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">IMDb Rating</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -80,7 +80,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
           
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Rating</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">TMDB Rating</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -104,7 +104,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
        {/* Votes */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Votes</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">IMDb Votes</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -125,7 +125,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
 
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Votes</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">TMDB Votes</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -150,22 +150,22 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
        {/* Year & Genres */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Release Year</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Release Year</h3>
             <div className="flex items-center gap-3">
               <input 
                 type="number" 
                 placeholder="From" 
                 value={yearFrom || ''} 
                 onChange={(e) => updateFilters({ yearFrom: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                className="w-24 bg-backdrop border border-border-subtle rounded-lg px-3 py-1.5 text-[13px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
               />
-              <span className="text-white/40">-</span>
+              <span className="text-muted">-</span>
               <input 
                 type="number" 
                 placeholder="To" 
                 value={yearTo || ''} 
                 onChange={(e) => updateFilters({ yearTo: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                className="w-24 bg-backdrop border border-border-subtle rounded-lg px-3 py-1.5 text-[13px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
               />
               <div className="flex flex-wrap gap-2 ml-2">
                  {[
@@ -189,7 +189,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
 
          <div className="flex-[2] space-y-3">
-           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Genres</h3>
+           <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Genres</h3>
            <div className="flex flex-wrap gap-2">
              {standardGenres.map(g => {
                const isActive = genres.includes(g);

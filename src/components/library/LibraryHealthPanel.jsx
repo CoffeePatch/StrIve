@@ -9,17 +9,16 @@ const HealthRow = ({ label, check }) => {
 
   return (
     <div
-      className="rounded-xl p-4 border"
-      style={{ backgroundColor: "var(--color-bg-elevated)", borderColor: "var(--color-border)" }}
+      className="rounded-xl p-4 border border-border-subtle bg-surface"
     >
-      <div className="flex items-center gap-3 text-white font-semibold">
+      <div className="flex items-center gap-3 text-primary font-semibold">
         <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotClass}`} />
         <span>
           {label}
           {count}
         </span>
       </div>
-      <div className="text-white/60 text-sm mt-1">{check?.message || "Unknown"}</div>
+      <div className="text-secondary text-sm mt-1">{check?.message || "Unknown"}</div>
     </div>
   );
 };
@@ -29,13 +28,13 @@ const LibraryHealthPanel = ({ userId }) => {
 
   return (
     <section className="glass-effect rounded-2xl p-8">
-      <h2 className="text-2xl font-bold font-display text-white flex items-center gap-3">
-        <span className="material-symbols-outlined text-3xl text-white/80">
+      <h2 className="text-2xl font-bold font-display text-primary flex items-center gap-3">
+        <span className="material-symbols-outlined text-3xl text-secondary">
           health_and_safety
         </span>
         Library Health (Dev)
       </h2>
-      <p className="text-white/60 text-sm leading-relaxed mt-2">
+      <p className="text-secondary text-sm leading-relaxed mt-2">
         Quick diagnostics for your new Firebase library stack. This verifies that
         Firestore collections are readable and the watched callable is reachable.
       </p>
@@ -66,7 +65,7 @@ const LibraryHealthPanel = ({ userId }) => {
         </button>
       </div>
 
-      <p className="text-white/50 text-xs mt-4">
+      <p className="text-muted text-xs mt-4">
         Last run: {lastRunAt ? new Date(lastRunAt).toLocaleString() : "Never"}
       </p>
     </section>

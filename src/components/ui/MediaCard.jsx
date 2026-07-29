@@ -91,24 +91,24 @@ const MediaCard = ({
       <>
         {/* IMDb Rating Pill for Library */}
         {variant === 'library' && imdbRating && (
-          <div className="absolute top-2 left-2 z-10 flex flex-row items-center gap-1.5 px-2 py-1 rounded-md border border-white/10 bg-black/60 backdrop-blur-md shadow-sm pointer-events-none">
-            <span className="bg-[#F5C518] text-black text-[9px] font-black px-1 rounded-sm tracking-tighter leading-none" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+          <div className="absolute top-2 left-2 z-10 flex flex-row items-center gap-1.5 px-2 py-1 rounded-md border border-border-subtle bg-backdrop backdrop-blur-md shadow-sm pointer-events-none">
+            <span className="bg-[#F5C518] text-[#000000] text-[9px] font-black px-1 rounded-sm tracking-tighter leading-none" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
               IMDb
             </span>
             <span className="text-white text-xs font-bold leading-none mt-[1px]">{Number(imdbRating).toFixed(1)}</span>
             {imdbVotes ? (
-              <span className="text-[#9CA3AF] text-[10px] leading-none mt-[1px]">({formatCount(imdbVotes)})</span>
+              <span className="text-white/70 text-[10px] leading-none mt-[1px]">({formatCount(imdbVotes)})</span>
             ) : null}
           </div>
         )}
 
         {/* Play Icon & Next Episode on Hover */}
-        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-          <div className="w-12 h-12 rounded-full bg-[var(--color-accent-primary)]/90 flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-200 shadow-lg">
-            <Play className="w-6 h-6 text-white ml-1" fill="currentColor" />
+        <div className="absolute inset-0 bg-overlay flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+          <div className="w-12 h-12 rounded-full bg-accent/90 flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-200 shadow-lg">
+            <Play className="w-6 h-6 text-inverse ml-1" fill="currentColor" />
           </div>
           {media.tracking?.nextEpisodeLabel && (media.tracking?.status === 'watching' || media.tracking?.status === 'plan_to_watch') && (
-            <div className="mt-3 text-white text-xs font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-black/40 backdrop-blur-sm border border-white/10">
+            <div className="mt-3 text-inverse text-xs font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-overlay backdrop-blur-sm border border-border-subtle">
               Next: {media.tracking.nextEpisodeLabel}
             </div>
           )}
@@ -122,7 +122,7 @@ const MediaCard = ({
               e.stopPropagation();
               onQuickActions(media, e);
             }}
-            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-gray-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-backdrop text-white/70 hover:text-white hover:bg-backdrop/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
             aria-label="Quick Actions"
             title="Quick Actions"
           >
@@ -131,7 +131,7 @@ const MediaCard = ({
         ) : onRemove ? (
           <button
             onClick={handleRemoveClick}
-            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-gray-300 hover:text-red-500 hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-backdrop text-white/70 hover:text-red-500 hover:bg-backdrop/80 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 focus:outline-none focus:opacity-100"
             aria-label="Remove"
           >
             <Trash2 className="w-4 h-4" />
@@ -140,9 +140,9 @@ const MediaCard = ({
 
         {/* TV Progress Bar */}
         {(media.tracking?.status === 'completed' || (media.tvProgress && media.tvProgress.completionPercent !== undefined && media.tvProgress.completionPercent > 0)) && (
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/60 z-20 overflow-hidden">
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-backdrop z-20 overflow-hidden">
             <div 
-              className="h-full bg-[var(--color-accent-primary)] shadow-[0_0_10px_var(--color-accent-primary)]" 
+              className="h-full bg-accent shadow-sm shadow-accent/50" 
               style={{ width: media.tracking?.status === 'completed' ? '100%' : `${Math.min(100, Math.max(0, media.tvProgress.completionPercent))}%` }} 
             />
           </div>
@@ -167,18 +167,18 @@ const MediaCard = ({
         {/* Only show metadata text if not a standard carousel (posters look better without text) */}
         {variant !== 'carousel' && (
           <div className="flex flex-col mt-2">
-            <h3 className="text-sm sm:text-base font-bold text-white truncate group-hover:text-[var(--color-accent-primary)] transition-colors block w-full">
+            <h3 className="text-sm sm:text-base font-bold text-primary truncate group-hover:text-accent transition-colors block w-full">
               {title}
             </h3>
             
-            <div className="flex items-center justify-between text-xs text-gray-400 mt-1 w-full">
+            <div className="flex items-center justify-between text-xs text-secondary mt-1 w-full">
               <div className="flex items-center gap-1.5">
                 {variant === 'continue_watching' && media.tracking?.nextEpisodeLabel ? (
-                  <span className="leading-none text-white/60">{media.tracking.nextEpisodeLabel}</span>
+                  <span className="leading-none text-muted">{media.tracking.nextEpisodeLabel}</span>
                 ) : (
                   <>
                     <span className="leading-none mt-[1px]">{year && !isNaN(year) ? year : ''}</span>
-                    <div className="text-gray-500 flex items-center">
+                    <div className="text-muted flex items-center">
                       {type === 'tv' ? <Tv className="w-3.5 h-3.5" /> : <Film className="w-3.5 h-3.5" />}
                     </div>
                   </>

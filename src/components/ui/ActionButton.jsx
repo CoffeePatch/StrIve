@@ -31,19 +31,19 @@ const ActionButton = ({
   // Variant classes
   const getVariantClasses = () => {
     if (variant === 'primary') {
-      return 'bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-hover)] text-white shadow-lg hover:shadow-[var(--color-accent-primary)]/20';
+      return 'bg-accent hover:bg-accent-hover text-inverse shadow-lg shadow-accent/20';
     }
     
     if (variant === 'icon') {
       return active 
-        ? 'bg-[var(--color-accent-primary)] text-white shadow-lg border-transparent hover:bg-[var(--color-accent-hover)]' 
-        : 'bg-black/40 backdrop-blur-md border border-[var(--color-border)] text-white hover:bg-white/10 hover:border-white/30';
+        ? 'bg-accent text-inverse shadow-lg border-transparent hover:bg-accent-hover' 
+        : 'bg-backdrop backdrop-blur-md border border-border-subtle text-primary hover:bg-surface-hover hover:border-border';
     }
 
     // Default Secondary (Glass)
     return active
-      ? 'bg-[var(--color-accent-primary)]/10 text-[var(--color-accent-primary)] border border-[var(--color-accent-primary)]/50 hover:bg-[var(--color-accent-primary)]/20'
-      : 'bg-white/5 backdrop-blur-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white hover:bg-white/10 hover:border-white/30';
+      ? 'bg-accent/10 text-accent border border-accent/50 hover:bg-accent/20'
+      : 'bg-overlay backdrop-blur-md border border-border-subtle text-secondary hover:text-primary hover:bg-surface-hover hover:border-border';
   };
 
   return (
@@ -52,7 +52,7 @@ const ActionButton = ({
       disabled={disabled}
       className={`
         inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-black
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background
         disabled:opacity-50 disabled:cursor-not-allowed
         ${sizeClasses[size]}
         ${getVariantClasses()}
@@ -61,7 +61,7 @@ const ActionButton = ({
       title={label}
     >
       {icon && (
-        <span className={`flex-shrink-0 ${variant === 'icon' ? '' : (active && variant === 'secondary' ? 'text-[var(--color-accent-primary)]' : '')}`}>
+        <span className={`flex-shrink-0 ${variant === 'icon' ? '' : (active && variant === 'secondary' ? 'text-accent' : '')}`}>
           {icon}
         </span>
       )}

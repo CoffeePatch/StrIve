@@ -32,7 +32,7 @@ export const useSeriesTracking = ({
   const recomputeKeyRef = useRef(null);
 
   // Existing Tracking Hooks
-  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
+  const { watchedSet, loading: watchedSetLoading, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
   const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
   const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
@@ -204,6 +204,7 @@ export const useSeriesTracking = ({
 
   return {
     watchedSet,
+    watchedSetLoading,
     seriesProgress,
     pendingProgress,
     applyWatchMode,

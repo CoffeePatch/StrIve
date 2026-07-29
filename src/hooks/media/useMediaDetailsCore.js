@@ -107,7 +107,7 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   } : null;
 
   // Hydrate Library Status
-  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted } = useLibraryItemStatus({
+  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted, trackingData } = useLibraryItemStatus({
     userId: user?.uid,
     mediaItem: mediaDetails ? { id: mediaDetails.id, media_type: mediaType } : null,
     realtime: true,
@@ -142,17 +142,17 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     }
   };
 
-  const handleToggleWatched = async () => {
+  const handleToggleWatched = async (options = {}) => {
     if (!user) {
       alert("Please log in first.");
       return;
     }
     try {
-      if (isWatched) {
+      if (isWatched && !options.watchedAt) {
         await libraryAdapter.unmarkCompleted(user.uid, mediaItemForLists);
         setIsWatched(false);
       } else {
-        await libraryAdapter.markCompleted(user.uid, mediaItemForLists);
+        await libraryAdapter.markCompleted(user.uid, mediaItemForLists, options);
         setIsWatched(true);
         setIsWatchlisted(false);
       }
@@ -171,6 +171,7 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     imdbLoading,
     isWatchlisted,
     isWatched,
+    trackingData,
     handleToggleWatchlist,
     handleToggleWatched,
     mediaItemForLists

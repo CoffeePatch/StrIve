@@ -35,8 +35,8 @@ export const libraryAdapter = {
    * If the item doesn't exist, it will be upserted.
    * Otherwise, only the tracking status is updated, preserving all other metadata.
    */
-  updateLibraryStatus: async (userId, mediaItem, status) => {
-    return await setLibraryItemStatus(userId, mediaItem, status);
+  updateLibraryStatus: async (userId, mediaItem, status, options = {}) => {
+    return await setLibraryItemStatus(userId, mediaItem, status, options);
   },
 
   /**
@@ -65,8 +65,8 @@ export const libraryAdapter = {
     return await libraryAdapter.updateLibraryStatus(userId, mediaItem, null);
   },
 
-  markCompleted: async (userId, mediaItem) => {
-    return await libraryAdapter.updateLibraryStatus(userId, mediaItem, "Completed");
+  markCompleted: async (userId, mediaItem, options = {}) => {
+    return await libraryAdapter.updateLibraryStatus(userId, mediaItem, "Completed", options);
   },
 
   unmarkCompleted: async (userId, mediaItem) => {
@@ -83,9 +83,12 @@ export const libraryAdapter = {
     const ref = doc(db, "users", userId, "library_items", titleKey);
     const snap = await getDoc(ref);
     if (snap.exists()) {
-      return readWatchStatus(snap.data());
+      return {
+        status: readWatchStatus(snap.data()),
+        tracking: snap.data()?.tracking || null
+      };
     }
-    return null;
+    return { status: null, tracking: null };
   },
 
   /**
@@ -99,9 +102,9 @@ export const libraryAdapter = {
       ref,
       (snap) => {
         if (snap.exists()) {
-          onStatusChange(readWatchStatus(snap.data()));
+          onStatusChange(readWatchStatus(snap.data()), snap.data()?.tracking || null);
         } else {
-          onStatusChange(null);
+          onStatusChange(null, null);
         }
       },
       (err) => {

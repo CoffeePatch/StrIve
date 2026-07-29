@@ -79,7 +79,7 @@ const extractRuntime = (itemOrRuntime) => {
 };
 
 export const buildLibraryPayload = async (mediaItem, existingData, options = {}) => {
-  const { status = null, listId = null, titleKey, mediaType, tmdbId, isUserInteraction = false } = options;
+  const { status = null, listId = null, titleKey, mediaType, tmdbId, isUserInteraction = false, watchedAt = null } = options;
   const now = Timestamp.now();
 
   const mergedListIds = Array.isArray(existingData?.tracking?.listIds)
@@ -136,7 +136,9 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
 
   const targetStatus = normalizedStatus ?? existingData?.tracking?.watchStatus ?? null;
   const isNewlyCompleted = targetStatus === 'completed' && existingData?.tracking?.watchStatus !== 'completed';
-  const lastWatchedAt = isNewlyCompleted ? now : (existingData?.tracking?.lastWatchedAt || null);
+  const lastWatchedAt = watchedAt 
+    ? (watchedAt instanceof Timestamp ? watchedAt : Timestamp.fromDate(new Date(watchedAt)))
+    : (isNewlyCompleted ? now : (existingData?.tracking?.lastWatchedAt || null));
 
   const payload = {
     titleKey,
@@ -323,7 +325,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
 /**
  * Sets the status field for the library item.
  */
-export const setLibraryItemStatus = async (userId, mediaItem, status) => {
+export const setLibraryItemStatus = async (userId, mediaItem, status, options = {}) => {
   if (!userId) throw new Error("Missing userId");
   if (!mediaItem?.id) throw new Error("Missing media item id");
 
@@ -335,7 +337,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: normalizedStatus, listId: null, isUserInteraction: true });
+    await upsertLibraryItem(userId, mediaItem, { status: normalizedStatus, listId: null, isUserInteraction: true, watchedAt: options.watchedAt });
     return titleKey;
   }
 
@@ -343,7 +345,13 @@ export const setLibraryItemStatus = async (userId, mediaItem, status) => {
   const existingTracking = existingData?.tracking || {};
   const isNewlyCompleted = normalizedStatus === 'completed' && existingTracking.watchStatus !== 'completed';
   const addedAt = existingTracking.addedAt || Timestamp.now();
-  const lastWatchedAt = isNewlyCompleted ? Timestamp.now() : (existingTracking.lastWatchedAt || null);
+  
+  let lastWatchedAt;
+  if (options.watchedAt) {
+    lastWatchedAt = options.watchedAt instanceof Timestamp ? options.watchedAt : Timestamp.fromDate(new Date(options.watchedAt));
+  } else {
+    lastWatchedAt = isNewlyCompleted ? Timestamp.now() : (existingTracking.lastWatchedAt || null);
+  }
 
   await setDoc(
     ref,

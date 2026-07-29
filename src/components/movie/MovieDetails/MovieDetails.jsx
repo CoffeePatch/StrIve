@@ -29,6 +29,7 @@ const MovieDetails = () => {
     imdbLoading,
     isWatchlisted,
     isWatched: isCompleted,
+    trackingData,
     handleToggleWatchlist,
     handleToggleWatched: handleToggleCompleted,
     mediaItemForLists
@@ -76,11 +77,10 @@ const MovieDetails = () => {
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
             <div className="text-red-500 text-xl mb-4">Error loading Movie</div>
-            <p style={{ color: "var(--color-text-secondary)" }}>{detailsError}</p>
+            <p className="text-secondary">{detailsError}</p>
             <button
               onClick={() => navigate("/movies")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Movies
             </button>
@@ -96,13 +96,12 @@ const MovieDetails = () => {
         <Header />
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
-            <div className="text-xl mb-4" style={{ color: "var(--color-text-primary)" }}>
+            <div className="text-xl mb-4 text-primary">
               Movie not found
             </div>
             <button
               onClick={() => navigate("/movies")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Movies
             </button>
@@ -115,7 +114,7 @@ const MovieDetails = () => {
   return (
     <div className="min-h-screen premium-page pt-20">
       <Header />
-      <div className="amoled-page">
+      <div className="w-full">
         <MediaHero
           backdropPath={movieDetails.backdrop_path}
           layoutType="movie"
@@ -150,6 +149,7 @@ const MovieDetails = () => {
               isWatchlisted={isWatchlisted}
               onToggleWatchlist={handleToggleWatchlist}
               isWatched={isCompleted}
+              trackingData={trackingData}
               onToggleWatched={handleToggleCompleted}
               userId={user?.uid}
               mediaItem={mediaItemForLists}

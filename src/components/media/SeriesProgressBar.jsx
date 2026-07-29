@@ -57,8 +57,8 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "", 
         {/* Labels row */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5" style={{ color: hasProgress ? '#4ade80' : 'var(--color-text-tertiary)' }} />
-            <span className="text-xs font-medium" style={{ color: hasProgress ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}>
+            <TrendingUp className={`w-3.5 h-3.5 ${hasProgress ? 'text-success' : 'text-muted'}`} />
+            <span className={`text-xs font-medium ${hasProgress ? 'text-secondary' : 'text-muted'}`}>
               {hasProgress
                 ? `${displayWatched} of ${displayAired} aired episodes watched`
                 : 'No episodes tracked yet'}
@@ -70,7 +70,7 @@ const SeriesProgressBar = ({ userId, titleKey, realtime = true, className = "", 
             )}
           </div>
           {hasProgress && (
-            <span className={`text-xs font-bold ${isComplete ? 'text-green-400' : 'text-white/70'}`}>
+            <span className={`text-xs font-bold ${isComplete ? 'text-success' : 'text-secondary'}`}>
               {pct}
             </span>
           )}

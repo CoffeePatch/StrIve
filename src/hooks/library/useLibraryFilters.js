@@ -66,7 +66,15 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
   // Local React States for advanced filters to prevent URL bloat
   const [status, setStatus] = useState(() => searchParams.get('status') || 'all');
-  const [type, setType] = useState(() => searchParams.get('type') || 'all');
+  const [type, setType] = useState(() => {
+    const urlType = searchParams.get('type');
+    if (urlType) return urlType;
+    try {
+      const saved = sessionStorage.getItem('libraryTypePreference');
+      if (saved) return saved;
+    } catch {}
+    return 'all';
+  });
 
   // Sync status, type, and sort from URL when searchParams changes
   useEffect(() => {
@@ -77,6 +85,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     const urlType = searchParams.get('type');
     if (urlType !== null) {
       setType(urlType || 'all');
+      try { sessionStorage.setItem('libraryTypePreference', urlType || 'all'); } catch {}
     }
     const urlSort = searchParams.get('sort');
     if (urlSort !== null) {
@@ -184,7 +193,10 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     Object.keys(updates).forEach(key => {
       const val = updates[key];
       if (key === 'status') setStatus(val ?? 'all');
-      else if (key === 'type') setType(val ?? 'all');
+      else if (key === 'type') {
+        setType(val ?? 'all');
+        try { sessionStorage.setItem('libraryTypePreference', val ?? 'all'); } catch {}
+      }
       else if (key === 'imdbMin') setImdbRatingMin(val);
       else if (key === 'imdbVotesMin') setImdbVotesMin(val);
       else if (key === 'tmdbMin') setTmdbRatingMin(val);
@@ -201,6 +213,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const clearAdvancedFilters = useCallback(() => {
     setStatus('all');
     setType('all');
+    try { sessionStorage.setItem('libraryTypePreference', 'all'); } catch {}
     setImdbRatingMin(null);
     setImdbVotesMin(null);
     setTmdbRatingMin(null);

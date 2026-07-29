@@ -46,6 +46,7 @@ const TVShowDetailsPage = () => {
     imdbLoading,
     isWatchlisted,
     isWatched,
+    trackingData,
     handleToggleWatchlist,
     handleToggleWatched,
     mediaItemForLists
@@ -119,6 +120,7 @@ const TVShowDetailsPage = () => {
   // Domain Tracking Hook
   const {
     watchedSet,
+    watchedSetLoading,
     pendingProgress,
     applyWatchMode,
     handleUnwatchSeries,
@@ -137,7 +139,7 @@ const TVShowDetailsPage = () => {
     onError: (msg) => setToast({ type: 'error', message: msg })
   });
 
-  const handleToggleWatchedClick = async () => {
+  const handleToggleWatchedClick = async (options = {}) => {
     if (!isWatched) {
       // Mark all episodes watched
       try {
@@ -145,7 +147,7 @@ const TVShowDetailsPage = () => {
       } catch (err) {
         console.error("Failed to mark all episodes watched:", err);
       }
-    } else {
+    } else if (isWatched && !options.watchedAt) {
       // Unwatch all episodes
       try {
         await handleUnwatchSeries();
@@ -153,7 +155,7 @@ const TVShowDetailsPage = () => {
         console.error("Failed to unwatch series:", err);
       }
     }
-    await handleToggleWatched();
+    await handleToggleWatched(options);
   };
 
   useLayoutEffect(() => {
@@ -163,9 +165,8 @@ const TVShowDetailsPage = () => {
   const { isAutoSelected, resetAutoSelection, lockAutoSelection } = useAutoSeasonSelection({
     showDetails,
     watchedSet,
-    selectedSeason,
+    watchedSetLoading,
     setSelectedSeason,
-    seasonData,
   });
 
   const changeSeason = useCallback((season) => {
@@ -451,11 +452,10 @@ const TVShowDetailsPage = () => {
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
             <div className="text-red-500 text-xl mb-4">Error loading TV show</div>
-            <p style={{ color: "var(--color-text-secondary)" }}>{detailsError}</p>
+            <p className="text-secondary">{detailsError}</p>
             <button
               onClick={() => navigate("/shows")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Shows
             </button>
@@ -471,13 +471,12 @@ const TVShowDetailsPage = () => {
         <Header />
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
-            <div className="text-xl mb-4" style={{ color: "var(--color-text-primary)" }}>
+            <div className="text-xl mb-4 text-primary">
               Show not found
             </div>
             <button
               onClick={() => navigate("/shows")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Shows
             </button>
@@ -490,7 +489,7 @@ const TVShowDetailsPage = () => {
   return (
     <div className="min-h-screen premium-page pt-20">
       <Header />
-      <div className="amoled-page">
+      <div className="w-full">
         <MediaHero
           backdropPath={showDetails.backdropPath}
           layoutType="tv"
@@ -520,6 +519,7 @@ const TVShowDetailsPage = () => {
               isWatchlisted={isWatchlisted}
               onToggleWatchlist={handleToggleWatchlist}
               isWatched={isWatched}
+              trackingData={trackingData}
               onToggleWatched={handleToggleWatchedClick}
               userId={user?.uid}
               mediaItem={mediaItemForLists}
@@ -537,13 +537,13 @@ const TVShowDetailsPage = () => {
           <MediaTrailers videos={videos} />
 
           <div id="episodes-section" className="mt-8 md:mt-12">
-              <div className="flex justify-between items-center mb-4 border-b border-[var(--color-border)] pb-3">
-                <h2 className="text-[18px] md:text-[20px] font-semibold text-[var(--color-text-primary)] leading-none">
+              <div className="flex justify-between items-center mb-4 border-b border-border pb-3">
+                <h2 className="text-[18px] md:text-[20px] font-semibold text-primary leading-none">
                   Episodes
                 </h2>
                 <div className="flex items-center gap-4">
                   {viewMode !== 'matrix' && seasonData?.episodes && (
-                    <span className="text-[14px] text-[var(--color-text-secondary)] font-normal">
+                    <span className="text-[14px] text-secondary font-normal">
                       {seasonData.episodes.length} Episodes &bull; Season {selectedSeason}
                     </span>
                   )}
@@ -617,14 +617,14 @@ const TVShowDetailsPage = () => {
         <div className="unwatch-modal-overlay" onClick={() => { setShowWatchChoiceModal(false); setWatchChoiceEpisode(null); }}>
           <div className="unwatch-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-green-400">done</span>
+              <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-success">done</span>
               </div>
-              <h3 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+              <h3 className="text-xl font-bold text-primary">
                 Mark Episode Watched
               </h3>
             </div>
-            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-sm mb-6 leading-relaxed text-secondary">
               Choose how to mark S{watchChoiceSeason}E{watchChoiceNumber}.
             </p>
             <div className="flex flex-col gap-3">
@@ -645,8 +645,7 @@ const TVShowDetailsPage = () => {
               <button
                 onClick={() => { setShowWatchChoiceModal(false); setWatchChoiceEpisode(null); }}
                 disabled={markWatchedLoading}
-                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors bg-surface text-primary border border-border hover:bg-surface-hover"
               >
                 Cancel
               </button>
@@ -660,14 +659,14 @@ const TVShowDetailsPage = () => {
         <div className="unwatch-modal-overlay" onClick={() => setShowUnwatchModal(false)}>
           <div className="unwatch-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-400" />
+              <div className="w-10 h-10 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-error" />
               </div>
-              <h3 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
+              <h3 className="text-xl font-bold text-primary">
                 Unwatch Entire Series?
               </h3>
             </div>
-            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-sm mb-6 leading-relaxed text-secondary">
               This will reset <strong>all</strong> watched episodes for <strong>{showDetails?.name}</strong>. 
               Your tracking progress will be set to zero and the status will change to <em>Plan to Watch</em>.
               This action cannot be undone.
@@ -676,8 +675,7 @@ const TVShowDetailsPage = () => {
               <button
                 onClick={() => setShowUnwatchModal(false)}
                 disabled={unwatchLoading}
-                className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+                className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-colors bg-surface text-primary border border-border hover:bg-surface-hover"
               >
                 Cancel
               </button>
