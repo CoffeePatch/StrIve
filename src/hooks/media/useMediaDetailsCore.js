@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import useRequireAuth from "../common/useRequireAuth";
 import useImdbTitle from "./useImdbTitle";
 import useLibraryItemStatus from "./useLibraryItemStatus";
 import { libraryAdapter } from "../../domain/library/libraryAdapter";
 import { getOrFetch, CACHE_KEYS, TTL, invalidateContinueWatching } from "../../util/cache/sessionCache";
+import { createLibraryIdentity } from "../../domain/library/libraryIdentity";
 
 const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   const user = useRequireAuth();
@@ -12,7 +13,20 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const { data: imdbData, loading: imdbLoading } = useImdbTitle(mediaId, mediaType);
+  const libraryIdentity = useMemo(() => {
+    if (!mediaId) return null;
+    return createLibraryIdentity({
+      titleKey: mediaType === "tv" ? `tmdb_tv_${mediaId}` : `tmdb_movie_${mediaId}`,
+      mediaType,
+      tmdbId: mediaId,
+    });
+  }, [mediaId, mediaType]);
+
+  const { data: imdbData, loading: imdbLoading } = useImdbTitle(mediaId, mediaType, {
+    userId: user?.uid,
+    titleKey: libraryIdentity?.titleKey,
+    persist: true,
+  });
 
   const fetchDetails = useCallback(async () => {
     if (!mediaId) {
@@ -83,6 +97,9 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
 
   // Construct standard payload for Firestore lists
   const mediaItemForLists = mediaDetails ? {
+    titleKey: mediaType === "tv" ? `tmdb_tv_${mediaDetails.id}` : `tmdb_movie_${mediaDetails.id}`,
+    mediaType,
+    tmdbId: mediaDetails.id,
     id: mediaDetails.id,
     title: mediaDetails.title,
     name: mediaDetails.title,
@@ -109,7 +126,7 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   // Hydrate Library Status
   const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted, trackingData } = useLibraryItemStatus({
     userId: user?.uid,
-    mediaItem: mediaDetails ? { id: mediaDetails.id, media_type: mediaType } : null,
+    libraryIdentity,
     realtime: true,
   });
 

@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../util/firebase/firebase';
 import { setLibraryItemListIds, getLibraryItemListIds } from '../../util/firebase/firestoreService';
+import { readLibraryIdentity } from '../library/libraryIdentity';
 
 /**
  * listsAdapter is the only component that interacts with Firestore for lists.
@@ -41,6 +42,7 @@ export const listsAdapter = {
 
   deleteList: async (userId, listId) => {
     try {
+      await listsAdapter.removeListIdFromAllItems(userId, listId);
       const listRef = doc(db, "users", userId, "lists", listId);
       await deleteDoc(listRef);
     } catch (error) {
@@ -170,9 +172,7 @@ export const listsAdapter = {
 
   removeItemFromList: async (userId, listId, mediaId) => {
     try {
-      const mediaType = String(mediaId).includes("_tv_") ? "tv" : "movie";
-      const numericId = Number(String(mediaId).split("_").pop());
-      const mediaItem = { id: numericId, media_type: mediaType };
+      const mediaItem = readLibraryIdentity(mediaId);
       
       const currentListIds = await getLibraryItemListIds(userId, mediaItem);
       const updatedListIds = currentListIds.filter((id) => id !== listId);

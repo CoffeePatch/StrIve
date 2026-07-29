@@ -1,14 +1,14 @@
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
 import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { readLibraryIdentity } from "./libraryIdentity";
 
 /**
  * Helper to generate the Firestore document key for a library item.
- * Preserves existing schema and behavior.
+ * Identity must already be explicit; no media-type inference happens here.
  */
-function generateTitleKey(mediaId, mediaType = "movie") {
-  const type = mediaType === "tv" ? "tv" : "movie";
-  return `tmdb_${type}_${mediaId}`;
+function generateTitleKey(libraryIdentity) {
+  return readLibraryIdentity(libraryIdentity).titleKey;
 }
 
 /**
@@ -44,7 +44,7 @@ export const libraryAdapter = {
    * Typically used when you want a full metadata refresh alongside a status change.
    */
   saveLibraryItem: async (userId, mediaItem, status = null) => {
-    return await upsertLibraryItem(userId, mediaItem, { status, isUserInteraction: true });
+    return await upsertLibraryItem(userId, mediaItem, mediaItem, { status, isUserInteraction: true });
   },
 
   /**
@@ -79,7 +79,7 @@ export const libraryAdapter = {
    * Fetches the raw status string from Firestore once.
    */
   getLibraryStatus: async (userId, mediaItem) => {
-    const titleKey = generateTitleKey(mediaItem.id, mediaItem.media_type);
+    const titleKey = generateTitleKey(mediaItem);
     const ref = doc(db, "users", userId, "library_items", titleKey);
     const snap = await getDoc(ref);
     if (snap.exists()) {
@@ -96,7 +96,7 @@ export const libraryAdapter = {
    * Returns an unsubscribe function.
    */
   subscribeToLibraryStatus: (userId, mediaItem, onStatusChange, onError) => {
-    const titleKey = generateTitleKey(mediaItem.id, mediaItem.media_type);
+    const titleKey = generateTitleKey(mediaItem);
     const ref = doc(db, "users", userId, "library_items", titleKey);
     return onSnapshot(
       ref,

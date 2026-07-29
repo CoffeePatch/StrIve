@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
 import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
 import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
@@ -7,6 +7,7 @@ import useRecomputeSeriesProgress from "../../hooks/tv/useRecomputeSeriesProgres
 import { libraryAdapter } from "../library/libraryAdapter";
 import { buildEpisodeCatalog, selectEpisodesForMode, createEpisodeKey } from "./trackingHelpers";
 import { invalidateContinueWatching } from "../../util/cache/sessionCache";
+import { createLibraryIdentity } from "../library/libraryIdentity";
 
 const SYNCING_TIMEOUT_MS = 12000;
 
@@ -26,6 +27,11 @@ export const useSeriesTracking = ({
   onError
 }) => {
   const titleKey = `tmdb_tv_${tvId}`;
+  const libraryIdentity = useMemo(() => createLibraryIdentity({
+    titleKey,
+    mediaType: "tv",
+    tmdbId: tvId,
+  }), [titleKey, tvId]);
 
   // Local State
   const [pendingProgress, setPendingProgress] = useState(null);
@@ -69,6 +75,7 @@ export const useSeriesTracking = ({
     showDetails?.number_of_episodes,
     seriesProgress?.totalEpisodesCount,
     seriesProgress?.progressNeedsRecompute,
+    seriesProgress,
     watchedSet.size,
     recomputeLoading,
     recomputeSeriesProgress,
@@ -150,7 +157,10 @@ export const useSeriesTracking = ({
 
     if (!isWatched && !isWatchlisted && mediaItemForLists) {
       try {
-        await libraryAdapter.saveLibraryItem(user.uid, mediaItemForLists, "watching");
+        await libraryAdapter.saveLibraryItem(user.uid, {
+          ...mediaItemForLists,
+          ...libraryIdentity,
+        }, "watching");
       } catch (err) {
         console.warn("Failed to upsert library item:", err);
       }
@@ -185,13 +195,15 @@ export const useSeriesTracking = ({
     markLocallyWatched,
     markLocallyWatchedBulk,
     seriesProgress?.airedEpisodesCount,
-    showDetails?.numberOfEpisodes,
-    showDetails?.number_of_episodes,
     isWatched,
     isWatchlisted,
     mediaItemForLists,
     markEpisodeWatched,
     titleKey,
+    libraryIdentity,
+    onError,
+    rollbackLocal,
+    showDetails,
   ]);
 
   const handleUnwatchSeries = useCallback(async () => {

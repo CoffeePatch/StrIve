@@ -35,3 +35,4 @@ functions/lib/**/*.map
 .vercel
 *.md
 *.yml
+docs/

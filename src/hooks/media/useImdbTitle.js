@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import IMDbService from '../../util/imdb/imdbService';
-import { getImdbId } from '../../util/imdb/imdbResolver';
-import { getOrFetch, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
+import { requestMetadataEnrichment, subscribeMetadataUpdates } from '../../services/metadataEnrichmentCoordinator';
 
 /**
  * Custom hook to fetch IMDb title information by TMDB ID
@@ -9,13 +7,21 @@ import { getOrFetch, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
  * @param {string} mediaType - The media type ('movie' or 'tv')
  * @returns {Object} Object containing data, loading, and error states
  */
-const useImdbTitle = (tmdbId, mediaType = 'movie') => {
+const useImdbTitle = (tmdbId, mediaType = 'movie', options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { userId = null, titleKey = null, persist = true, forceRefresh = false, prefetchedImdbId = null } = options;
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = subscribeMetadataUpdates((result) => {
+      if (!active || !result) return;
+      if (String(result.tmdbId) !== String(tmdbId)) return;
+      if (result.imdbTitle) {
+        setData(result.imdbTitle);
+      }
+    });
 
     const fetchImdbTitle = async () => {
       try {
@@ -23,55 +29,23 @@ const useImdbTitle = (tmdbId, mediaType = 'movie') => {
           setLoading(true);
           setError(null);
         }
-        
-        console.log('🎬 [IMDb Hook] Starting fetch for TMDB ID:', tmdbId, 'Type:', mediaType);
 
-        // Create an instance of IMDbService (will throw if env not configured)
-        let imdbService;
-        try {
-          imdbService = new IMDbService();
-          console.log('✅ [IMDb Hook] Service created successfully');
-        } catch (serviceError) {
-          // IMDb service not configured, gracefully disable
-          console.error('❌ [IMDb Hook] Service creation failed:', serviceError.message);
-          if (active) {
-            setData(null);
-            setError(serviceError.message);
-            setLoading(false);
-          }
-          return;
-        }
-
-        // First get the IMDb ID using the TMDB ID
-        console.log('🔍 [IMDb Hook] Getting IMDb ID from TMDB...');
-        const imdbId = await getImdbId(tmdbId, mediaType);
-        console.log('🔗 [IMDb Hook] IMDb ID:', imdbId || 'NOT FOUND');
-
-        if (!imdbId) {
-          // No IMDb ID found for this TMDB ID
-          console.warn('⚠️ [IMDb Hook] No IMDb ID found for this content');
-          if (active) {
-            setData(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        // Fetch the title data
-        const titleData = await getOrFetch({
-          key: CACHE_KEYS.IMDB_TITLE(imdbId),
-          ttl: TTL.IMDB_TITLE,
-          fetcher: async () => {
-            console.log('📡 [IMDb Hook] Fetching data from IMDb API...');
-            return await imdbService.getTitleById(imdbId);
-          }
+        const titleData = await requestMetadataEnrichment({
+          item: {
+            tmdbId,
+            media_type: mediaType,
+            titleKey,
+          },
+          userId,
+          titleKey,
+          persist: persist && Boolean(userId && titleKey),
+          trackStatus: Boolean(userId && titleKey),
+          forceRefresh,
+          prefetchedImdbId,
         });
 
-        console.log('✅ [IMDb Hook] Data received from cache or API:', titleData);
-        console.log('📊 [IMDb Hook] Rating:', titleData?.rating);
-
-        if (active) {
-          setData(titleData);
+        if (active && titleData?.imdbTitle) {
+          setData(titleData.imdbTitle);
         }
       } catch (err) {
         if (active) {
@@ -94,8 +68,9 @@ const useImdbTitle = (tmdbId, mediaType = 'movie') => {
 
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, [tmdbId, mediaType]);
+  }, [tmdbId, mediaType, userId, titleKey, persist, forceRefresh, prefetchedImdbId]);
 
   return { data, loading, error };
 };

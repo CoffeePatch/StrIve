@@ -1,6 +1,4 @@
-import { getImdbId } from '../util/imdb/imdbResolver';
-import IMDbService from '../util/imdb/imdbService';
-import { firstNumber } from '../util/firebase/firestoreService';
+import { resolveMetadataSnapshot } from './metadataEnrichmentCoordinator';
 
 /**
  * Fetches IMDB rating, votes, and poster image for a media item
@@ -12,50 +10,17 @@ import { firstNumber } from '../util/firebase/firestoreService';
  */
 export const fetchImdbData = async (tmdbId, mediaType) => {
   try {
-    const imdbService = new IMDbService();
-    const imdbId = await getImdbId(tmdbId, mediaType);
-
-    if (!imdbId) {
-      console.debug(`No IMDb ID found for TMDB ID: ${tmdbId}`);
-      return { imdbId: null, imdbRating: null, imdbVotes: null, imdbPoster: null };
-    }
-
-    const titleData = await imdbService.getTitleById(imdbId);
-
-    // Extract and validate rating
-    const imdbRating = firstNumber(
-      titleData?.rating?.aggregateRating,
-      titleData?.rating?.ratingValue,
-      titleData?.aggregateRating,
-      titleData?.imdbRating
-    );
-
-    // Ensure rating is a valid number (not NaN or 0)
-    const validRating = (imdbRating && !isNaN(imdbRating) && imdbRating > 0)
-      ? imdbRating
-      : null;
-
-    // Extract and validate votes
-    const imdbVotes = firstNumber(
-      titleData?.rating?.voteCount,
-      titleData?.rating?.ratingCount,
-      titleData?.voteCount,
-      titleData?.imdbVotes
-    );
-
-    // Ensure votes is a valid number (not NaN or 0)
-    const validVotes = (imdbVotes && !isNaN(imdbVotes) && imdbVotes > 0)
-      ? imdbVotes
-      : null;
-
-    // Extract IMDb poster image
-    const imdbPoster = titleData?.primaryImage?.url || null;
+    const titleData = await resolveMetadataSnapshot({
+      tmdbId: String(tmdbId),
+      mediaType,
+      forceRefresh: false,
+    });
 
     return {
-      imdbId: imdbId || null,
-      imdbRating: validRating,
-      imdbVotes: validVotes,
-      imdbPoster: imdbPoster,
+      imdbId: titleData?.imdbId || null,
+      imdbRating: titleData?.imdbRating ?? null,
+      imdbVotes: titleData?.imdbVotes ?? null,
+      imdbPoster: titleData?.imdbPoster ?? null,
     };
   } catch (error) {
     console.warn(`Failed to fetch IMDB data for TMDB ${tmdbId}: ${error.message}`);

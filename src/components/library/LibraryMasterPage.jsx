@@ -1,38 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import MobileLibraryView from './MobileLibraryView';
-import {
-  getAllLibraryItems,
-  getLibraryByListId,
-} from '../../util/firebase/firestoreService';
-import { useLists } from "../../domain/lists/useLists";
-import { useListMembership } from "../../domain/lists/useListMembership";
-import { libraryAdapter } from '../../domain/library/libraryAdapter';
-import Header from '../layout/Header';
-import '../../styles/LibraryMasterPage.css';
 import { toast } from 'react-toastify';
-// eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from 'framer-motion';
-import { DURATIONS, EASINGS } from '../../util/motion';
-import { AnimatedButton, AnimatedIconButton, AnimatedDropdown } from '../ui/AnimatedPrimitives';
-import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
-import { LibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
-import LibraryAdvancedFilters from './LibraryAdvancedFilters';
-import LibraryGrid from './LibraryGrid';
-import LibraryGridSkeleton from './LibraryGridSkeleton';
+import MobileLibraryView from './MobileLibraryView';
+import LibraryDesktopView from './LibraryDesktopView';
 import SortBottomSheet from './SortBottomSheet';
 import QuickActionsModal from '../ui/QuickActionsModal';
-
-const SORT_OPTIONS = [
-  { id: 'imdb', label: 'IMDb' },
-  { id: 'tmdb', label: 'TMDB' },
-  { id: 'dateAdded', label: 'Date Added' },
-  { id: 'dateUpdated', label: 'Date Updated' },
-  { id: 'lastWatched', label: 'Last Watched' },
-  { id: 'releaseYear', label: 'Release Year' },
-  { id: 'title', label: 'Title' },
-];
+import { useLists } from '../../domain/lists/useLists';
+import { useListMembership } from '../../domain/lists/useListMembership';
+import { libraryAdapter } from '../../domain/library/libraryAdapter';
+import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
+import { LibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
+import { loadLibraryItems, loadLibraryListItems } from '../../hooks/library/libraryDataPipeline';
+import '../../styles/LibraryMasterPage.css';
 
 const LibraryMasterPage = () => {
   const { user } = useSelector((store) => store.user);
@@ -44,7 +24,7 @@ const LibraryMasterPage = () => {
   const { lists: customLists, loadLists } = useLists(user?.uid);
   const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
   const [loading, setLoading] = useState(false);
-  
+
   const libraryFilters = useLibraryFilters(items, customListsItemsMap);
   const {
     searchQuery, setSearchQuery,
@@ -85,63 +65,36 @@ const LibraryMasterPage = () => {
 
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
-  const [searchFocused, setSearchFocused] = useState(false);
   const [sortBottomSheetOpen, setSortBottomSheetOpen] = useState(false);
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
-
-  const loadCustomLists = useCallback(async () => {
-    if (!user?.uid) return;
-    try {
-      await loadLists();
-    } catch (error) {
-      console.error('Error loading custom lists:', error);
-    }
-  }, [user?.uid, loadLists]);
+  const mockSize = searchParams.get('mockSize');
 
   const loadAllItems = useCallback(async (signal) => {
     if (!user?.uid) return;
+
     try {
       setLoading(true);
-      const fetchedItems = await getAllLibraryItems(user.uid, { hydrate: false, includePageInfo: false });
+      const fetchedItems = await loadLibraryItems(user.uid, {
+        hydrate: false,
+        includePageInfo: false,
+        mockSize,
+      });
+
       if (signal?.cancelled) return;
 
-      // Benchmarking duplication hook
-      const mockSizeStr = searchParams.get('mockSize');
-      let finalItems = fetchedItems;
-      if (mockSizeStr) {
-        const targetSize = parseInt(mockSizeStr, 10);
-        if (targetSize && targetSize > 0) {
-          let duplicated = [];
-          while (duplicated.length < targetSize) {
-            duplicated = duplicated.concat(fetchedItems.map((item, idx) => ({
-              ...item,
-              id: `${item.id}_mock_${duplicated.length}_${idx}`,
-              titleKey: `${item.titleKey}_mock_${duplicated.length}_${idx}`
-            })));
-          }
-          finalItems = duplicated.slice(0, targetSize);
-        }
-      }
+      setItems(fetchedItems);
 
-      setItems(finalItems);
-
-      // Refetch active custom list items in-place to avoid flashing
       const activeListIds = customListIdsRef.current;
-      if (activeListIds && activeListIds.length > 0) {
-        const fetchPromises = activeListIds.map(async (listId) => {
-          const listItems = await getLibraryByListId(user.uid, listId, { hydrate: false, includePageInfo: false });
-          return { listId, listItems };
-        });
-        const results = await Promise.all(fetchPromises);
-        if (signal?.cancelled) return;
-        setCustomListsItemsMap(prev => {
-          const next = { ...prev };
-          results.forEach(({ listId, listItems }) => {
-            next[listId] = listItems;
-          });
-          return next;
-        });
-      }
+      const loadedListItemsMap = await loadLibraryListItems(user.uid, activeListIds, {
+        hydrate: false,
+        includePageInfo: false,
+      });
+
+      if (signal?.cancelled) return;
+
+      setCustomListsItemsMap((prev) => ({
+        ...prev,
+        ...loadedListItemsMap,
+      }));
     } catch (error) {
       console.error('Error loading library items:', error);
       if (!signal?.cancelled) {
@@ -152,7 +105,16 @@ const LibraryMasterPage = () => {
         setLoading(false);
       }
     }
-  }, [user?.uid, searchParams]);
+  }, [user?.uid, mockSize]);
+
+  const loadCustomLists = useCallback(async () => {
+    if (!user?.uid) return;
+    try {
+      await loadLists();
+    } catch (error) {
+      console.error('Error loading custom lists:', error);
+    }
+  }, [user?.uid, loadLists]);
 
   // Initial load
   useEffect(() => {
@@ -166,17 +128,22 @@ const LibraryMasterPage = () => {
   // Lazy-load custom list items
   useEffect(() => {
     if (!user?.uid) return;
-    customListIds.forEach(listId => {
-      if (!customListsItemsMap[listId]) {
-        getLibraryByListId(user.uid, listId, { hydrate: false, includePageInfo: false })
-          .then(listItems => {
-            setCustomListsItemsMap(prev => ({ ...prev, [listId]: listItems }));
-          })
-          .catch(err => {
-            console.error("Failed to load list items for listId:", listId, err);
-          });
-      }
-    });
+    const missingListIds = customListIds.filter((listId) => !customListsItemsMap[listId]);
+    if (missingListIds.length === 0) return;
+
+    loadLibraryListItems(user.uid, missingListIds, {
+      hydrate: false,
+      includePageInfo: false,
+    })
+      .then((nextListItemsMap) => {
+        setCustomListsItemsMap((prev) => ({
+          ...prev,
+          ...nextListItemsMap,
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to load list items for listIds:', missingListIds, err);
+      });
   }, [user?.uid, customListIds, customListsItemsMap]);
 
   const handleItemClick = useCallback((item) => {
@@ -216,15 +183,12 @@ const LibraryMasterPage = () => {
 
     try {
       if (customListIds.length === 1) {
-        // If viewing a specific custom list, the bin removes it from that list
         await removeMediaFromList(customListIds[0], item.id);
       } else {
-        // Otherwise, it clears the watch status from the library
         await libraryAdapter.updateLibraryStatus(user.uid, item, null);
       }
     } catch (error) {
       console.error('Remove failed:', error);
-      // Revert to cloned snapshots
       setItems(previousItems);
       setCustomListsItemsMap(previousCustomListsItemsMap);
       toast.error('Failed to remove item');
@@ -243,7 +207,6 @@ const LibraryMasterPage = () => {
               } else {
                 await libraryAdapter.updateLibraryStatus(user.uid, item, item?.tracking?.watchStatus || 'plan_to_watch');
               }
-              // Restore optimistic updates
               setItems((prev) => [...prev, item]);
               if (customListIds.length === 1) {
                 const listId = customListIds[0];
@@ -265,207 +228,60 @@ const LibraryMasterPage = () => {
     ), { autoClose: 5000 });
   }, [user?.uid, customListIds, customListsItemsMap, items, removeMediaFromList, addMediaToList]);
 
+  // Group presentation props into cohesive interfaces
+  const headerProps = useMemo(() => ({
+    itemCount: sortedAndFilteredItems.length,
+    searchQuery,
+    setSearchQuery,
+    viewMode,
+    setViewMode,
+    sortState,
+    setSortState,
+    onImportClick: () => navigate('/import'),
+  }), [sortedAndFilteredItems.length, searchQuery, setSearchQuery, viewMode, setViewMode, sortState, setSortState, navigate]);
+
+  const filterProps = useMemo(() => ({
+    status,
+    type,
+    filtersOpen,
+    setFiltersOpen,
+    updateFilters,
+    clearAdvancedFilters,
+    activeSecondaryFilterCount,
+    customListIds,
+    customLists,
+    imdbRatingMin,
+    imdbVotesMin,
+    tmdbRatingMin,
+    tmdbVotesMin,
+    genres,
+    yearFrom,
+    yearTo,
+    libraryFilters,
+  }), [status, type, filtersOpen, setFiltersOpen, updateFilters, clearAdvancedFilters, activeSecondaryFilterCount, customListIds, customLists, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, libraryFilters]);
+
+  const gridProps = useMemo(() => ({
+    totalItems: items.length,
+    items: sortedAndFilteredItems,
+    handleItemClick,
+    handleRemove,
+    onQuickActions: handleQuickActions,
+    getImdbRating,
+    getImdbVotes,
+  }), [items.length, sortedAndFilteredItems, handleItemClick, handleRemove, handleQuickActions, getImdbRating, getImdbVotes]);
+
   return (
     <LibraryFiltersContext.Provider value={libraryFilters}>
-      <div className="hidden md:flex min-h-screen premium-page flex-col bg-background">
-      <Header />
+      {/* Desktop Layout Shell */}
+      <LibraryDesktopView
+        headerProps={headerProps}
+        filterProps={filterProps}
+        gridProps={gridProps}
+        loading={loading}
+        message={message}
+      />
 
-      <div className="pt-[100px] pb-8 w-full">
-        {/* Library Header Bar */}
-        <div className="flex justify-between items-end px-8 max-w-[1440px] mx-auto w-full mb-6">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-[32px] font-bold text-primary leading-none font-display">My Library</h1>
-            <span className="text-[14px] text-secondary leading-none mt-1 font-secondary">{sortedAndFilteredItems.length} items</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className={`relative flex items-center bg-surface border ${searchFocused ? 'border-accent' : 'border-border-subtle'} rounded-lg transition-all duration-200 overflow-hidden h-[40px]`} style={{ width: searchFocused ? '320px' : '240px' }}>
-              <span className="material-symbols-outlined text-muted text-base absolute left-3 pointer-events-none">search</span>
-              <input 
-                type="text" 
-                className="w-full h-full bg-transparent pl-10 pr-3 text-[14px] text-primary placeholder:text-muted focus:outline-none font-secondary" 
-                placeholder="Search library..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-              />
-            </div>
-
-            <div className="flex items-center bg-surface rounded-lg p-1 h-[40px]">
-               <AnimatedIconButton onClick={() => setViewMode('grid')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-accent text-inverse' : 'text-secondary hover:text-primary hover:bg-surface-hover'}`}><span className="material-symbols-outlined text-[18px]">grid_view</span></AnimatedIconButton>
-               <AnimatedIconButton onClick={() => setViewMode('bookshelf')} className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${viewMode === 'bookshelf' ? 'bg-accent text-inverse' : 'text-secondary hover:text-primary hover:bg-surface-hover'}`}><span className="material-symbols-outlined text-[18px]">view_agenda</span></AnimatedIconButton>
-            </div>
-
-            <div className="relative">
-              <button 
-                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                className="bg-surface border border-border-subtle h-[40px] px-4 rounded-lg text-[14px] text-primary focus:outline-none cursor-pointer font-secondary hover:border-border hover:bg-surface-hover transition-colors flex items-center gap-2"
-              >
-                Sort
-                <span className="material-symbols-outlined text-[16px] text-secondary">sort</span>
-              </button>
-
-              {/* Desktop Sort Dropdown Menu */}
-              {sortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <div className="absolute right-[1px] mt-2 w-44 glass-effect rounded-lg border border-border-subtle bg-surface/98 p-1.5 shadow-2xl z-50 flex flex-col">
-                    {SORT_OPTIONS.map((option) => {
-                      const isActive = sortState?.key === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => {
-                            if (sortState?.key === option.id) {
-                              setSortState({
-                                key: option.id,
-                                direction: sortState.direction === 'asc' ? 'desc' : 'asc'
-                              });
-                            } else {
-                              setSortState({
-                                key: option.id,
-                                direction: 'desc'
-                              });
-                            }
-                            setSortDropdownOpen(false);
-                          }}
-                          className={`w-full px-2 py-1.5 flex items-center justify-between rounded transition-colors text-xs font-semibold font-secondary ${
-                            isActive ? 'bg-accent/10 text-accent font-bold' : 'text-secondary hover:text-primary hover:bg-surface-hover'
-                          }`}
-                        >
-                          <span>{option.label}</span>
-                          {isActive && (
-                            <span className="material-symbols-outlined text-accent text-sm font-bold">
-                              {sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <AnimatedIconButton onClick={() => navigate('/import')} className="w-[40px] h-[40px] rounded-lg bg-surface hover:bg-surface-hover border border-border-subtle text-primary flex items-center justify-center transition-colors" title="Import from CSV"><span className="material-symbols-outlined text-[20px]">upload</span></AnimatedIconButton>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="px-8 max-w-[1440px] mx-auto w-full mb-6">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-             <div className="flex items-center">
-               <div className="flex items-center gap-2">
-                 {['all', 'watchlist', 'watching', 'completed'].map(s => (
-                   <AnimatedButton key={s} onClick={() => updateFilters({ status: s })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border ${status === s ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
-                      {s === 'all' ? 'All' : s === 'watchlist' ? 'Plan to Watch' : s.charAt(0).toUpperCase() + s.slice(1)}
-                   </AnimatedButton>
-                 ))}
-               </div>
-
-               <div className="w-[1px] h-[24px] bg-divider mx-4"></div>
-
-                <div className="flex items-center gap-2">
-                 <AnimatedButton onClick={() => updateFilters({ type: 'all' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'all' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
-                   All Types
-                 </AnimatedButton>
-                 <AnimatedButton onClick={() => updateFilters({ type: 'movie' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'movie' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
-                   <span className="material-symbols-outlined text-[16px]">movie</span> Movies
-                 </AnimatedButton>
-                 <AnimatedButton onClick={() => updateFilters({ type: 'tv' })} className={`h-[36px] px-4 rounded-full text-[14px] font-secondary transition-colors border flex items-center gap-2 ${type === 'tv' ? 'bg-accent text-inverse border-accent font-semibold' : 'bg-surface text-secondary border-border-subtle hover:border-border hover:text-primary hover:bg-surface-hover'}`}>
-                   <span className="material-symbols-outlined text-[16px]">tv</span> Shows
-                 </AnimatedButton>
-               </div>
-             </div>
-             
-             <div className="flex items-center">
-                <AnimatedButton onClick={() => setFiltersOpen(!filtersOpen)} className={`h-[36px] px-[14px] rounded-full border text-[14px] flex items-center gap-[6px] transition-colors font-secondary ${activeSecondaryFilterCount > 0 ? 'bg-accent/20 border-accent text-primary' : 'bg-surface border-border-subtle text-secondary hover:text-primary hover:border-border hover:bg-surface-hover'}`}>
-                   <span className="material-symbols-outlined text-[16px]">tune</span>
-                   Filters
-                   {activeSecondaryFilterCount > 0 && <span className="w-[6px] h-[6px] rounded-full bg-accent ml-1"></span>}
-                </AnimatedButton>
-             </div>
-          </div>
-
-          <AnimatePresence initial={false}>
-            {filtersOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: DURATIONS.fast, ease: EASINGS.standard }}
-                className="overflow-hidden"
-              >
-                <div className="pt-4">
-                  <LibraryAdvancedFilters filters={libraryFilters} customLists={customLists} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
-          {activeSecondaryFilterCount > 0 && (
-            <div className="flex items-center gap-2 pt-4 flex-wrap">
-               <AnimatePresence mode="popLayout">
-                 {customListIds.map(id => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={id} className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">List: {customLists?.find(l => l.id === id)?.name || id} <button onClick={() => updateFilters({ lists: customListIds.filter(x => x !== id) })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
-                 {imdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbRatingMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">IMDb: {imdbRatingMin}+ <button onClick={() => updateFilters({ imdbMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {imdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="imdbVotesMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">IMDb Votes: {imdbVotesMin >= 1000000 ? `${imdbVotesMin/1000000}M` : imdbVotesMin >= 1000 ? `${imdbVotesMin/1000}K` : imdbVotesMin}+ <button onClick={() => updateFilters({ imdbVotesMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {tmdbRatingMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbRatingMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">TMDB: {tmdbRatingMin}+ <button onClick={() => updateFilters({ tmdbMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {tmdbVotesMin && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="tmdbVotesMin" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">TMDB Votes: {tmdbVotesMin >= 1000000 ? `${tmdbVotesMin/1000000}M` : tmdbVotesMin >= 1000 ? `${tmdbVotesMin/1000}K` : tmdbVotesMin}+ <button onClick={() => updateFilters({ tmdbVotesMin: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-                 {genres.map(g => <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key={`g-${g}`} className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">{g} <button onClick={() => updateFilters({ genres: genres.filter(x => x !== g) })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>)}
-                 {(yearFrom || yearTo) && <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} key="year" className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5">Year: {yearFrom || '...'} - {yearTo || '...'} <button onClick={() => updateFilters({ yearFrom: null, yearTo: null })} className="hover:text-primary"><span className="material-symbols-outlined text-[14px]">close</span></button></motion.div>}
-               </AnimatePresence>
-               <AnimatedButton onClick={clearAdvancedFilters} className="text-[12px] text-muted font-secondary hover:text-primary bg-transparent ml-2">Clear all</AnimatedButton>
-            </div>
-          )}
-        </div>
-
-      {/* Main Content */}
-      <main className="flex-grow w-full px-8 pb-20 max-w-[1440px] mx-auto">
-        <div className="max-w-full mx-auto space-y-8">
-          {message && (
-            <div className={`glass-effect px-6 py-4 rounded-lg ${message.type === 'error' ? 'bg-error/20 text-error border border-error/30' : 'bg-success/20 text-success border border-success/30'}`}>
-              {message.text}
-            </div>
-          )}
-
-          {loading && (
-            <div className="w-full">
-              <LibraryGridSkeleton viewMode={viewMode} />
-            </div>
-          )}
-
-          {!loading && items.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center border border-border-subtle bg-surface">
-              <span className="material-symbols-outlined text-6xl text-muted mb-4 block">inbox</span>
-              <p className="text-secondary font-secondary text-base">Your library is empty. Search for movies or shows to add them!</p>
-            </div>
-          )}
-
-          {!loading && items.length > 0 && sortedAndFilteredItems.length === 0 && (
-            <div className="glass-effect rounded-2xl p-12 text-center border border-border-subtle bg-surface">
-              <span className="material-symbols-outlined text-6xl text-muted mb-4 block">search_off</span>
-              <p className="text-secondary font-secondary text-base">No items match your filters.</p>
-            </div>
-          )}
-
-          {!loading && sortedAndFilteredItems.length > 0 && (
-            <LibraryGrid 
-              items={sortedAndFilteredItems}
-              viewMode={viewMode}
-              handleItemClick={handleItemClick}
-              handleRemove={handleRemove}
-              onQuickActions={handleQuickActions}
-              getImdbRating={getImdbRating}
-              getImdbVotes={getImdbVotes}
-            />
-          )}
-        </div>
-      </main>
-      </div>
-      </div>
-
-      {/* Mobile View */}
+      {/* Mobile View Shell */}
       <div className="block md:hidden">
         <MobileLibraryView
           activePrimaryTab={activePrimaryTab}
@@ -483,6 +299,7 @@ const LibraryMasterPage = () => {
         />
       </div>
 
+      {/* Modals & Bottom Sheets */}
       <SortBottomSheet
         isOpen={sortBottomSheetOpen}
         onClose={() => setSortBottomSheetOpen(false)}

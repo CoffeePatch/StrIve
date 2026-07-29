@@ -235,10 +235,10 @@ export const addItem = createAsyncThunk(
 
 export const removeItem = createAsyncThunk(
   "lists/removeItem",
-  async ({ userId, listId, mediaId }, { rejectWithValue }) => {
+  async ({ userId, listId, mediaItem }, { rejectWithValue }) => {
     try {
-      await listsAdapter.removeItemFromList(userId, listId, mediaId);
-      return { listId, mediaId }; // Return list ID and media ID of the removed item
+      await listsAdapter.removeItemFromList(userId, listId, mediaItem);
+      return { listId, mediaItem }; // Return list ID and the removed identity
     } catch (error) {
       return rejectWithValue(error.toString());
     }

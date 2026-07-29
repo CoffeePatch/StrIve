@@ -15,6 +15,8 @@ import { firstNumber, fetchImdbData } from '../util/firebase/firestoreService';
 import { hydrateItemsFromCatalog, hydrateItemsFromTmdb, normalizeLibraryItem } from './tmdbHydrationService';
 import { normalizeWatchStatus } from '../util/library/watchStatus';
 import tmdbApiService from './tmdb/tmdbApiService';
+import { readLibraryIdentity } from '../domain/library/libraryIdentity';
+import { invalidateLibraryPipelineCache } from '../hooks/library/libraryPipelineCache';
 
 const selfHealLibraryItems = (userId, items) => {
   if (!userId || !Array.isArray(items)) return;
@@ -79,7 +81,14 @@ const extractRuntime = (itemOrRuntime) => {
 };
 
 export const buildLibraryPayload = async (mediaItem, existingData, options = {}) => {
-  const { status = null, listId = null, titleKey, mediaType, tmdbId, isUserInteraction = false, watchedAt = null } = options;
+  const {
+    status = null,
+    listId = null,
+    identity,
+    isUserInteraction = false,
+    watchedAt = null,
+  } = options;
+  const { titleKey, mediaType, tmdbId } = readLibraryIdentity(identity);
   const now = Timestamp.now();
 
   const mergedListIds = Array.isArray(existingData?.tracking?.listIds)
@@ -215,47 +224,29 @@ export const buildLibraryPayload = async (mediaItem, existingData, options = {})
 export const upsertLibraryItem = async (
   userId,
   mediaItem,
-  { status = null, listId = null, isUserInteraction = false } = {}
+  identity,
+  { status = null, listId = null, isUserInteraction = false, watchedAt = null } = {}
 ) => {
-  const mediaType = mediaItem.media_type || (mediaItem.first_air_date ? 'tv' : 'movie');
-  const rawId = mediaItem.id ?? mediaItem.tmdbId;
-  const tmdbId = Number(rawId);
-
-  if (!Number.isFinite(tmdbId)) {
-    throw new Error('Invalid TMDB id for library upsert');
-  }
-
-  const titleKey = mediaType === 'tv' ? `tmdb_tv_${tmdbId}` : `tmdb_movie_${tmdbId}`;
+  const { titleKey } = readLibraryIdentity(identity);
   const ref = doc(db, 'users', userId, 'library_items', titleKey);
   const existingSnap = await getDoc(ref);
   const existingData = existingSnap.exists() ? existingSnap.data() : {};
 
-  const payload = await buildLibraryPayload(mediaItem, existingData, { status, listId, titleKey, mediaType, tmdbId, isUserInteraction });
+  const payload = await buildLibraryPayload(mediaItem, existingData, {
+    status,
+    listId,
+    identity,
+    isUserInteraction,
+    watchedAt,
+  });
 
   await setDoc(ref, payload, { merge: true });
+  invalidateLibraryPipelineCache(userId);
   return titleKey;
 };
 
-const resolveMediaType = (mediaItem) => {
-  return (
-    mediaItem?.media_type ||
-    mediaItem?.mediaType ||
-    (mediaItem?.first_air_date ? "tv" : "movie")
-  );
-};
-
-const resolveTmdbIdNumber = (mediaItem) => {
-  const rawId = mediaItem?.id ?? mediaItem?.tmdbId;
-  return Number(rawId);
-};
-
-const resolveLibraryItemRef = (userId, mediaItem) => {
-  const mediaType = resolveMediaType(mediaItem);
-  const tmdbId = resolveTmdbIdNumber(mediaItem);
-  if (!Number.isFinite(tmdbId)) {
-    throw new Error("Invalid TMDB id for library read/write");
-  }
-  const titleKey = mediaType === "tv" ? `tmdb_tv_${tmdbId}` : `tmdb_movie_${tmdbId}`;
+const resolveLibraryItemRef = (userId, identity) => {
+  const { titleKey } = readLibraryIdentity(identity);
   return {
     titleKey,
     ref: doc(db, "users", userId, "library_items", titleKey),
@@ -266,7 +257,7 @@ const resolveLibraryItemRef = (userId, mediaItem) => {
  * Returns listIds for a media item from library_items.
  */
 export const getLibraryItemListIds = async (userId, mediaItem) => {
-  if (!userId || !mediaItem?.id) return [];
+  if (!userId || !mediaItem) return [];
 
   try {
     const { ref } = resolveLibraryItemRef(userId, mediaItem);
@@ -287,7 +278,7 @@ export const getLibraryItemListIds = async (userId, mediaItem) => {
  */
 export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   if (!userId) throw new Error("Missing userId");
-  if (!mediaItem?.id) throw new Error("Missing media item id");
+  if (!mediaItem) throw new Error("Missing library identity");
 
   const normalized = Array.isArray(listIds)
     ? [...new Set(listIds.filter(Boolean))]
@@ -297,7 +288,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: null, listId: null, isUserInteraction: true });
+    await upsertLibraryItem(userId, mediaItem, mediaItem, { status: null, listId: null, isUserInteraction: true });
   }
 
   const currentSnap = snap.exists() ? snap : await getDoc(ref);
@@ -319,6 +310,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
     { merge: true }
   );
 
+  invalidateLibraryPipelineCache(userId);
   return titleKey;
 };
 
@@ -327,7 +319,7 @@ export const setLibraryItemListIds = async (userId, mediaItem, listIds) => {
  */
 export const setLibraryItemStatus = async (userId, mediaItem, status, options = {}) => {
   if (!userId) throw new Error("Missing userId");
-  if (!mediaItem?.id) throw new Error("Missing media item id");
+  if (!mediaItem) throw new Error("Missing library identity");
 
   const normalizedStatus = status === undefined
     ? null
@@ -337,7 +329,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status, options = 
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await upsertLibraryItem(userId, mediaItem, { status: normalizedStatus, listId: null, isUserInteraction: true, watchedAt: options.watchedAt });
+    await upsertLibraryItem(userId, mediaItem, mediaItem, { status: normalizedStatus, listId: null, isUserInteraction: true, watchedAt: options.watchedAt });
     return titleKey;
   }
 
@@ -368,6 +360,7 @@ export const setLibraryItemStatus = async (userId, mediaItem, status, options = 
     { merge: true }
   );
 
+  invalidateLibraryPipelineCache(userId);
   return titleKey;
 };
 
@@ -413,11 +406,7 @@ export const getAllLibraryItems = async (userId, options = {}) => {
   try {
     const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true } = options;
 
-    const q = query(
-      collection(db, "users", userId, "library_items"),
-      where("tracking.watchStatus", "!=", null)
-    );
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(collection(db, "users", userId, "library_items"));
     const items = querySnapshot.docs
       .map((d) => normalizeLibraryItem(d.id, d.data()));
 
@@ -480,6 +469,10 @@ export const getLibraryByStatus = async (userId, status, options = {}) => {
     const { sortBy = "updatedAt", sortDirection = "desc", includePageInfo = false, hydrate = true, limit: limitCount } = options;
 
     const targetStatus = normalizeWatchStatus(status);
+
+    if (!targetStatus) {
+      return includePageInfo ? { items: [], hasMore: false, nextCursor: null } : [];
+    }
 
     const q = query(
       collection(db, "users", userId, "library_items"),
@@ -608,7 +601,7 @@ export const getLibraryByListId = async (userId, listId, options = {}) => {
  */
 export const deleteLibraryItem = async (userId, mediaItem) => {
   if (!userId) throw new Error("Missing userId");
-  if (!mediaItem) throw new Error("Missing media item");
+  if (!mediaItem) throw new Error("Missing library identity");
 
   const { ref, titleKey } = resolveLibraryItemRef(userId, mediaItem);
   await deleteDoc(ref);
