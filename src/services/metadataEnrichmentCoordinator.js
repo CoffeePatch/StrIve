@@ -1,7 +1,7 @@
 import { doc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '../util/firebase/firebase';
 import { firstNumber } from '../util/firebase/firestoreService';
-import { getOrFetch, CACHE_KEYS, TTL, sessionCache, invalidateContinueWatching } from '../util/cache/sessionCache';
+import { CACHE_KEYS, TTL, sessionCache, invalidateContinueWatching } from '../util/cache/sessionCache';
 import { invalidateLibraryPipelineCache } from '../hooks/library/libraryPipelineCache';
 import { getImdbId } from '../util/imdb/imdbResolver';
 import IMDbService from '../util/imdb/imdbService';

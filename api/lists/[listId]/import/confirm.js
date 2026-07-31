@@ -61,7 +61,7 @@ export default async function handler(req, res) {
           const j = await r.json();
           return { ok: true, data: j, media_type: "movie" };
         }
-      } catch {}
+      } catch { /* ignore fallback fetch error */ }
       try {
         const r = await fetchWithTimeout(
           tUrl,
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
           const j = await r.json();
           return { ok: true, data: j, media_type: "tv" };
         }
-      } catch {}
+      } catch { /* ignore fallback fetch error */ }
       return { ok: false };
     }
 

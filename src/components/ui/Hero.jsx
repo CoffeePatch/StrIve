@@ -90,15 +90,13 @@ const Hero = ({ movies }) => {
 
   const logoUrl = media ? logos[media.id] : null;
 
-  if (!media) return null;
+  const title = media?.title || media?.name || media?.original_title || media?.original_name;
+  const rawDate = media?.releaseDate || media?.firstAirDate || media?.release_date || media?.first_air_date;
+  const year = media?.releaseYear && media.releaseYear !== "N/A" ? media.releaseYear : (rawDate ? new Date(rawDate).getFullYear() : null);
+  const rating = media?.rating?.score || media?.voteAverage || media?.vote_average;
+  const overview = media?.overview || media?.description;
 
-  const title = media.title || media.name || media.original_title || media.original_name;
-  const rawDate = media.releaseDate || media.firstAirDate || media.release_date || media.first_air_date;
-  const year = media.releaseYear && media.releaseYear !== "N/A" ? media.releaseYear : (rawDate ? new Date(rawDate).getFullYear() : null);
-  const rating = media.rating?.score || media.voteAverage || media.vote_average;
-  const overview = media.overview || media.description;
-
-  const rawBackdropPath = media.backdropPath || media.backdrop_path;
+  const rawBackdropPath = media?.backdropPath || media?.backdrop_path;
   const backdropUrl = rawBackdropPath
     ? (rawBackdropPath.startsWith('http') ? rawBackdropPath : `${HERO_BACKDROP_CDN_URL}${rawBackdropPath}`)
     : null;
@@ -119,6 +117,8 @@ const Hero = ({ movies }) => {
       setBgUrls({ current: backdropUrl, prev: null });
     }
   }, [backdropUrl]);
+
+  if (!media) return null;
 
   return (
     <>

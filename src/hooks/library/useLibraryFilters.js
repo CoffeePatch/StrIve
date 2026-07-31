@@ -25,6 +25,14 @@ const getItemYear = (item) => {
 const getDateMs = (val) => {
   if (!val) return 0;
   if (typeof val.toMillis === 'function') return val.toMillis();
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object') {
+    const sec = val.seconds ?? val._seconds;
+    if (typeof sec === 'number') {
+      const nsec = val.nanoseconds ?? val._nanoseconds ?? 0;
+      return sec * 1000 + Math.floor(nsec / 1000000);
+    }
+  }
   const time = new Date(val).getTime();
   return isNaN(time) ? 0 : time;
 };
@@ -66,15 +74,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
   // Local React States for advanced filters to prevent URL bloat
   const [status, setStatus] = useState(() => searchParams.get('status') || 'all');
-  const [type, setType] = useState(() => {
-    const urlType = searchParams.get('type');
-    if (urlType) return urlType;
-    try {
-      const saved = sessionStorage.getItem('libraryTypePreference');
-      if (saved) return saved;
-    } catch {}
-    return 'all';
-  });
+  const [type, setType] = useState(() => searchParams.get('type') || 'all');
 
   // Sync status, type, and sort from URL when searchParams changes
   useEffect(() => {
@@ -83,10 +83,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       setStatus(urlStatus || 'all');
     }
     const urlType = searchParams.get('type');
-    if (urlType !== null) {
-      setType(urlType || 'all');
-      try { sessionStorage.setItem('libraryTypePreference', urlType || 'all'); } catch {}
-    }
+    setType(urlType || 'all');
     const urlSort = searchParams.get('sort');
     if (urlSort !== null) {
       const parts = urlSort.split(':');
@@ -195,7 +192,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       if (key === 'status') setStatus(val ?? 'all');
       else if (key === 'type') {
         setType(val ?? 'all');
-        try { sessionStorage.setItem('libraryTypePreference', val ?? 'all'); } catch {}
+        try { sessionStorage.setItem('libraryTypePreference', val ?? 'all'); } catch { /* ignore storage error */ }
       }
       else if (key === 'imdbMin') setImdbRatingMin(val);
       else if (key === 'imdbVotesMin') setImdbVotesMin(val);
@@ -213,7 +210,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const clearAdvancedFilters = useCallback(() => {
     setStatus('all');
     setType('all');
-    try { sessionStorage.setItem('libraryTypePreference', 'all'); } catch {}
+    try { sessionStorage.setItem('libraryTypePreference', 'all'); } catch { /* ignore storage error */ }
     setImdbRatingMin(null);
     setImdbVotesMin(null);
     setTmdbRatingMin(null);
@@ -365,35 +362,34 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
     const comparators = {
       imdb: (a, b) => {
-        const aScore = a.ratings?.imdbScore ?? -1;
-        const bScore = b.ratings?.imdbScore ?? -1;
+        const aScore = getImdbRating(a) ?? -1;
+        const bScore = getImdbRating(b) ?? -1;
         return bScore - aScore;
       },
       tmdb: (a, b) => {
-        const aScore = a.ratings?.tmdbScore ?? -1;
-        const bScore = b.ratings?.tmdbScore ?? -1;
+        const aScore = getTmdbRating(a) ?? -1;
+        const bScore = getTmdbRating(b) ?? -1;
         return bScore - aScore;
       },
       dateAdded: (a, b) => {
-        const aMs = getDateMs(a.tracking?.addedAt);
-        const bMs = getDateMs(b.tracking?.addedAt);
+        const aMs = getDateMs(a.tracking?.addedAt) || getDateMs(a.addedAt) || getDateMs(a.tracking?.updatedAt);
+        const bMs = getDateMs(b.tracking?.addedAt) || getDateMs(b.addedAt) || getDateMs(b.tracking?.updatedAt);
         return bMs - aMs;
       },
       dateUpdated: (a, b) => {
-        const aMs = getDateMs(a.tracking?.lastUserInteractionAt) || getDateMs(a.tracking?.updatedAt);
-        const bMs = getDateMs(b.tracking?.lastUserInteractionAt) || getDateMs(b.tracking?.updatedAt);
+        const aMs = getDateMs(a.tracking?.lastUserInteractionAt) || getDateMs(a.tracking?.updatedAt) || getDateMs(a.tracking?.addedAt);
+        const bMs = getDateMs(b.tracking?.lastUserInteractionAt) || getDateMs(b.tracking?.updatedAt) || getDateMs(b.tracking?.addedAt);
         return bMs - aMs;
       },
       lastWatched: (a, b) => {
         const aMs = getDateMs(a.tracking?.lastWatchedAt);
         const bMs = getDateMs(b.tracking?.lastWatchedAt);
         if (bMs !== aMs) return bMs - aMs;
-        // Tie-breaker: if neither was watched, sort by recently added
-        return getDateMs(b.tracking?.addedAt) - getDateMs(a.tracking?.addedAt);
+        return (getDateMs(b.tracking?.addedAt) || getDateMs(b.addedAt)) - (getDateMs(a.tracking?.addedAt) || getDateMs(a.addedAt));
       },
       releaseYear: (a, b) => {
-        const aYear = a.releaseDate ? new Date(a.releaseDate).getFullYear() : 0;
-        const bYear = b.releaseDate ? new Date(b.releaseDate).getFullYear() : 0;
+        const aYear = getItemYear(a) ?? 0;
+        const bYear = getItemYear(b) ?? 0;
         return bYear - aYear;
       },
       runtime: (a, b) => {
@@ -402,7 +398,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
         return bRuntime - aRuntime;
       },
       title: (a, b) =>
-        (a.title ?? '').localeCompare(b.title ?? '', undefined, {
+        (a.title ?? a.name ?? '').localeCompare(b.title ?? b.name ?? '', undefined, {
           sensitivity: 'base'
         })
     };

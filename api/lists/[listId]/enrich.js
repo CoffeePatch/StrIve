@@ -1,4 +1,4 @@
-import { db, admin } from "../../../../_lib/firebaseAdmin.js";
+import { admin } from "../../../../_lib/firebaseAdmin.js";
 import { pLimit, sendError } from "../../../../_lib/utils.js";
 import {
   fetchImdbRatings,

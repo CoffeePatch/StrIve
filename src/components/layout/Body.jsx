@@ -40,7 +40,6 @@ const ScrollToTop = () => {
 import BottomNav from "./BottomNav";
 
 const AppLayout = () => {
-  const location = useLocation();
   const element = useOutlet();
   
   return (

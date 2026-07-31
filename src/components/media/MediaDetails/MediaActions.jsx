@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Eye, Bookmark, ListPlus, Calendar, Lock, Edit2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import AddToListPopover from '../../lists/AddToListPopover';
 import WatchDateModal from './WatchDateModal';
 
@@ -28,29 +28,6 @@ const MediaActions = ({
       if (hoverTimeout) clearTimeout(hoverTimeout);
     };
   }, [hoverTimeout]);
-
-  const actionButtonBaseClass =
-    "group inline-flex h-11 w-11 items-center overflow-hidden rounded-full px-3 transition-all duration-300 ease-out focus-accent cursor-pointer";
-
-  const actionButtonPrimaryClass =
-    `${actionButtonBaseClass} bg-white text-black hover:w-[136px] hover:bg-white hover:px-4`;
-
-  const actionButtonSecondaryClass =
-    `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[124px] hover:bg-white/10 hover:px-4 hover:text-white`;
-
-  const actionButtonNeutralClass =
-    `${actionButtonBaseClass} bg-white/0 text-white/75 hover:w-[136px] hover:bg-white/10 hover:px-4 hover:text-white`;
-
-  const watchlistButtonClass = isWatchlisted
-    ? `${actionButtonBaseClass} border border-yellow-400/40 bg-yellow-400/15 text-yellow-200 hover:w-[136px] hover:bg-yellow-400/20 hover:px-4 hover:text-yellow-100`
-    : actionButtonNeutralClass;
-
-  const watchedButtonClass = isWatched
-    ? `${actionButtonBaseClass} border border-green-400/40 bg-green-400/15 text-green-200 hover:w-[136px] hover:bg-green-400/20 hover:px-4 hover:text-green-100`
-    : actionButtonNeutralClass;
-
-  const actionButtonLabelClass =
-    "ml-0 max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 ease-out group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100";
 
   return (
     <div className="flex flex-col gap-3 w-full max-w-[700px]">
@@ -294,4 +271,5 @@ const MediaActions = ({
   );
 };
 
-export default MediaActions;
+export default React.memo(MediaActions);
+

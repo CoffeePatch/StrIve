@@ -1,5 +1,4 @@
 import { db } from "./firebaseAdmin.js";
-import { verifyAuth } from "./authMiddleware.js";
 import { fetchWithTimeout } from "./utils.js";
 
 export class HttpRequestError extends Error {
@@ -123,10 +122,10 @@ export async function fetchTmdbDetails(mediaType, tmdbId, tmdbToken) {
 }
 
 export function getImdbApiBaseUrl() {
-  const baseUrl = process.env.IMDB_API_BASE_URL;
+  const baseUrl = process.env.IMDB_API_BASE_URL || process.env.VITE_IMDB_BASE_URL;
   if (!baseUrl) {
     console.warn(
-      "IMDB_API_BASE_URL environment variable is not configured. IMDb ratings will be unavailable.",
+      "IMDb API base URL environment variable is not configured. IMDb ratings will be unavailable.",
     );
     return null;
   }

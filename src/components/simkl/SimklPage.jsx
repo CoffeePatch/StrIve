@@ -28,7 +28,7 @@ const SimklPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [debugOutput, setDebugOutput] = useState(null);
-  const [enrichmentProgress, setEnrichmentProgress] = useState(0);
+  const [enrichmentProgress] = useState(0);
 
   // Fetch lists on mount and start enrichment
   useEffect(() => {

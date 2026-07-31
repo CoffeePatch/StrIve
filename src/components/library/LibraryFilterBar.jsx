@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { DURATIONS, EASINGS } from '../../util/motion';
 import { AnimatedButton } from '../ui/AnimatedPrimitives';
 import LibraryAdvancedFilters from './LibraryAdvancedFilters';

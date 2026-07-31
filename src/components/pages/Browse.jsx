@@ -88,22 +88,7 @@ const HeroSkeleton = () => {
   );
 };
 
-// Content loader for lazy shelves (calls hooks internally)
-const MediaShelfContent = React.memo(({ title, type, mediaType, genreId, icon, onQuickActions, variant = "carousel" }) => {
-  let items = null;
-  
-  if (type === "upcoming") {
-    items = useUpcomingMedia(mediaType);
-  } else if (type === "popular") {
-    items = usePopularMedia(mediaType);
-  } else if (type === "top_rated") {
-    items = useTopRatedMedia(mediaType);
-  } else if (type === "genre") {
-    items = useMediaByGenre(mediaType, genreId);
-  } else if (type === "now_playing") {
-    items = useNowPlayingMedia(mediaType);
-  }
-
+const ShelfDisplay = ({ title, icon, items, variant, onQuickActions }) => {
   const navigate = useNavigate();
 
   if (!items) {
@@ -139,6 +124,42 @@ const MediaShelfContent = React.memo(({ title, type, mediaType, genreId, icon, o
       </Carousel>
     </div>
   );
+};
+
+const UpcomingShelfContent = (props) => {
+  const items = useUpcomingMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const PopularShelfContent = (props) => {
+  const items = usePopularMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const TopRatedShelfContent = (props) => {
+  const items = useTopRatedMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const GenreShelfContent = (props) => {
+  const items = useMediaByGenre(props.mediaType, props.genreId);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const NowPlayingShelfContent = (props) => {
+  const items = useNowPlayingMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+// Content loader for lazy shelves
+const MediaShelfContent = React.memo((props) => {
+  const { type } = props;
+  if (type === "upcoming") return <UpcomingShelfContent {...props} />;
+  if (type === "popular") return <PopularShelfContent {...props} />;
+  if (type === "top_rated") return <TopRatedShelfContent {...props} />;
+  if (type === "genre") return <GenreShelfContent {...props} />;
+  if (type === "now_playing") return <NowPlayingShelfContent {...props} />;
+  return null;
 });
 
 MediaShelfContent.displayName = "MediaShelfContent";

@@ -52,7 +52,7 @@ const setNegativeCache = (cacheKey, ttlMs = null) => {
 };
 
 // Global refetch trigger counter
-let globalRefetchTrigger = 0;
+let _globalRefetchTrigger = 0;
 const refetchListeners = new Set();
 
 // Request queue to prevent overwhelming the API
@@ -131,7 +131,7 @@ const queueRequest = (requestFn) => {
 
 // Global function to trigger refetch for all instances
 export const triggerGlobalRefetch = () => {
-  globalRefetchTrigger++;
+  _globalRefetchTrigger++;
   refetchListeners.forEach(listener => listener());
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { fetchLists } from "../../../util/store/listsSlice";
@@ -116,15 +116,15 @@ const MovieDetails = () => {
       <Header />
       <div className="w-full">
         <MediaHero
-          backdropPath={movieDetails.backdrop_path}
+          backdropPath={movieDetails.backdropPath}
           layoutType="movie"
-          posterPath={movieDetails.poster_path}
-          logos={movieDetails.images?.logos}
+          posterPath={movieDetails.posterPath}
+          logos={movieDetails.images?.logos || movieDetails.logos}
           title={movieDetails.title}
-          releaseYear={movieDetails.release_date?.split("-")[0]}
-          durationOrSeasons={`${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m`}
+          releaseYear={movieDetails.releaseYear || (movieDetails.releaseDate || "").split("-")[0]}
+          durationOrSeasons={movieDetails.runtime ? `${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m` : null}
           status={(() => {
-            const releaseDate = movieDetails.release_date;
+            const releaseDate = movieDetails.releaseDate;
             const parsed = releaseDate ? Date.parse(releaseDate) : NaN;
             if (!Number.isFinite(parsed)) return null;
             return parsed > Date.now() ? 'Upcoming' : 'Released';
@@ -134,11 +134,11 @@ const MovieDetails = () => {
           ratingsComponent={
             <MediaRatings
               layoutType="movie"
-              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
-              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || movieDetails?.imdbRating}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || movieDetails?.imdbVotes}
               imdbLoading={imdbLoading}
-              tmdbScore={movieDetails.vote_average}
-              tmdbVotes={movieDetails.vote_count}
+              tmdbScore={movieDetails.voteAverage}
+              tmdbVotes={movieDetails.voteCount}
             />
           }
           actionsComponent={

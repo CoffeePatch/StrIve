@@ -8,7 +8,7 @@ const LibraryMediaCard = React.memo(React.forwardRef(({ item, viewMode, onClick,
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
 
-  const media = tmdbAdapter(item);
+  const media = React.useMemo(() => tmdbAdapter(item), [item]);
   if (!media) return null;
 
   const toUrl = item?.id ? `/${item.media_type === 'tv' ? 'shows' : 'movie'}/${item.id}` : undefined;

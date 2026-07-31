@@ -132,7 +132,7 @@ export async function loadEpisodesForMutation(
       const ep = inputEpisodeCatalog[i] || {};
       const sn = Number(ep.seasonNumber);
       const en = Number(ep.episodeNumber);
-      const ao = Number(ep.absoluteOrder ?? sn * 1000 + en ?? i + 1);
+      const ao = Number(ep.absoluteOrder ?? (Number.isInteger(sn * 1000 + en) ? sn * 1000 + en : i + 1));
       const isAired = ep.isAired !== false;
 
       if (

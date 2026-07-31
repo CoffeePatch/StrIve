@@ -10,7 +10,7 @@ const extractYear = (dateString) => {
   try {
     const date = new Date(dateString);
     return isNaN(date.getTime()) ? '' : date.getFullYear().toString();
-  } catch (error) {
+  } catch {
     return '';
   }
 };

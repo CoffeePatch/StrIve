@@ -1,6 +1,7 @@
+/* global jest, describe, test, expect */
 // Mock papaparse since it's a client-side library
 jest.mock('papaparse', () => ({
-  unparse: jest.fn((data, options) => {
+  unparse: jest.fn((data) => {
     // Simple CSV generation for testing
     return data.map(row => row.join(',')).join('\n');
   })

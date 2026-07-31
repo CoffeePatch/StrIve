@@ -15,7 +15,7 @@ import { loadLibraryItems, loadLibraryListItems } from '../../hooks/library/libr
 import '../../styles/LibraryMasterPage.css';
 
 const LibraryMasterPage = () => {
-  const { user } = useSelector((store) => store.user);
+  const user = useSelector((store) => store.user?.user);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -61,7 +61,9 @@ const LibraryMasterPage = () => {
 
   // Legacy mappings for MobileView
   const activePrimaryTab = type === 'tv' ? 'shows' : type === 'movie' ? 'movies' : 'all';
-  const setActivePrimaryTab = (t) => updateFilters({ type: t === 'shows' ? 'tv' : t === 'movies' ? 'movie' : 'all' });
+  const setActivePrimaryTab = useCallback((t) => {
+    updateFilters({ type: t === 'shows' ? 'tv' : t === 'movies' ? 'movie' : 'all' });
+  }, [updateFilters]);
 
   const [message, setMessage] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
@@ -164,55 +166,62 @@ const LibraryMasterPage = () => {
   const handleRemove = useCallback(async (item) => {
     if (!user?.uid) return;
 
-    // Capture cloned snapshots of pre-mutation state
-    const previousItems = [...items];
-    const previousCustomListsItemsMap = {};
-    for (const k in customListsItemsMap) {
-      previousCustomListsItemsMap[k] = [...(customListsItemsMap[k] || [])];
-    }
+    let previousItems = [];
+    let previousCustomListsItemsMap = {};
 
-    // Optimistically remove from all UI state
-    setItems((prev) => prev.filter((x) => x.titleKey !== item.titleKey));
-    if (customListIds.length === 1) {
-      const listId = customListIds[0];
-      setCustomListsItemsMap(prev => ({
-        ...prev,
-        [listId]: prev[listId]?.filter(x => x.titleKey !== item.titleKey) || []
-      }));
+    const currentListIds = customListIdsRef.current;
+    const isSingleList = currentListIds.length === 1;
+    const activeListId = isSingleList ? currentListIds[0] : null;
+
+    // Optimistically remove from all UI state using functional state updates
+    setItems((prev) => {
+      previousItems = prev;
+      return prev.filter((x) => x.titleKey !== item.titleKey);
+    });
+
+    if (activeListId) {
+      setCustomListsItemsMap((prev) => {
+        previousCustomListsItemsMap = prev;
+        return {
+          ...prev,
+          [activeListId]: prev[activeListId]?.filter((x) => x.titleKey !== item.titleKey) || []
+        };
+      });
     }
 
     try {
-      if (customListIds.length === 1) {
-        await removeMediaFromList(customListIds[0], item.id);
+      if (activeListId) {
+        await removeMediaFromList(activeListId, item.id);
       } else {
         await libraryAdapter.updateLibraryStatus(user.uid, item, null);
       }
     } catch (error) {
       console.error('Remove failed:', error);
       setItems(previousItems);
-      setCustomListsItemsMap(previousCustomListsItemsMap);
+      if (activeListId) {
+        setCustomListsItemsMap(previousCustomListsItemsMap);
+      }
       toast.error('Failed to remove item');
       return;
     }
 
     toast(({ closeToast }) => (
       <div className="flex items-center gap-3">
-        <span className="text-sm">Removed from {customListIds.length === 1 ? 'List' : 'Library'}</span>
+        <span className="text-sm">Removed from {isSingleList ? 'List' : 'Library'}</span>
         <button
           className="text-sm underline"
           onClick={async () => {
             try {
-              if (customListIds.length === 1) {
-                await addMediaToList(customListIds[0], item);
+              if (isSingleList) {
+                await addMediaToList(activeListId, item);
               } else {
                 await libraryAdapter.updateLibraryStatus(user.uid, item, item?.tracking?.watchStatus || 'plan_to_watch');
               }
               setItems((prev) => [...prev, item]);
-              if (customListIds.length === 1) {
-                const listId = customListIds[0];
-                setCustomListsItemsMap(prev => ({
+              if (isSingleList) {
+                setCustomListsItemsMap((prev) => ({
                   ...prev,
-                  [listId]: [...(prev[listId] || []), item]
+                  [activeListId]: [...(prev[activeListId] || []), item]
                 }));
               }
               closeToast?.();
@@ -226,7 +235,11 @@ const LibraryMasterPage = () => {
         </button>
       </div>
     ), { autoClose: 5000 });
-  }, [user?.uid, customListIds, customListsItemsMap, items, removeMediaFromList, addMediaToList]);
+  }, [user?.uid, removeMediaFromList, addMediaToList]);
+
+  const handleImportClick = useCallback(() => {
+    navigate('/import');
+  }, [navigate]);
 
   // Group presentation props into cohesive interfaces
   const headerProps = useMemo(() => ({
@@ -237,8 +250,8 @@ const LibraryMasterPage = () => {
     setViewMode,
     sortState,
     setSortState,
-    onImportClick: () => navigate('/import'),
-  }), [sortedAndFilteredItems.length, searchQuery, setSearchQuery, viewMode, setViewMode, sortState, setSortState, navigate]);
+    onImportClick: handleImportClick,
+  }), [sortedAndFilteredItems.length, searchQuery, setSearchQuery, viewMode, setViewMode, sortState, setSortState, handleImportClick]);
 
   const filterProps = useMemo(() => ({
     status,

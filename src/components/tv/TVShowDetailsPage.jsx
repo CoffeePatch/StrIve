@@ -504,11 +504,11 @@ const TVShowDetailsPage = () => {
           ratingsComponent={
             <MediaRatings
               layoutType="tv"
-              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
-              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || showDetails?.imdbRating}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || showDetails?.imdbVotes}
               imdbLoading={imdbLoading}
-              tmdbScore={showDetails.voteAverage}
-              tmdbVotes={showDetails.voteCount}
+              tmdbScore={showDetails.voteAverage ?? showDetails.vote_average}
+              tmdbVotes={showDetails.voteCount ?? showDetails.vote_count}
             />
           }
           actionsComponent={

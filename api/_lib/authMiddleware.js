@@ -17,7 +17,7 @@ export async function verifyAuth(req) {
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     return decodedToken;
-  } catch (error) {
+  } catch {
     throw new Error("unauthenticated: Invalid token");
   }
 }

@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
     if (normalized.imdbId) {
       try {
-        const imdbBase = process.env.IMDB_API_BASE_URL;
+        const imdbBase = process.env.IMDB_API_BASE_URL || process.env.VITE_IMDB_BASE_URL;
         if (imdbBase) {
           const imdbUrl = `${imdbBase.replace(/\/$/, "")}/titles/${normalized.imdbId}`;
           const imdbRes = await fetchWithTimeout(imdbUrl, {}, 8000);

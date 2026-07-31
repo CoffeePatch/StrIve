@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { useLibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
 import { standardGenres } from '../../hooks/library/useLibraryFilters';
-import { toDisplayWatchStatus, normalizeWatchStatus } from '../../util/library/watchStatus';
+import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 import { AnimatedChip } from '../ui/AnimatedPrimitives';
 
 const SORT_OPTIONS = [
@@ -208,21 +208,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
   // Instant count calculation inside sheet using draft filter state (Memoized)
   const draftFilteredCount = useMemo(() => {
     return filters.getFilteredItemsInternal(items, draftFilters).length;
-  }, [items, draftFilters, filters.getFilteredItemsInternal]);
-
-  // Check if Japanese anime is present in current loaded items
-  const hasAnime = useMemo(() => {
-    return items.some(item => {
-      const itemGenres = (item.genres || []).map(g => (typeof g === 'string' ? g : g?.name || '').toLowerCase());
-      const isAnime = item.mediaType === 'anime' ||
-                      item.media_type === 'anime' ||
-                      item.origin_country === 'JP' ||
-                      item.originCountry === 'JP' ||
-                      (Array.isArray(item.origin_country) && item.origin_country.includes('JP')) ||
-                      (Array.isArray(item.originCountry) && item.originCountry.includes('JP'));
-      return isAnime;
-    });
-  }, [items]);
+  }, [items, draftFilters, filters]);
 
   // Active filters in draft state (for the Current Filters top section)
   const activeDraftChips = useMemo(() => {
@@ -320,7 +306,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
     });
 
     return chips;
-  }, [draftFilters, customLists]);
+  }, [draftFilters, customLists, toggleGenre, toggleList, toggleRuntime, toggleStatus]);
 
   const hasActiveFilters = activeDraftChips.length > 0;
 

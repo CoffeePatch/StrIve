@@ -136,10 +136,12 @@ const TVShowCard = ({
           <h3 className="text-white text-xs font-medium truncate leading-tight">{data.name}</h3>
           <div className="flex justify-between items-center mt-1">
             <span className="text-gray-400 text-xs">{displayYear}</span>
-            <div className="flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-yellow-400" style={{ fontSize: "12px" }}>star</span>
-              <span className="text-yellow-400 text-xs font-semibold">{data.vote_average?.toFixed(1) || "N/A"}</span>
-            </div>
+            {data.vote_average > 0 && (
+              <div className="flex items-center gap-0.5">
+                <span className="material-symbols-outlined text-yellow-400" style={{ fontSize: "12px" }}>star</span>
+                <span className="text-yellow-400 text-xs font-semibold">{data.vote_average.toFixed(1)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

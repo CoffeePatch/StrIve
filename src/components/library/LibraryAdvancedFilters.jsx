@@ -12,8 +12,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
     yearFrom,
     yearTo,
     customListIds,
-    updateFilters,
-    clearAdvancedFilters
+    updateFilters
   } = filters;
 
   const toggleList = (id) => {

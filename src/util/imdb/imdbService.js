@@ -6,49 +6,29 @@
 class IMDbService {
   constructor() {
     const configuredBaseUrl = import.meta.env.VITE_IMDB_BASE_URL?.trim();
-    const fallbackBaseUrl = 'https://api.imdbapi.dev';
-    const isPlaceholder = configuredBaseUrl && configuredBaseUrl.startsWith('your_');
 
-    if (!configuredBaseUrl || isPlaceholder) {
-      console.warn('VITE_IMDB_BASE_URL not set. Falling back to https://api.imdbapi.dev.');
+    if (!configuredBaseUrl) {
+      console.warn('VITE_IMDB_BASE_URL environment variable is not configured.');
     }
 
-    const selectedBaseUrl = (!configuredBaseUrl || isPlaceholder)
-      ? fallbackBaseUrl
-      : configuredBaseUrl;
-
-    this.baseUrl = selectedBaseUrl.replace(/\/$/, '');
-    this.fallbackBaseUrl = fallbackBaseUrl;
+    this.baseUrl = configuredBaseUrl ? configuredBaseUrl.replace(/\/$/, '') : '';
   }
 
   async requestJson(path) {
+    if (!this.baseUrl) {
+      throw new Error('IMDb API base URL is not configured');
+    }
+
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    const candidateBaseUrls = [this.baseUrl];
+    const response = await fetch(`${this.baseUrl}${normalizedPath}`);
 
-    if (this.fallbackBaseUrl && this.fallbackBaseUrl !== this.baseUrl) {
-      candidateBaseUrls.push(this.fallbackBaseUrl);
+    if (!response.ok) {
+      const httpError = new Error(`HTTP error! Status: ${response.status}`);
+      httpError.status = response.status;
+      throw httpError;
     }
 
-    let lastError;
-
-    for (const baseUrl of candidateBaseUrls) {
-      try {
-        const response = await fetch(`${baseUrl}${normalizedPath}`);
-
-        if (!response.ok) {
-          const httpError = new Error(`HTTP error! Status: ${response.status}`);
-          httpError.status = response.status;
-          throw httpError;
-        }
-
-        return await response.json();
-      } catch (error) {
-        lastError = error;
-        console.error(`IMDb request failed for ${baseUrl}${normalizedPath}:`, error);
-      }
-    }
-
-    throw lastError || new Error('IMDb request failed');
+    return await response.json();
   }
 
   /**

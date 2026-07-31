@@ -5,7 +5,6 @@ const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
 const MediaHero = ({ 
   backdropPath, 
-  layoutType = "movie",
   posterPath,
   logos, 
   title, 
@@ -18,7 +17,6 @@ const MediaHero = ({
   actionsComponent,
   genresComponent
 }) => {
-  const isTV = layoutType === "tv";
   const [logoFailed, setLogoFailed] = useState(false);
 
   let bestLogo = null;

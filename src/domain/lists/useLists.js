@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   fetchLists,
   createList,
@@ -63,7 +63,7 @@ export const useLists = (userId) => {
     }
   }, [dispatch, userId]);
 
-  return {
+  return useMemo(() => ({
     lists,
     listsStatus,
     listsError,
@@ -78,5 +78,21 @@ export const useLists = (userId) => {
     pinList,
     unpinList,
     loadActiveList
-  };
+  }), [
+    lists,
+    listsStatus,
+    listsError,
+    activeListDetails,
+    activeListItems,
+    activeListStatus,
+    activeListError,
+    loadLists,
+    createNewList,
+    removeList,
+    updateList,
+    pinList,
+    unpinList,
+    loadActiveList
+  ]);
 };
+
