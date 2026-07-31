@@ -1,6 +1,7 @@
 import React from 'react';
 import LibraryMediaCard from './LibraryMediaCard';
 import { useGridVirtualization } from '../../hooks/library/useGridVirtualization';
+import { useLibrarySelection } from '../../context/LibrarySelectionContext';
 
 const LibraryGrid = ({ 
   items, 
@@ -39,6 +40,13 @@ const LibraryGrid = ({
   const displayItems = noVirtual ? items : visibleItems;
   const computedTopPadding = noVirtual ? 0 : topPadding;
   const computedBottomPadding = noVirtual ? 0 : bottomPadding;
+  
+  const selectionContext = useLibrarySelection();
+  const isSelectionMode = selectionContext?.isSelectionMode;
+  const isItemSelected = selectionContext?.isItemSelected;
+  const toggleSelectItem = selectionContext?.toggleSelectItem;
+  const selectRange = selectionContext?.selectRange;
+  const enterSelectionMode = selectionContext?.enterSelectionMode;
 
   return (
     <div
@@ -57,12 +65,18 @@ const LibraryGrid = ({
         <LibraryMediaCard
           key={`${item.media_type || item.mediaType}-${item.id}`}
           item={item}
+          allItems={items}
           viewMode={viewMode}
           onClick={handleItemClick}
           onRemove={handleRemove}
           onQuickActions={onQuickActions}
           imdbRating={getImdbRating ? getImdbRating(item) : undefined}
           imdbVotes={getImdbVotes ? getImdbVotes(item) : undefined}
+          isSelectionMode={isSelectionMode}
+          isSelected={isItemSelected ? isItemSelected(item) : false}
+          onToggleSelect={toggleSelectItem}
+          onSelectRange={selectRange}
+          onEnterSelectionMode={enterSelectionMode}
           data-card-item="true"
         />
       ))}

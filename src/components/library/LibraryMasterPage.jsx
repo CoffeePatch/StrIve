@@ -12,7 +12,111 @@ import { libraryAdapter } from '../../domain/library/libraryAdapter';
 import { useLibraryFilters } from '../../hooks/library/useLibraryFilters';
 import { LibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
 import { loadLibraryItems, loadLibraryListItems } from '../../hooks/library/libraryDataPipeline';
+import { LibrarySelectionProvider, useLibrarySelection } from '../../context/LibrarySelectionContext';
+import BulkToolbar from './BulkToolbar';
 import '../../styles/LibraryMasterPage.css';
+
+const BulkToolbarIntegration = ({ userId, filteredItems, refreshLibrary }) => {
+  const { 
+    isSelectionMode, selectedCount, 
+    exitSelectionMode, selectFiltered, clearSelection, getSelectedItems 
+  } = useLibrarySelection();
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  if (!isSelectionMode) return null;
+  
+  const handleUpdateStatus = async (status) => {
+    setIsProcessing(true);
+    try {
+      const items = getSelectedItems(filteredItems);
+      await libraryAdapter.batchUpdateStatus(userId, items, status);
+      toast.success(`Updated status for ${items.length} items`);
+      exitSelectionMode();
+      refreshLibrary();
+    } catch(err) {
+      toast.error('Failed or partially updated items');
+      exitSelectionMode();
+      refreshLibrary();
+    }
+    setIsProcessing(false);
+  };
+
+  const handleDelete = async () => {
+    const itemsToDelete = getSelectedItems(filteredItems);
+    if (!itemsToDelete.length) return;
+
+    exitSelectionMode();
+
+    let undone = false;
+    let toastId = null;
+
+    const executeDelete = async () => {
+      if (undone) return;
+      try {
+        await libraryAdapter.batchDeleteItems(userId, itemsToDelete);
+        refreshLibrary();
+      } catch (err) {
+        console.error('Failed batch delete:', err);
+        toast.error('Failed to delete items');
+        refreshLibrary();
+      }
+    };
+
+    const deleteTimer = setTimeout(() => {
+      executeDelete();
+    }, 5000);
+
+    const handleUndo = () => {
+      undone = true;
+      clearTimeout(deleteTimer);
+      if (toastId) toast.dismiss(toastId);
+      toast.info(`Restored ${itemsToDelete.length} item${itemsToDelete.length !== 1 ? 's' : ''}`);
+    };
+
+    toastId = toast(
+      ({ closeToast }) => (
+        <div className="flex items-center justify-between w-full gap-3">
+          <span className="text-sm font-medium">
+            Deleting {itemsToDelete.length} item{itemsToDelete.length !== 1 ? 's' : ''}...
+          </span>
+          <button
+            onClick={() => {
+              handleUndo();
+              closeToast();
+            }}
+            className="px-3 py-1 rounded bg-accent text-white font-bold text-xs hover:bg-accent/80 transition-colors shadow"
+          >
+            Undo
+          </button>
+        </div>
+      ),
+      {
+        autoClose: 5000,
+        closeOnClick: false,
+        pauseOnHover: true,
+        onClose: () => {
+          if (!undone) {
+            executeDelete();
+          }
+        }
+      }
+    );
+  };
+
+  return (
+    <BulkToolbar
+      selectedCount={selectedCount}
+      totalCount={filteredItems.length}
+      onSelectAll={() => selectFiltered(filteredItems)}
+      onClearSelection={clearSelection}
+      onUpdateStatus={handleUpdateStatus}
+      onDelete={handleDelete}
+      onClose={exitSelectionMode}
+      isProcessing={isProcessing}
+    />
+  );
+};
+
 
 const LibraryMasterPage = () => {
   const user = useSelector((store) => store.user?.user);
@@ -285,7 +389,8 @@ const LibraryMasterPage = () => {
 
   return (
     <LibraryFiltersContext.Provider value={libraryFilters}>
-      {/* Desktop Layout Shell */}
+      <LibrarySelectionProvider>
+        {/* Desktop Layout Shell */}
       <LibraryDesktopView
         headerProps={headerProps}
         filterProps={filterProps}
@@ -312,6 +417,12 @@ const LibraryMasterPage = () => {
         />
       </div>
 
+      <BulkToolbarIntegration 
+        userId={user?.uid} 
+        filteredItems={sortedAndFilteredItems} 
+        refreshLibrary={() => loadAllItems({ cancelled: false })} 
+      />
+
       {/* Modals & Bottom Sheets */}
       <SortBottomSheet
         isOpen={sortBottomSheetOpen}
@@ -328,6 +439,7 @@ const LibraryMasterPage = () => {
         onMutation={loadAllItems}
         anchor={quickActionsAnchor}
       />
+      </LibrarySelectionProvider>
     </LibraryFiltersContext.Provider>
   );
 };

@@ -2,18 +2,18 @@ import React from 'react';
 import { standardGenres } from '../../hooks/library/useLibraryFilters';
 import { AnimatedChip, AnimatedCheckbox } from '../ui/AnimatedPrimitives';
 
-const LibraryAdvancedFilters = ({ filters, customLists }) => {
+const LibraryAdvancedFilters = ({ filters = {}, customLists = [] }) => {
   const {
-    imdbRatingMin,
-    imdbVotesMin,
-    tmdbRatingMin,
-    tmdbVotesMin,
-    genres,
-    yearFrom,
-    yearTo,
-    customListIds,
-    updateFilters
-  } = filters;
+    imdbRatingMin = null,
+    imdbVotesMin = null,
+    tmdbRatingMin = null,
+    tmdbVotesMin = null,
+    genres = [],
+    yearFrom = null,
+    yearTo = null,
+    customListIds = [],
+    updateFilters = () => {}
+  } = filters || {};
 
   const toggleList = (id) => {
     if (customListIds.includes(id)) {

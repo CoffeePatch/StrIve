@@ -1,7 +1,9 @@
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, writeBatch, Timestamp, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../../util/firebase/firebase";
 import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
 import { readLibraryIdentity } from "./libraryIdentity";
+import { invalidateLibraryPipelineCache } from "../../hooks/library/libraryPipelineCache";
+import { normalizeWatchStatus } from "../../util/library/watchStatus";
 
 /**
  * Helper to generate the Firestore document key for a library item.
@@ -111,5 +113,125 @@ export const libraryAdapter = {
         if (onError) onError(err);
       }
     );
+  },
+
+  // --- Batch Operations (Multi-Select) ---
+
+  /**
+   * Executes an array of operations in Firestore batches (max 500 per chunk).
+   * @param {Function} operationFn - (batch, chunkItems) => void
+   * @param {Array} items - Array of library identities
+   */
+  _executeInBatches: async (items, operationFn) => {
+    if (!items || items.length === 0) return;
+    const CHUNK_SIZE = 500;
+    const chunks = [];
+    
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      chunks.push(items.slice(i, i + CHUNK_SIZE));
+    }
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      operationFn(batch, chunk);
+      await batch.commit();
+    }
+  },
+
+  /**
+   * Batch deletes multiple library items.
+   */
+  batchDeleteItems: async (userId, mediaItems) => {
+    if (!userId || !mediaItems?.length) return;
+    
+    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
+      chunk.forEach((item) => {
+        const titleKey = generateTitleKey(item);
+        const ref = doc(db, "users", userId, "library_items", titleKey);
+        batch.delete(ref);
+      });
+    });
+
+    invalidateLibraryPipelineCache(userId);
+  },
+
+  /**
+   * Batch updates watch status for multiple library items.
+   */
+  batchUpdateStatus: async (userId, mediaItems, status) => {
+    if (!userId || !mediaItems?.length) return;
+    const normalizedStatus = status === undefined ? null : (normalizeWatchStatus(status) ?? status);
+    const now = Timestamp.now();
+
+    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
+      chunk.forEach((item) => {
+        const titleKey = generateTitleKey(item);
+        const ref = doc(db, "users", userId, "library_items", titleKey);
+        
+        const trackingPayload = {
+          watchStatus: normalizedStatus,
+          updatedAt: now,
+          lastUserInteractionAt: now
+        };
+
+        if (normalizedStatus === 'completed') {
+          trackingPayload.lastWatchedAt = now;
+        }
+
+        batch.set(ref, { tracking: trackingPayload }, { merge: true });
+      });
+    });
+
+    invalidateLibraryPipelineCache(userId);
+  },
+
+  /**
+   * Batch adds multiple library items to a custom list.
+   */
+  batchAddToList: async (userId, mediaItems, listId) => {
+    if (!userId || !mediaItems?.length || !listId) return;
+    const now = Timestamp.now();
+
+    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
+      chunk.forEach((item) => {
+        const titleKey = generateTitleKey(item);
+        const ref = doc(db, "users", userId, "library_items", titleKey);
+        
+        batch.set(ref, { 
+          tracking: { 
+            listIds: arrayUnion(listId),
+            updatedAt: now,
+            lastUserInteractionAt: now
+          } 
+        }, { merge: true });
+      });
+    });
+
+    invalidateLibraryPipelineCache(userId);
+  },
+
+  /**
+   * Batch removes multiple library items from a custom list.
+   */
+  batchRemoveFromList: async (userId, mediaItems, listId) => {
+    if (!userId || !mediaItems?.length || !listId) return;
+    const now = Timestamp.now();
+
+    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
+      chunk.forEach((item) => {
+        const titleKey = generateTitleKey(item);
+        const ref = doc(db, "users", userId, "library_items", titleKey);
+        
+        batch.set(ref, { 
+          tracking: { 
+            listIds: arrayRemove(listId),
+            updatedAt: now,
+            lastUserInteractionAt: now
+          } 
+        }, { merge: true });
+      });
+    });
+
+    invalidateLibraryPipelineCache(userId);
   }
 };

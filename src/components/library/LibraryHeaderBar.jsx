@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatedIconButton } from '../ui/AnimatedPrimitives';
+import { useLibrarySelection } from '../../context/LibrarySelectionContext';
 
 const SORT_OPTIONS = [
   { id: 'imdb', label: 'IMDb' },
@@ -23,6 +24,7 @@ const LibraryHeaderBar = ({
 }) => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const { isSelectionMode, toggleSelectionMode } = useLibrarySelection();
 
   return (
     <div className="flex justify-between items-end px-8 max-w-[1440px] mx-auto w-full mb-6">
@@ -57,6 +59,18 @@ const LibraryHeaderBar = ({
 
         {/* View Mode Toggle */}
         <div className="flex items-center bg-surface rounded-lg p-1 h-[40px]">
+          <AnimatedIconButton
+            onClick={toggleSelectionMode}
+            className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${
+              isSelectionMode
+                ? 'bg-accent text-inverse'
+                : 'text-secondary hover:text-primary hover:bg-surface-hover'
+            }`}
+            title="Multi-Select"
+          >
+            <span className="material-symbols-outlined text-[18px]">checklist</span>
+          </AnimatedIconButton>
+          <div className="w-[1px] h-[20px] bg-border-subtle mx-1" />
           <AnimatedIconButton
             onClick={() => setViewMode?.('grid')}
             className={`w-[36px] h-[32px] rounded flex items-center justify-center transition-colors ${

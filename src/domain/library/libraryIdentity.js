@@ -1,16 +1,24 @@
-export const createLibraryIdentity = ({ titleKey, mediaType, tmdbId }) => {
+export const createLibraryIdentity = ({ titleKey, mediaType, media_type, tmdbId, id }) => {
   if (typeof titleKey !== 'string' || !titleKey.trim()) {
     throw new Error('Missing library titleKey');
   }
 
-  const normalizedMediaType = mediaType === 'tv' ? 'tv' : mediaType === 'movie' ? 'movie' : null;
+  const actualMediaType = mediaType || media_type;
+  const normalizedMediaType = actualMediaType === 'tv' ? 'tv' : actualMediaType === 'movie' ? 'movie' : null;
   if (!normalizedMediaType) {
-    throw new Error('Missing library mediaType');
+    throw new Error(`Missing library mediaType for item: ${titleKey}`);
   }
 
-  const normalizedTmdbId = Number(tmdbId);
+  const actualTmdbId = tmdbId ?? id;
+  let normalizedTmdbId = Number(actualTmdbId);
+  
+  // If parsing as number fails (e.g. composite IDs like 110316_S3E3), gracefully keep the string
   if (!Number.isFinite(normalizedTmdbId)) {
-    throw new Error('Missing library tmdbId');
+    normalizedTmdbId = actualTmdbId;
+  }
+
+  if (normalizedTmdbId == null || normalizedTmdbId === '') {
+    throw new Error(`Missing library tmdbId for item: ${titleKey}`);
   }
 
   return {

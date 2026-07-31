@@ -30,7 +30,8 @@ const MediaCard = ({
   onQuickActions,
   className = "",
   imdbRating,
-  imdbVotes
+  imdbVotes,
+  disableHover = false
 }) => {
   if (!media) return null;
 
@@ -41,8 +42,8 @@ const MediaCard = ({
   const rating = media.rating?.score || media.voteAverage || media.vote_average;
   const type = media.mediaType || media.media_type || (media.firstAirDate || media.first_air_date || media.name ? 'tv' : 'movie');
   
-  // URL for the card to enable middle-click, right-click, etc.
-  const toUrl = media.id ? `/${type === 'tv' ? 'shows' : 'movie'}/${media.id}` : undefined;
+  // URL for the card to enable middle-click, right-click, etc. (disabled when disableHover/selection mode is true)
+  const toUrl = (media.id && !disableHover) ? `/${type === 'tv' ? 'shows' : 'movie'}/${media.id}` : undefined;
 
   // 2. Image Resolution
   const rawPosterPath = media.posterPath || media.poster_path;
@@ -103,16 +104,18 @@ const MediaCard = ({
         )}
 
         {/* Play Icon & Next Episode on Hover */}
-        <div className="absolute inset-0 bg-overlay flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-          <div className="w-12 h-12 rounded-full bg-accent/90 flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-200 shadow-lg">
-            <Play className="w-6 h-6 text-inverse ml-1" fill="currentColor" />
-          </div>
-          {media.tracking?.nextEpisodeLabel && (media.tracking?.status === 'watching' || media.tracking?.status === 'plan_to_watch') && (
-            <div className="mt-3 text-inverse text-xs font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-overlay backdrop-blur-sm border border-border-subtle">
-              Next: {media.tracking.nextEpisodeLabel}
+        {!disableHover && (
+          <div className="absolute inset-0 bg-overlay flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+            <div className="w-12 h-12 rounded-full bg-accent/90 flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-200 shadow-lg">
+              <Play className="w-6 h-6 text-inverse ml-1" fill="currentColor" />
             </div>
-          )}
-        </div>
+            {media.tracking?.nextEpisodeLabel && (media.tracking?.status === 'watching' || media.tracking?.status === 'plan_to_watch') && (
+              <div className="mt-3 text-inverse text-xs font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-2 py-1 rounded bg-overlay backdrop-blur-sm border border-border-subtle">
+                Next: {media.tracking.nextEpisodeLabel}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Remove or Quick Actions Button */}
         {onQuickActions ? (
@@ -161,6 +164,7 @@ const MediaCard = ({
         aspectRatio={aspectRatio}
         onClick={handleCardClick}
         to={toUrl}
+        isHoverable={!disableHover}
         fallbackText={title}
         overlay={renderOverlay()}
       >

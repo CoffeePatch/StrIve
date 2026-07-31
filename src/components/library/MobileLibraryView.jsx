@@ -6,22 +6,36 @@ import LibraryFilterSheet from './LibraryFilterSheet';
 import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 
 const MobileLibraryView = ({
+  headerProps = {},
+  filterProps = {},
+  gridProps = {},
   activePrimaryTab,
   setActivePrimaryTab,
-  items,
-  filteredItems,
-  loading,
-  customLists,
-  handleItemClick,
-  handleRemove,
-  onQuickActions,
-  getImdbRating,
-  getImdbVotes,
-  message
+  items: directItems,
+  filteredItems: directFilteredItems,
+  loading: directLoading,
+  customLists: directCustomLists,
+  handleItemClick: directHandleItemClick,
+  handleRemove: directHandleRemove,
+  onQuickActions: directOnQuickActions,
+  getImdbRating: directGetImdbRating,
+  getImdbVotes: directGetImdbVotes,
+  message: directMessage
 }) => {
   const navigate = useNavigate();
   const filters = useLibraryFiltersContext();
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const items = directItems ?? gridProps.items ?? [];
+  const filteredItems = directFilteredItems ?? gridProps.items ?? [];
+  const loading = directLoading ?? false;
+  const customLists = directCustomLists ?? filterProps.customLists ?? [];
+  const handleItemClick = directHandleItemClick ?? gridProps.handleItemClick;
+  const handleRemove = directHandleRemove ?? gridProps.handleRemove;
+  const onQuickActions = directOnQuickActions ?? gridProps.onQuickActions;
+  const getImdbRating = directGetImdbRating ?? gridProps.getImdbRating;
+  const getImdbVotes = directGetImdbVotes ?? gridProps.getImdbVotes;
+  const message = directMessage;
 
   const {
     searchQuery,
