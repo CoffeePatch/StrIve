@@ -7,7 +7,8 @@ import {
   updateListMetadata,
   pinListThunk,
   unpinListThunk,
-  fetchActiveList
+  fetchActiveList,
+  reorderListItemThunk
 } from '../../util/store/listsSlice';
 
 export const useLists = (userId) => {
@@ -63,6 +64,12 @@ export const useLists = (userId) => {
     }
   }, [dispatch, userId]);
 
+  const reorderItem = useCallback((listId, { titleKey, beforeTitleKey, afterTitleKey, previousItems }) => {
+    if (userId && listId && titleKey) {
+      return dispatch(reorderListItemThunk({ userId, listId, titleKey, beforeTitleKey, afterTitleKey, previousItems })).unwrap();
+    }
+  }, [dispatch, userId]);
+
   return useMemo(() => ({
     lists,
     listsStatus,
@@ -77,7 +84,8 @@ export const useLists = (userId) => {
     updateList,
     pinList,
     unpinList,
-    loadActiveList
+    loadActiveList,
+    reorderItem
   }), [
     lists,
     listsStatus,
@@ -92,7 +100,8 @@ export const useLists = (userId) => {
     updateList,
     pinList,
     unpinList,
-    loadActiveList
+    loadActiveList,
+    reorderItem
   ]);
 };
 

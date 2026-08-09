@@ -9,96 +9,17 @@ export const fetchLists = createAsyncThunk(
     try {
       const lists = await listsAdapter.fetchUserListsWithPreviews(userId);
 
-      // Convert Firestore Timestamps to serializable format before returning
-      const processedLists = lists.map((list) => {
-        // Process the list details
-        const processedList = { ...list };
-
-        // If the list has a createdAt Timestamp, convert it to ISO string
-        if (
-          processedList.createdAt &&
-          typeof processedList.createdAt.toDate === "function"
-        ) {
-          processedList.createdAt = processedList.createdAt
-            .toDate()
-            .toISOString();
-        }
-
-        if (
-          processedList.updatedAt &&
-          typeof processedList.updatedAt.toDate === "function"
-        ) {
-          processedList.updatedAt = processedList.updatedAt
-            .toDate()
-            .toISOString();
-        }
-
-        if (
-          processedList.pinnedAt &&
-          typeof processedList.pinnedAt.toDate === "function"
-        ) {
-          processedList.pinnedAt = processedList.pinnedAt
-            .toDate()
-            .toISOString();
-        }
-
-        // Process items in the list if they exist
-        if (processedList.items && Array.isArray(processedList.items)) {
-          processedList.items = processedList.items.map((item) => {
-            // Create a copy of the item to avoid mutating the original
-            const processedItem = { ...item };
-
-            // Convert dateAdded Timestamp to ISO string if it exists
-            if (
-              processedItem.dateAdded &&
-              typeof processedItem.dateAdded.toDate === "function"
-            ) {
-              processedItem.dateAdded = processedItem.dateAdded
-                .toDate()
-                .toISOString();
-            }
-
-            // Convert release_date Timestamp to ISO string if it exists (though this is typically already a string)
-            if (
-              processedItem.release_date &&
-              typeof processedItem.release_date.toDate === "function"
-            ) {
-              processedItem.release_date = processedItem.release_date
-                .toDate()
-                .toISOString();
-            }
-
-            // Convert any other Timestamp fields if they exist
-            if (
-              processedItem.createdAt &&
-              typeof processedItem.createdAt.toDate === "function"
-            ) {
-              processedItem.createdAt = processedItem.createdAt
-                .toDate()
-                .toISOString();
-            }
-
-            return processedItem;
-          });
-        }
-
-        return processedList;
-      });
-
       // Sort: Pinned lists first, then by creation date
-      const sortedLists = processedLists.sort((a, b) => {
-        // If one is pinned and the other isn't, pinned comes first
+      const sortedLists = [...lists].sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
 
-        // If both are pinned, sort by pinnedAt (most recent first)
         if (a.isPinned && b.isPinned) {
           const dateA = new Date(a.pinnedAt || 0);
           const dateB = new Date(b.pinnedAt || 0);
           return dateB - dateA;
         }
 
-        // If neither is pinned, sort by createdAt
         const dateA = new Date(a.createdAt || 0);
         const dateB = new Date(b.createdAt || 0);
         return dateB - dateA;
@@ -267,59 +188,21 @@ export const fetchActiveList = createAsyncThunk(
   async ({ userId, listId }, { rejectWithValue }) => {
     try {
       const listData = await listsAdapter.fetchListWithItems(userId, listId);
-
-      // Convert Firestore Timestamps to serializable format before returning
-      if (listData && listData.items && Array.isArray(listData.items)) {
-        listData.items = listData.items.map((item) => {
-          // Create a copy of the item to avoid mutating the original
-          const processedItem = { ...item };
-
-          // Convert dateAdded Timestamp to ISO string if it exists
-          if (
-            processedItem.dateAdded &&
-            typeof processedItem.dateAdded.toDate === "function"
-          ) {
-            processedItem.dateAdded = processedItem.dateAdded
-              .toDate()
-              .toISOString();
-          }
-
-          // Convert release_date Timestamp to ISO string if it exists (though this is typically already a string)
-          if (
-            processedItem.release_date &&
-            typeof processedItem.release_date.toDate === "function"
-          ) {
-            processedItem.release_date = processedItem.release_date
-              .toDate()
-              .toISOString();
-          }
-
-          // Convert any other Timestamp fields if they exist
-          if (
-            processedItem.createdAt &&
-            typeof processedItem.createdAt.toDate === "function"
-          ) {
-            processedItem.createdAt = processedItem.createdAt
-              .toDate()
-              .toISOString();
-          }
-
-          return processedItem;
-        });
-      }
-
-      // Also convert list-level Timestamps
-      if (
-        listData &&
-        listData.createdAt &&
-        typeof listData.createdAt.toDate === "function"
-      ) {
-        listData.createdAt = listData.createdAt.toDate().toISOString();
-      }
-
       return listData;
     } catch (error) {
       return rejectWithValue(error.toString());
+    }
+  }
+);
+
+export const reorderListItemThunk = createAsyncThunk(
+  "lists/reorderListItem",
+  async ({ userId, listId, titleKey, beforeTitleKey, afterTitleKey, previousItems }, { rejectWithValue }) => {
+    try {
+      await listsAdapter.reorderListItems(userId, listId, { titleKey, beforeTitleKey, afterTitleKey });
+      return { listId, titleKey, beforeTitleKey, afterTitleKey };
+    } catch (error) {
+      return rejectWithValue({ error: error.toString(), previousItems });
     }
   }
 );
@@ -567,6 +450,13 @@ const listsSlice = createSlice({
       // Create Default List
       .addCase(createDefaultList.fulfilled, (state, action) => {
         state.customLists.lists.unshift(action.payload);
+      })
+      // Reorder List Item Error Rollback
+      .addCase(reorderListItemThunk.rejected, (state, action) => {
+        if (action.payload?.previousItems && state.activeList.items) {
+          state.activeList.items = action.payload.previousItems;
+        }
+        state.activeList.error = action.payload?.error || "Failed to reorder list items";
       });
   },
 });

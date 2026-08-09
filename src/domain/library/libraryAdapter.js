@@ -1,60 +1,88 @@
-import { doc, getDoc, onSnapshot, writeBatch, Timestamp, arrayUnion, arrayRemove } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
-import { setLibraryItemStatus, upsertLibraryItem } from "../../util/firebase/firestoreService";
+import { auth } from "../../util/firebase/firebase";
 import { readLibraryIdentity } from "./libraryIdentity";
 import { invalidateLibraryPipelineCache } from "../../hooks/library/libraryPipelineCache";
 import { normalizeWatchStatus } from "../../util/library/watchStatus";
 
-/**
- * Helper to generate the Firestore document key for a library item.
- * Identity must already be explicit; no media-type inference happens here.
- */
 function generateTitleKey(libraryIdentity) {
   return readLibraryIdentity(libraryIdentity).titleKey;
 }
 
-/**
- * Helper to extract status from the Firestore document payload.
- * Preserves backward compatibility.
- */
-function readWatchStatus(data) {
-  return (
-    data?.tracking?.watchStatus ??
-    data?.watchStatus ??
-    data?.status ??
-    null
-  );
+async function getAuthHeader() {
+  const user = auth.currentUser;
+  if (!user) return {};
+  const token = await user.getIdToken();
+  return { Authorization: `Bearer ${token}` };
 }
 
 /**
  * The Library Adapter acts as the persistence boundary for library operations.
- * UI components speak domain language (e.g., addToWatchlist) to this adapter.
- * The adapter translates this intent into specific Firestore writes without altering the schema.
+ * Replaced Firestore direct calls with /api/library/* REST API calls.
  */
 export const libraryAdapter = {
-  /**
-   * Primary primitive for updating the watch status of an item.
-   * If the item doesn't exist, it will be upserted.
-   * Otherwise, only the tracking status is updated, preserving all other metadata.
-   */
   updateLibraryStatus: async (userId, mediaItem, status, options = {}) => {
-    return await setLibraryItemStatus(userId, mediaItem, status, options);
+    const titleKey = generateTitleKey(mediaItem);
+    const headers = await getAuthHeader();
+    
+    const response = await fetch(`/api/library/${titleKey}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({
+        status,
+        lastWatchedAt: options.lastWatchedAt || null
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update library status (${response.status})`);
+    }
+
+    invalidateLibraryPipelineCache(userId);
+    return await response.json();
   },
 
-  /**
-   * Forcibly refreshes metadata and sets the library status.
-   * Typically used when you want a full metadata refresh alongside a status change.
-   */
+  updateUserRating: async (userId, mediaItem, userRating) => {
+    const titleKey = generateTitleKey(mediaItem);
+    const headers = await getAuthHeader();
+    
+    const response = await fetch(`/api/library/${titleKey}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({ userRating })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update user rating (${response.status})`);
+    }
+
+    invalidateLibraryPipelineCache(userId);
+    return await response.json();
+  },
+
   saveLibraryItem: async (userId, mediaItem, status = null) => {
-    return await upsertLibraryItem(userId, mediaItem, mediaItem, { status, isUserInteraction: true });
+    return await libraryAdapter.updateLibraryStatus(userId, mediaItem, status);
   },
 
-  /**
-   * Completely removes a library item, including all metadata, tracking, and list memberships.
-   */
   removeLibraryItem: async (userId, mediaItem) => {
-    const { deleteLibraryItem } = await import("../../util/firebase/firestoreService");
-    return await deleteLibraryItem(userId, mediaItem);
+    const titleKey = generateTitleKey(mediaItem);
+    const headers = await getAuthHeader();
+
+    const response = await fetch(`/api/library/${titleKey}`, {
+      method: "DELETE",
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete library item (${response.status})`);
+    }
+
+    invalidateLibraryPipelineCache(userId);
+    return await response.json();
   },
 
   // --- Semantic Domain Operations ---
@@ -75,163 +103,137 @@ export const libraryAdapter = {
     return await libraryAdapter.updateLibraryStatus(userId, mediaItem, null);
   },
 
-  // --- Real-Time Status Subscriptions ---
+  // --- Status Subscriptions ---
 
-  /**
-   * Fetches the raw status string from Firestore once.
-   */
   getLibraryStatus: async (userId, mediaItem) => {
     const titleKey = generateTitleKey(mediaItem);
-    const ref = doc(db, "users", userId, "library_items", titleKey);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
+    const headers = await getAuthHeader();
+
+    try {
+      const response = await fetch(`/api/catalog/${titleKey}`, { headers });
+      if (!response.ok) return { status: null, tracking: null };
+      const data = await response.json();
+      const catalog = data?.catalog || data;
       return {
-        status: readWatchStatus(snap.data()),
-        tracking: snap.data()?.tracking || null
+        status: catalog?.userStatus || null,
+        tracking: data?.progress || null
       };
+    } catch (err) {
+      console.warn("getLibraryStatus failed:", err);
+      return { status: null, tracking: null };
     }
-    return { status: null, tracking: null };
   },
 
-  /**
-   * Subscribes to real-time status changes for a library item.
-   * Returns an unsubscribe function.
-   */
   subscribeToLibraryStatus: (userId, mediaItem, onStatusChange, onError) => {
-    const titleKey = generateTitleKey(mediaItem);
-    const ref = doc(db, "users", userId, "library_items", titleKey);
-    return onSnapshot(
-      ref,
-      (snap) => {
-        if (snap.exists()) {
-          onStatusChange(readWatchStatus(snap.data()), snap.data()?.tracking || null);
-        } else {
-          onStatusChange(null, null);
-        }
-      },
-      (err) => {
-        if (onError) onError(err);
-      }
-    );
+    // Non-realtime REST polling/fetch fallback for compatibility
+    libraryAdapter.getLibraryStatus(userId, mediaItem)
+      .then(({ status, tracking }) => onStatusChange(status, tracking))
+      .catch((err) => onError && onError(err));
+
+    return () => {}; // No-op unsubscribe function
   },
 
   // --- Batch Operations (Multi-Select) ---
 
-  /**
-   * Executes an array of operations in Firestore batches (max 500 per chunk).
-   * @param {Function} operationFn - (batch, chunkItems) => void
-   * @param {Array} items - Array of library identities
-   */
-  _executeInBatches: async (items, operationFn) => {
-    if (!items || items.length === 0) return;
-    const CHUNK_SIZE = 500;
-    const chunks = [];
-    
-    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-      chunks.push(items.slice(i, i + CHUNK_SIZE));
-    }
-
-    for (const chunk of chunks) {
-      const batch = writeBatch(db);
-      operationFn(batch, chunk);
-      await batch.commit();
-    }
-  },
-
-  /**
-   * Batch deletes multiple library items.
-   */
   batchDeleteItems: async (userId, mediaItems) => {
     if (!userId || !mediaItems?.length) return;
-    
-    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
-      chunk.forEach((item) => {
-        const titleKey = generateTitleKey(item);
-        const ref = doc(db, "users", userId, "library_items", titleKey);
-        batch.delete(ref);
-      });
+    const titleKeys = mediaItems.map(item => generateTitleKey(item));
+    const headers = await getAuthHeader();
+
+    const response = await fetch(`/api/library/batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({
+        action: "delete",
+        titleKeys
+      })
     });
 
+    if (!response.ok) throw new Error("Batch delete failed");
     invalidateLibraryPipelineCache(userId);
   },
 
-  /**
-   * Batch updates watch status for multiple library items.
-   */
   batchUpdateStatus: async (userId, mediaItems, status) => {
     if (!userId || !mediaItems?.length) return;
-    const normalizedStatus = status === undefined ? null : (normalizeWatchStatus(status) ?? status);
-    const now = Timestamp.now();
+    const titleKeys = mediaItems.map(item => generateTitleKey(item));
+    const headers = await getAuthHeader();
 
-    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
-      chunk.forEach((item) => {
-        const titleKey = generateTitleKey(item);
-        const ref = doc(db, "users", userId, "library_items", titleKey);
-        
-        const trackingPayload = {
-          watchStatus: normalizedStatus,
-          updatedAt: now,
-          lastUserInteractionAt: now
-        };
-
-        if (normalizedStatus === 'completed') {
-          trackingPayload.lastWatchedAt = now;
-        }
-
-        batch.set(ref, { tracking: trackingPayload }, { merge: true });
-      });
+    const response = await fetch(`/api/library/batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({
+        action: "update_status",
+        titleKeys,
+        status: normalizeWatchStatus(status) ?? status
+      })
     });
 
+    if (!response.ok) throw new Error("Batch status update failed");
     invalidateLibraryPipelineCache(userId);
   },
 
-  /**
-   * Batch adds multiple library items to a custom list.
-   */
   batchAddToList: async (userId, mediaItems, listId) => {
     if (!userId || !mediaItems?.length || !listId) return;
-    const now = Timestamp.now();
+    const titleKeys = mediaItems.map(item => generateTitleKey(item));
+    const headers = await getAuthHeader();
 
-    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
-      chunk.forEach((item) => {
-        const titleKey = generateTitleKey(item);
-        const ref = doc(db, "users", userId, "library_items", titleKey);
-        
-        batch.set(ref, { 
-          tracking: { 
-            listIds: arrayUnion(listId),
-            updatedAt: now,
-            lastUserInteractionAt: now
-          } 
-        }, { merge: true });
-      });
+    const response = await fetch(`/api/lists/${listId}/items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({ titleKeys })
     });
 
+    if (!response.ok) throw new Error("Batch add to list failed");
     invalidateLibraryPipelineCache(userId);
   },
 
-  /**
-   * Batch removes multiple library items from a custom list.
-   */
   batchRemoveFromList: async (userId, mediaItems, listId) => {
     if (!userId || !mediaItems?.length || !listId) return;
-    const now = Timestamp.now();
+    const titleKeys = mediaItems.map(item => generateTitleKey(item));
+    const headers = await getAuthHeader();
 
-    await libraryAdapter._executeInBatches(mediaItems, (batch, chunk) => {
-      chunk.forEach((item) => {
-        const titleKey = generateTitleKey(item);
-        const ref = doc(db, "users", userId, "library_items", titleKey);
-        
-        batch.set(ref, { 
-          tracking: { 
-            listIds: arrayRemove(listId),
-            updatedAt: now,
-            lastUserInteractionAt: now
-          } 
-        }, { merge: true });
-      });
+    const response = await fetch(`/api/lists/${listId}/items`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({ titleKeys })
     });
 
+    if (!response.ok) throw new Error("Batch remove from list failed");
     invalidateLibraryPipelineCache(userId);
+  },
+
+  updateUserNotes: async (userId, mediaItem, notes) => {
+    const titleKey = generateTitleKey(mediaItem);
+    const headers = await getAuthHeader();
+
+    const response = await fetch(`/api/library/${titleKey}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify({
+        notes: notes !== undefined ? notes : null
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update user notes (${response.status})`);
+    }
+
+    invalidateLibraryPipelineCache(userId);
+    return await response.json();
   }
 };

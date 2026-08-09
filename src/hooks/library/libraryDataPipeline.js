@@ -1,5 +1,6 @@
 import { getAllLibraryItems } from '../../services/libraryService';
 import { getOrFetchLibraryData } from './libraryPipelineCache';
+import { listsAdapter } from '../../domain/lists/listsAdapter';
 
 const applyMockSizeDuplication = (items, mockSizeStr) => {
   if (!mockSizeStr) return items;
@@ -54,13 +55,24 @@ export const loadLibraryListItems = async (userId, listIds = [], options = {}) =
 
   const allItems = await loadLibraryItems(userId, { hydrate, includePageInfo });
 
-  const results = normalizedListIds.map((listId) => {
-    const listItems = (Array.isArray(allItems) ? allItems : []).filter((item) => {
-      const listIdsForItem = Array.isArray(item?.tracking?.listIds) ? item.tracking.listIds : [];
-      return listIdsForItem.includes(listId);
-    });
-    return [listId, listItems];
-  });
+  const results = await Promise.all(normalizedListIds.map(async (listId) => {
+    try {
+      const listData = await listsAdapter.fetchListWithItems(userId, listId);
+      const titleKeysInList = new Set((Array.isArray(listData) ? listData : []).map(item => item.titleKey));
+
+      const listItems = (Array.isArray(allItems) ? allItems : []).filter((item) => {
+        return titleKeysInList.has(item.titleKey);
+      });
+
+      const positionMap = new Map((Array.isArray(listData) ? listData : []).map((item, idx) => [item.titleKey, item.position || idx]));
+      listItems.sort((a, b) => (positionMap.get(a.titleKey) ?? 999) - (positionMap.get(b.titleKey) ?? 999));
+
+      return [listId, listItems];
+    } catch (err) {
+      console.error(`Error loading list ${listId}`, err);
+      return [listId, []];
+    }
+  }));
 
   return Object.fromEntries(results);
 };

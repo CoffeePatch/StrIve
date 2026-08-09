@@ -15,7 +15,9 @@ const parseNumericScore = (val) => {
   return Number.isFinite(num) && num > 0 ? num : null;
 };
 
-const MediaRatings = ({ layoutType = "movie", imdbRating, imdbVotes, imdbLoading, tmdbScore, tmdbVotes }) => {
+import UserRatingWidget from './UserRatingWidget';
+
+const MediaRatings = ({ imdbRating, imdbVotes, imdbLoading, tmdbScore, tmdbVotes, userRating, onRatingChange }) => {
   const validImdbScore = parseNumericScore(imdbRating);
   const validImdbVotes = parseNumericScore(imdbVotes);
   const validTmdbScore = parseNumericScore(tmdbScore);
@@ -23,10 +25,6 @@ const MediaRatings = ({ layoutType = "movie", imdbRating, imdbVotes, imdbLoading
 
   const showImdb = Boolean(validImdbScore || imdbLoading);
   const showTmdb = Boolean(validTmdbScore);
-
-  if (!showImdb && !showTmdb) {
-    return null;
-  }
 
   return (
     <div className="flex flex-row items-center gap-3">
@@ -71,6 +69,9 @@ const MediaRatings = ({ layoutType = "movie", imdbRating, imdbVotes, imdbLoading
           ) : null}
         </div>
       )}
+
+      {/* User Rating Widget */}
+      <UserRatingWidget userRating={userRating} onRatingChange={onRatingChange} />
     </div>
   );
 };

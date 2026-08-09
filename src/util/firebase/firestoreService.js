@@ -16,14 +16,8 @@ export const firstNumber = (...values) => {
 export { fetchImdbData } from '../../services/imdbService';
 
 export {
-  upsertLibraryItem,
-  getLibraryItemListIds,
-  setLibraryItemListIds,
-  setLibraryItemStatus,
   getAllLibraryItems,
-  getLibraryByStatus,
-  getLibraryByListId,
-  deleteLibraryItem
+  getLibraryByStatus
 } from '../../services/libraryService';
 
 export {

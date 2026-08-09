@@ -5,8 +5,8 @@ import { unparse } from "papaparse";
 import {
   refreshLibraryMetadata,
   getMetadataStatistics,
-  getLibraryByStatus,
-} from "../../util/firebase/firestoreService";
+} from "../../services/metadataService";
+import { getLibraryByStatus } from "../../services/libraryService";
 import { downloadTemplateCsv } from "../../util/export/csvTemplate";
 import Header from "../layout/Header";
 import LibraryHealthPanel from "../library/LibraryHealthPanel";

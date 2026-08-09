@@ -6,7 +6,7 @@ import LibraryFilterSheet from './LibraryFilterSheet';
 import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 
 const MobileLibraryView = ({
-  headerProps = {},
+
   filterProps = {},
   gridProps = {},
   activePrimaryTab,

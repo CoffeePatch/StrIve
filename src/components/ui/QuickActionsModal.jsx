@@ -73,8 +73,8 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
     const fetchMembership = async () => {
       try {
         setIsLoadingMembership(true);
-        const { getLibraryItemListIds } = await import('../../util/firebase/firestoreService');
-        const listIds = await getLibraryItemListIds(userId, media);
+        const { listsAdapter } = await import('../../domain/lists/listsAdapter');
+        const listIds = await listsAdapter.getItemListMemberships(userId, media);
         if (!active) return;
         const normalized = Array.isArray(listIds) ? listIds.filter(Boolean) : [];
         setSavedListIds(normalized);
@@ -148,8 +148,8 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
         ? [...selectedListIds, listId]
         : selectedListIds.filter(id => id !== listId);
 
-      const { setLibraryItemListIds } = await import('../../util/firebase/firestoreService');
-      await setLibraryItemListIds(userId, media, nextListIds);
+        const { listsAdapter } = await import('../../domain/lists/listsAdapter');
+        await listsAdapter.setItemListMemberships(userId, media, nextListIds);
 
       if (isAdding) {
         await addMediaToList(listId, media);

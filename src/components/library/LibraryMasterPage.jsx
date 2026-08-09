@@ -33,7 +33,7 @@ const BulkToolbarIntegration = ({ userId, filteredItems, refreshLibrary }) => {
       toast.success(`Updated status for ${items.length} items`);
       exitSelectionMode();
       refreshLibrary();
-    } catch(err) {
+    } catch {
       toast.error('Failed or partially updated items');
       exitSelectionMode();
       refreshLibrary();
@@ -125,7 +125,7 @@ const LibraryMasterPage = () => {
 
   const [items, setItems] = useState([]);
   const [customListsItemsMap, setCustomListsItemsMap] = useState({});
-  const { lists: customLists, loadLists } = useLists(user?.uid);
+  const { lists: customLists, loadLists, reorderItem } = useLists(user?.uid);
   const { addMediaToList, removeMediaFromList } = useListMembership(user?.uid);
   const [loading, setLoading] = useState(false);
 
@@ -345,6 +345,28 @@ const LibraryMasterPage = () => {
     navigate('/import');
   }, [navigate]);
 
+  const handleReorderListItems = useCallback(async ({ titleKey, afterTitleKey, beforeTitleKey, newOrderedItems }) => {
+    const currentListIds = customListIdsRef.current;
+    const activeListId = currentListIds.length === 1 ? currentListIds[0] : null;
+    if (!user?.uid || !activeListId) return;
+
+    const previousItems = items;
+    setItems(newOrderedItems);
+
+    try {
+      await reorderItem(activeListId, {
+        titleKey,
+        afterTitleKey,
+        beforeTitleKey,
+        previousItems
+      });
+    } catch (error) {
+      console.error('Reorder failed:', error);
+      setItems(previousItems);
+      toast.error('Failed to reorder list items');
+    }
+  }, [user?.uid, items, reorderItem]);
+
   // Group presentation props into cohesive interfaces
   const headerProps = useMemo(() => ({
     itemCount: sortedAndFilteredItems.length,
@@ -371,11 +393,14 @@ const LibraryMasterPage = () => {
     imdbVotesMin,
     tmdbRatingMin,
     tmdbVotesMin,
+    userRatingMin: libraryFilters?.userRatingMin,
+    hasNotesOnly: libraryFilters?.hasNotesOnly,
+    runtimes: libraryFilters?.runtimes,
     genres,
     yearFrom,
     yearTo,
     libraryFilters,
-  }), [status, type, filtersOpen, setFiltersOpen, updateFilters, clearAdvancedFilters, activeSecondaryFilterCount, customListIds, customLists, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, libraryFilters]);
+  }), [status, type, filtersOpen, setFiltersOpen, updateFilters, clearAdvancedFilters, activeSecondaryFilterCount, customListIds, customLists, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, libraryFilters, genres, yearFrom, yearTo]);
 
   const gridProps = useMemo(() => ({
     totalItems: items.length,
@@ -385,7 +410,9 @@ const LibraryMasterPage = () => {
     onQuickActions: handleQuickActions,
     getImdbRating,
     getImdbVotes,
-  }), [items.length, sortedAndFilteredItems, handleItemClick, handleRemove, handleQuickActions, getImdbRating, getImdbVotes]);
+    isReorderable: customListIds.length === 1,
+    onReorder: handleReorderListItems,
+  }), [items.length, sortedAndFilteredItems, handleItemClick, handleRemove, handleQuickActions, getImdbRating, getImdbVotes, customListIds, handleReorderListItems]);
 
   return (
     <LibraryFiltersContext.Provider value={libraryFilters}>

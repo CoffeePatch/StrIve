@@ -220,6 +220,57 @@ const LibraryFilterBar = ({
               </motion.div>
             )}
 
+            {libraryFilters?.userRatingMin && (
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                key="userRatingMin"
+                className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5"
+              >
+                My Rating: ★ {libraryFilters.userRatingMin}+
+                <button onClick={() => updateFilters?.({ userRatingMin: null })} className="hover:text-primary">
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </motion.div>
+            )}
+
+            {libraryFilters?.hasNotesOnly && (
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                key="hasNotesOnly"
+                className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5"
+              >
+                Has Personal Notes
+                <button onClick={() => updateFilters?.({ hasNotesOnly: false })} className="hover:text-primary">
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </motion.div>
+            )}
+
+            {(libraryFilters?.runtimes || []).map((r) => (
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                key={`r-${r}`}
+                className="px-3 py-1.5 rounded-full bg-surface-hover text-[12px] text-secondary font-secondary border border-border-subtle flex items-center gap-1.5"
+              >
+                Runtime: {r}m
+                <button
+                  onClick={() => updateFilters?.({ runtimes: libraryFilters.runtimes.filter((x) => x !== r) })}
+                  className="hover:text-primary"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </motion.div>
+            ))}
+
             {genres.map((g) => (
               <motion.div
                 layout

@@ -27,6 +27,7 @@ import { useSeriesTracking } from "../../domain/tracking/useSeriesTracking";
 import SimilarShowsPanel from "./TVShowDetails/SimilarShowsPanel";
 import SectionHeader from "../ui/SectionHeader";
 import MediaDetailSkeleton from "../media/MediaDetailSkeleton";
+import UserNotesWidget from "../media/MediaDetails/UserNotesWidget";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 const SYNCING_TIMEOUT_MS = 12000;
@@ -46,6 +47,10 @@ const TVShowDetailsPage = () => {
     imdbLoading,
     isWatchlisted,
     isWatched,
+    userRating,
+    handleRatingChange,
+    userNotes,
+    handleNotesChange,
     trackingData,
     handleToggleWatchlist,
     handleToggleWatched,
@@ -509,6 +514,8 @@ const TVShowDetailsPage = () => {
               imdbLoading={imdbLoading}
               tmdbScore={showDetails.voteAverage ?? showDetails.vote_average}
               tmdbVotes={showDetails.voteCount ?? showDetails.vote_count}
+              userRating={userRating}
+              onRatingChange={handleRatingChange}
             />
           }
           actionsComponent={
@@ -584,6 +591,7 @@ const TVShowDetailsPage = () => {
                 markWatchedLoading={markWatchedLoading}
               />
             </div>
+            <UserNotesWidget notes={userNotes} onSaveNotes={handleNotesChange} />
             <div className="mt-10">
               <SimilarShowsPanel tvId={tvId} />
             </div>

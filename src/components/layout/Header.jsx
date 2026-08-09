@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { Home, Search, Settings, Bell } from "lucide-react";
+import { Home, Search, Settings, Bell, History, User, ListFilter } from "lucide-react";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -85,6 +85,18 @@ const Header = () => {
                   label="Library" 
                   isActive={location.pathname.startsWith("/library")} 
                 />
+                <NavItem 
+                  path="/lists" 
+                  label="Lists" 
+                  icon={ListFilter}
+                  isActive={location.pathname.startsWith("/lists")} 
+                />
+                <NavItem 
+                  path="/history" 
+                  label="History" 
+                  icon={History}
+                  isActive={location.pathname.startsWith("/history")} 
+                />
               </ul>
             </nav>
 
@@ -95,6 +107,15 @@ const Header = () => {
                 className="text-white/70 hover:text-white interactive-element"
               >
                 <Search className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => navigate("/profile")}
+                aria-label="Profile"
+                className={`text-white/70 hover:text-white interactive-element ${
+                  location.pathname.startsWith("/profile") ? "text-white" : ""
+                }`}
+              >
+                <User className="w-5 h-5" />
               </button>
               <button
                 onClick={() => navigate("/settings")}

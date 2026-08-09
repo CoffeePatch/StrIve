@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getLibraryByStatus } from '../../services/libraryService';
+import { getContinueWatching } from '../../services/libraryService';
 import { getOrFetch, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
 
 export function useContinueWatching(userId) {
@@ -25,11 +25,9 @@ export function useContinueWatching(userId) {
           key: cacheKey,
           ttl: TTL.CONTINUE_WATCHING,
           fetcher: async () => {
-            return await getLibraryByStatus(userId, 'watching', {
-              hydrate: false, // No TMDB hydration
-              sortBy: 'updatedAt',
-              sortDirection: 'desc'
-            });
+            // We fetch from the proxy function which calls the BFF directly.
+            // Hydration and sorting are natively handled in the PostgreSQL backend.
+            return await getContinueWatching(userId, { limit: 20 });
           }
         });
 

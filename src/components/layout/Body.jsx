@@ -20,6 +20,8 @@ const ImportReviewPage = lazy(() => import("../import/ImportReviewPage"));
 const SimklPage = lazy(() => import("../simkl/SimklPage"));
 const SimklCallback = lazy(() => import("../simkl/SimklCallback"));
 const ProfilePage = lazy(() => import("../pages/ProfilePage"));
+const ActivityHistoryPage = lazy(() => import("../pages/ActivityHistoryPage"));
+const ListsHubPage = lazy(() => import("../pages/ListsHubPage"));
 
 import ProtectedRoute from "./ProtectedRoute";
 import { useSimklBackgroundSync } from "../../hooks/simkl/useSimkl";
@@ -101,6 +103,14 @@ const Body = () => {
           ),
         },
         {
+          path: "/lists",
+          element: (
+            <ProtectedRoute>
+              <ListsHubPage />
+            </ProtectedRoute>
+          ),
+        },
+        {
           path: "/settings",
           element: (
             <ProtectedRoute>
@@ -158,6 +168,14 @@ const Body = () => {
           element: (
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "/history",
+          element: (
+            <ProtectedRoute>
+              <ActivityHistoryPage />
             </ProtectedRoute>
           ),
         },

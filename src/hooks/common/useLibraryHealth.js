@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../util/firebase/firebase";
 
-const CALLABLE_NAME = "markEpisodeWatched";
+const CALLABLE_NAME = "trackingWatch";
 
 const formatError = (err) => {
   if (!err) return "Unknown error";
@@ -86,7 +86,7 @@ export const useLibraryHealth = (userId) => {
       if (!user) throw new Error("unauthenticated");
       const token = await user.getIdToken();
 
-      const res = await fetch("/api/markEpisodeWatched", {
+      const res = await fetch("/api/tracking/watch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

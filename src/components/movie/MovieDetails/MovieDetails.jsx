@@ -13,6 +13,7 @@ import MediaCast from "../../media/MediaDetails/MediaCast";
 import MediaTrailers from "../../media/MediaDetails/MediaTrailers";
 import SimilarMoviesPanel from "./SimilarMoviesPanel";
 import MediaDetailSkeleton from "../../media/MediaDetailSkeleton";
+import UserNotesWidget from "../../media/MediaDetails/UserNotesWidget";
 
 const MovieDetails = () => {
   const { movieId, imdbId } = useParams();
@@ -29,6 +30,10 @@ const MovieDetails = () => {
     imdbLoading,
     isWatchlisted,
     isWatched: isCompleted,
+    userRating,
+    handleRatingChange,
+    userNotes,
+    handleNotesChange,
     trackingData,
     handleToggleWatchlist,
     handleToggleWatched: handleToggleCompleted,
@@ -139,6 +144,8 @@ const MovieDetails = () => {
               imdbLoading={imdbLoading}
               tmdbScore={movieDetails.voteAverage}
               tmdbVotes={movieDetails.voteCount}
+              userRating={userRating}
+              onRatingChange={handleRatingChange}
             />
           }
           actionsComponent={
@@ -165,6 +172,8 @@ const MovieDetails = () => {
             <MediaCast cast={movieDetails.credits?.cast} />
             
             <MediaTrailers videos={movieDetails.videos?.results} />
+
+            <UserNotesWidget notes={userNotes} onSaveNotes={handleNotesChange} />
 
             <div className="mt-10">
               <SimilarMoviesPanel movieId={currentId} />

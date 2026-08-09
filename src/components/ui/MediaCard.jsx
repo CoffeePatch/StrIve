@@ -191,12 +191,17 @@ const MediaCard = ({
 
               {variant !== 'continue_watching' && (
                 <div className="flex items-center">
-                  {rating > 0 && (
+                  {media.userRating ? (
+                    <div className="flex items-center gap-1 text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30" title={`Your rating: ${Number(media.userRating).toFixed(1)}/10`}>
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 mb-[1px]" />
+                      <span className="leading-none mt-[1px]">{Number(media.userRating).toFixed(1)}</span>
+                    </div>
+                  ) : rating > 0 ? (
                     <div className="flex items-center gap-1 text-yellow-500 font-medium">
                       <Star className="w-3.5 h-3.5 mb-[1px]" fill="currentColor" />
                       <span className="leading-none mt-[1px]">{Number(rating).toFixed(1)}</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>

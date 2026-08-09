@@ -126,6 +126,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
         imdbVotesMin: filters.imdbVotesMin,
         tmdbRatingMin: filters.tmdbRatingMin,
         tmdbVotesMin: filters.tmdbVotesMin,
+        userRatingMin: filters.userRatingMin,
+        hasNotesOnly: filters.hasNotesOnly,
         genres: [...filters.genres],
         yearFrom: filters.yearFrom,
         yearTo: filters.yearTo,
@@ -264,6 +266,22 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       });
     }
 
+    if (draftFilters.userRatingMin !== null) {
+      chips.push({
+        id: 'userRatingMin',
+        label: `My Rating: ★ ${draftFilters.userRatingMin}+`,
+        onClear: () => updateDraft('userRatingMin', null)
+      });
+    }
+
+    if (draftFilters.hasNotesOnly) {
+      chips.push({
+        id: 'hasNotesOnly',
+        label: 'Has Personal Notes',
+        onClear: () => updateDraft('hasNotesOnly', false)
+      });
+    }
+
     // Year range
     if (draftFilters.yearFrom !== null || draftFilters.yearTo !== null) {
       chips.push({
@@ -319,6 +337,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       imdbVotesMin: draftFilters.imdbVotesMin,
       tmdbMin: draftFilters.tmdbRatingMin,
       tmdbVotesMin: draftFilters.tmdbVotesMin,
+      userRatingMin: draftFilters.userRatingMin,
+      hasNotesOnly: draftFilters.hasNotesOnly,
       genres: draftFilters.genres,
       yearFrom: draftFilters.yearFrom,
       yearTo: draftFilters.yearTo,
@@ -337,6 +357,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       imdbVotesMin: null,
       tmdbRatingMin: null,
       tmdbVotesMin: null,
+      userRatingMin: null,
+      hasNotesOnly: false,
       genres: [],
       yearFrom: null,
       yearTo: null,

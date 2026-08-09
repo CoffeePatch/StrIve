@@ -13,8 +13,6 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useBrowseLibraryData } from "../../hooks/library/useBrowseLibraryData";
 import { useLists } from "../../domain/lists/useLists";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
 import { Settings, X } from "lucide-react";
 import QuickActionsModal from "../ui/QuickActionsModal";
 import BecauseYouWatched from "./BecauseYouWatched";
@@ -262,24 +260,24 @@ const Browse = () => {
     }
   }, [user?.uid, loadLists]);
 
-  // Load dashboard preferences from Firestore
+  // Load dashboard preferences from API
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user) return;
     
     const fetchPrefs = async () => {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data.dashboardPreferences) {
-            setPreferences({
-              continueWatching: data.dashboardPreferences.continueWatching ?? true,
-              recentlyAdded: data.dashboardPreferences.recentlyAdded ?? true,
-              recentlyWatched: data.dashboardPreferences.recentlyWatched ?? true,
-              watchlistPicks: data.dashboardPreferences.watchlistPicks ?? true
-            });
-          }
+        const token = await user.getIdToken();
+        const res = await fetch("/api/user/preferences", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPreferences({
+            continueWatching: data.continueWatching ?? true,
+            recentlyAdded: data.recentlyAdded ?? true,
+            recentlyWatched: data.recentlyWatched ?? true,
+            watchlistPicks: data.watchlistPicks ?? true
+          });
         }
       } catch (err) {
         console.error("Failed to load dashboard preferences:", err);
@@ -287,21 +285,27 @@ const Browse = () => {
     };
     
     fetchPrefs();
-  }, [user?.uid]);
+  }, [user]);
 
   const handleTogglePreference = async (key) => {
+    const nextVal = !(preferences[key] ?? true);
     const nextPrefs = {
       ...preferences,
-      [key]: !(preferences[key] ?? true)
+      [key]: nextVal
     };
     setPreferences(nextPrefs);
     
-    if (user?.uid) {
+    if (user) {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          dashboardPreferences: nextPrefs
-        }, { merge: true });
+        const token = await user.getIdToken();
+        await fetch("/api/user/preferences", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ [key]: nextVal })
+        });
       } catch (err) {
         console.error("Failed to save dashboard preferences:", err);
       }
