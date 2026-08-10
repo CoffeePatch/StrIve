@@ -35,8 +35,8 @@ const LibraryHealthPanel = ({ userId }) => {
         Library Health (Dev)
       </h2>
       <p className="text-secondary text-sm leading-relaxed mt-2">
-        Quick diagnostics for your new Firebase library stack. This verifies that
-        Firestore collections are readable and the watched callable is reachable.
+        Quick diagnostics for your Strive backend services. This verifies that
+        PostgreSQL API endpoints and tracking handlers are reachable.
       </p>
 
       <div className="mt-5 grid grid-cols-1 gap-3">

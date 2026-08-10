@@ -1,4 +1,5 @@
 import * as libraryRepository from "../repositories/LibraryRepository.js";
+import { ensureCatalogTitle } from "./catalogService.js";
 
 export class ServiceError extends Error {
   constructor(status, message) {
@@ -16,6 +17,9 @@ export async function getLibrary(userId, options = {}) {
 export async function updateLibraryStatus(userId, titleKey, status, options = {}) {
   if (!userId) throw new ServiceError(401, "Unauthenticated");
   if (!titleKey) throw new ServiceError(400, "TitleKey is required");
+
+  // Ensure CatalogTitle exists in PostgreSQL before mutating user library item
+  await ensureCatalogTitle(titleKey, options.metadata || {});
 
   // Validate status if provided
   const validStatuses = ["plan_to_watch", "watching", "completed", "dropped"];

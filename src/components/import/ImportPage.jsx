@@ -1,83 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
 import useRequireAuth from '../../hooks/common/useRequireAuth';
-import { fetchLists } from '../../util/store/listsSlice';
 import Header from '../layout/Header';
 import { getAuth } from 'firebase/auth';
-import { downloadTemplateCsv, getExpectedHeaders } from '../../util/export/csvTemplate';
-import { Download, Upload, FileText } from 'lucide-react';
+import { Download, Upload, FileText, AlertTriangle } from 'lucide-react';
+import { downloadTemplateCsv } from '../../util/export/csvTemplate';
 
-const EXPECTED_HEADERS = getExpectedHeaders();
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB client selection warning guard
 
 const ImportPage = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const user = useRequireAuth();
+  useRequireAuth();
   
-  const [selectedListId, setSelectedListId] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [headerValid, setHeaderValid] = useState(null);
+  const [fileType, setFileType] = useState(null); // 'json' or 'csv'
 
-  const { lists, status, error: listsError } = useSelector((state) => state.lists.userLists);
-
-  useEffect(() => {
-    if (user) {
-      dispatch(fetchLists(user.uid));
-    }
-  }, [dispatch, user]);
-
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-      setError('Please select a valid CSV file.');
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError(`Selected file size (${(file.size / 1024 / 1024).toFixed(1)} MB) exceeds 10 MB limit.`);
       setSelectedFile(null);
-      setHeaderValid(null);
+      setFileType(null);
+      return;
+    }
+
+    const isJson = file.name.endsWith('.json') || file.type === 'application/json';
+    const isCsv = file.name.endsWith('.csv') || file.type === 'text/csv';
+
+    if (!isJson && !isCsv) {
+      setError('Please select a valid Strive Backup JSON file (.json) or CSV file (.csv).');
+      setSelectedFile(null);
+      setFileType(null);
       return;
     }
 
     setSelectedFile(file);
+    setFileType(isJson ? 'json' : 'csv');
     setError('');
-
-    // Client-side header validation
-    try {
-      const text = await file.text();
-      const firstLine = text.split('\n')[0].trim();
-      const headers = firstLine.split(',');
-      const valid = headers.length === EXPECTED_HEADERS.length && headers.every((h, i) => h === EXPECTED_HEADERS[i]);
-      setHeaderValid(valid);
-      if (!valid) {
-        if (headers.includes('Letterboxd URI') || headers.includes('Name') || (headers.includes('Year') && !headers.includes('year'))) {
-          setError('Legacy CSV format detected. Please export from the app to get the correct format.');
-        } else {
-          setError(`Invalid CSV headers. Expected: ${EXPECTED_HEADERS.join(',')}`);
-        }
-      }
-    } catch (err) {
-      console.error('Error reading file:', err);
-      setHeaderValid(null);
-    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!selectedListId) {
-      setError('Please select a list to import to.');
-      return;
-    }
-    
-    if (!selectedFile) {
-      setError('Please select a CSV file to upload.');
-      return;
-    }
 
-    if (headerValid === false) {
-      setError('CSV headers are invalid. Please correct them before proceeding.');
+    if (!selectedFile) {
+      setError('Please select a file to analyze.');
       return;
     }
 
@@ -86,158 +56,131 @@ const ImportPage = () => {
 
     try {
       const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('Authentication required. Please log in.');
+      }
       const token = await auth.currentUser.getIdToken(true);
 
-      const formData = new FormData();
-      formData.append('file', selectedFile);
+      const fileText = await selectedFile.text();
+      const contentType = fileType === 'csv' ? 'text/csv' : 'application/json';
 
-      const response = await fetch(`/lists/${encodeURIComponent(selectedListId)}/import/analyze`, {
+      const response = await fetch('/api/user/import/analyze', {
         method: 'POST',
         headers: {
+          'Content-Type': contentType,
           'Authorization': `Bearer ${token}`,
         },
-        body: formData,
+        body: fileText,
       });
 
       if (response.status === 401) {
         setError('Authentication failed. Please log in again.');
         return;
       }
-      if (response.status === 403) {
-        setError('You do not have permission to access this list.');
-        return;
-      }
-      if (response.status === 404) {
-        setError('List not found.');
+
+      if (response.status === 413) {
+        setError('File size exceeds the serverless 4.0 MB request limit.');
         return;
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData?.error?.message || errorData?.message || `HTTP error ${response.status}`);
       }
 
       const analysisData = await response.json();
 
-      if (analysisData.matched.length === 0 && analysisData.unmatched.length === 0) {
-        setError('No items found to import. All items are duplicates or the CSV is empty.');
-        return;
-      }
-      
-      navigate('/import/review', { state: { analysisData, listId: selectedListId } });
+      navigate('/import/review', {
+        state: {
+          analysisData,
+          rawPayload: fileText,
+          isCsv: fileType === 'csv',
+        },
+      });
     } catch (err) {
-      setError(err.message || 'An error occurred while analyzing the CSV file.');
-      console.error('Import error:', err);
+      setError(err.message || 'An error occurred while analyzing the import file.');
+      console.error('Import analysis error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-surface text-primary">
       <Header />
-      <main className="flex-grow container mx-auto px-4 py-8 pt-16">
-        <div className="max-w-2xl mx-auto bg-gray-900 rounded-xl p-6 shadow-lg">
-          <h1 className="text-3xl font-bold text-white mb-6 text-center">Import CSV to Your List</h1>
+      <main className="flex-grow container mx-auto px-4 py-8 pt-24">
+        <div className="max-w-2xl mx-auto bg-surface-hover border border-border rounded-2xl p-6 sm:p-8 shadow-xl">
+          <h1 className="text-3xl font-bold font-display text-primary mb-2 text-center">
+            Import Library Backup
+          </h1>
+          <p className="text-secondary text-sm text-center mb-8">
+            Upload your Strive Backup JSON file or CSV spreadsheet to preview differences before importing.
+          </p>
 
-          {/* Template Download Section */}
-          <div className="mb-6 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h2 className="text-sm font-semibold text-green-300 mb-2 flex items-center gap-2">
+          {/* Backup Information Section */}
+          <div className="mb-6 p-4 bg-emerald-950/30 border border-emerald-800/40 rounded-xl">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-emerald-400 shrink-0">verified</span>
+              <div className="text-xs text-emerald-200 leading-relaxed">
+                <span className="font-semibold block mb-1">Recommended: Strive Backup JSON (v1)</span>
+                Includes complete media library, episode watch history, custom lists, ratings, custom notes, and dashboard layout preferences.
+              </div>
+            </div>
+          </div>
+
+          {/* CSV Template Download Section */}
+          <div className="mb-6 p-4 bg-surface border border-border rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-primary mb-1 flex items-center gap-2">
                   <FileText size={16} />
-                  Need a Template?
+                  Spreadsheet (CSV) Format
                 </h2>
-                <p className="text-xs text-gray-300 mb-2">
-                  Download a template CSV with the correct format and an example row.
+                <p className="text-xs text-secondary">
+                  Import library items from CSV files. Download a template with standard headers.
                 </p>
               </div>
               <button
+                type="button"
                 onClick={downloadTemplateCsv}
-                className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm flex items-center gap-2 transition-colors shrink-0"
-                aria-label="Download template CSV"
+                className="btn-secondary text-xs flex items-center gap-1.5 shrink-0"
               >
                 <Download size={14} />
-                Download Template
+                Template
               </button>
             </div>
           </div>
 
-          {/* Format Info Section */}
-          <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
-            <h2 className="text-sm font-semibold text-blue-300 mb-2">Required CSV Format</h2>
-            <p className="text-xs text-gray-300 mb-2">Your CSV must have these exact headers (case-sensitive):</p>
-            <code className="block text-xs bg-gray-800 p-2 rounded text-green-400 overflow-x-auto">
-              {EXPECTED_HEADERS.join(',')}
-            </code>
-            <p className="text-xs text-gray-400 mt-2">
-              • IMDb fields (imdbId, imdbRating, imdbVotes) may be empty<br />
-              • TMDB is the primary data source<br />
-              • Large files may take longer to analyze
-            </p>
-          </div>
-          
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="listSelect" className="block text-sm font-medium text-gray-300 mb-2">
-                Select a List to Import To
+              <label htmlFor="importFile" className="block text-sm font-medium text-secondary mb-2">
+                Select Backup File (.json or .csv)
               </label>
-              <select
-                id="listSelect"
-                value={selectedListId}
-                onChange={(e) => setSelectedListId(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600"
-                disabled={status === 'loading'}
-              >
-                <option value="">Choose a list...</option>
-                <option value="watchlist">Watchlist</option>
-                {lists && lists.map((list) => (
-                  <option key={list.id} value={list.id}>
-                    {list.name}
-                  </option>
-                ))}
-              </select>
-              
-              {listsError && (
-                <p className="text-red-500 text-sm mt-2">Error loading lists: {listsError}</p>
-              )}
-            </div>
-
-            {/* File upload */}
-            <div>
-              <label htmlFor="csvFile" className="block text-sm font-medium text-gray-300 mb-2">
-                Upload CSV File
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-700 border-dashed rounded-lg">
-                <div className="space-y-1 text-center">
-                  <div className="flex text-sm text-gray-400 justify-center">
+              <div className="mt-1 flex justify-center px-6 pt-6 pb-6 border-2 border-border border-dashed rounded-xl hover:border-accent transition-colors">
+                <div className="space-y-2 text-center">
+                  <Upload className="mx-auto h-8 w-8 text-secondary" />
+                  <div className="flex text-sm text-secondary justify-center">
                     <label
-                      htmlFor="csvFile"
-                      className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-red-600 hover:text-red-500 focus-within:outline-none"
+                      htmlFor="importFile"
+                      className="relative cursor-pointer font-medium text-accent hover:underline focus-within:outline-none"
                     >
-                      <span>Upload a CSV file</span>
+                      <span>Choose file</span>
                       <input
-                        id="csvFile"
-                        name="csvFile"
+                        id="importFile"
+                        name="importFile"
                         type="file"
                         className="sr-only"
-                        accept=".csv,text/csv"
+                        accept=".json,.csv,application/json,text/csv"
                         onChange={handleFileChange}
                       />
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500">CSV files only</p>
+                  <p className="text-xs text-secondary">Strive Backup JSON or CSV files</p>
                   {selectedFile && (
-                    <div className="mt-2">
-                      <p className="text-sm text-green-500">
-                        Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                    <div className="mt-3 p-2 bg-surface rounded-lg border border-border">
+                      <p className="text-xs font-semibold text-emerald-400">
+                        Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
                       </p>
-                      {headerValid === true && (
-                        <p className="text-xs text-green-400 mt-1">✓ Headers validated</p>
-                      )}
-                      {headerValid === false && (
-                        <p className="text-xs text-red-400 mt-1">✗ Invalid headers</p>
-                      )}
                     </div>
                   )}
                 </div>
@@ -245,63 +188,34 @@ const ImportPage = () => {
             </div>
 
             {error && (
-              <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-300 text-center">
-                {error}
+              <div className="bg-red-950/40 border border-red-800/40 rounded-xl p-4 text-red-300 text-sm flex items-start gap-3">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-red-400" />
+                <span>{error}</span>
               </div>
             )}
 
             <div className="flex justify-center">
               <button
                 type="submit"
-                disabled={loading || !selectedListId || !selectedFile || headerValid === false}
-                aria-busy={loading}
-                className={`px-6 py-3 rounded-lg text-white font-semibold ${
-                  loading || !selectedListId || !selectedFile || headerValid === false
-                    ? 'bg-gray-700 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700'
+                disabled={loading || !selectedFile}
+                className={`btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2 ${
+                  loading || !selectedFile ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 {loading ? (
-                  <div className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Analyzing...
-                  </div>
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                    <span>Analyzing Backup...</span>
+                  </>
                 ) : (
-                  'Analyze & Import'
+                  <>
+                    <span className="material-symbols-outlined">analytics</span>
+                    <span>Analyze & Preview Diff</span>
+                  </>
                 )}
               </button>
             </div>
           </form>
-
-          {/* User Guidance Panel */}
-          <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Quick Tips</h3>
-            <ul className="text-xs text-gray-400 space-y-2">
-              <li className="flex items-start">
-                <span className="text-blue-400 mr-2">•</span>
-                <span><strong>Header order matters:</strong> Must match exactly (case-sensitive)</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-400 mr-2">•</span>
-                <span><strong>IMDb fields optional:</strong> Leave imdbId, imdbRating, imdbVotes empty if unknown</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-400 mr-2">•</span>
-                <span><strong>TMDB is primary:</strong> We use tmdbId for matching, IMDb for ratings</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-400 mr-2">•</span>
-                <span><strong>Large files:</strong> Files with 500+ rows may take 10-30 seconds to analyze</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-400 mr-2">•</span>
-                <span><strong>Review step:</strong> You'll be able to select which items to import</span>
-              </li>
-            </ul>
-          </div>
         </div>
       </main>
     </div>

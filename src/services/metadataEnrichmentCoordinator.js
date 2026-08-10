@@ -1,8 +1,5 @@
-import { doc, setDoc, deleteField } from 'firebase/firestore';
-import { db } from '../util/firebase/firebase';
-import { firstNumber } from '../util/firebase/firestoreService';
-import { CACHE_KEYS, TTL, sessionCache, invalidateContinueWatching } from '../util/cache/sessionCache';
-import { invalidateLibraryPipelineCache } from '../hooks/library/libraryPipelineCache';
+import { firstNumber } from '../util/core/numberUtils';
+import { CACHE_KEYS, TTL, sessionCache } from '../util/cache/sessionCache';
 import { getImdbId } from '../util/imdb/imdbResolver';
 import IMDbService from '../util/imdb/imdbService';
 import tmdbApiService from './tmdb/tmdbApiService';
@@ -18,11 +15,6 @@ const getRequestKey = ({ titleKey, tmdbId, mediaType }) => {
 };
 
 const getTmdbCacheKey = (tmdbId, mediaType) => `metadata_tmdb_${mediaType}_${tmdbId}`;
-
-const getDocRef = (userId, titleKey) => {
-  if (!userId || !titleKey) return null;
-  return doc(db, 'users', userId, 'library_items', titleKey);
-};
 
 export const deriveMetadataContext = (item = {}, docId = '') => {
   let mediaType = item.media_type || item.mediaType || null;
@@ -215,40 +207,6 @@ export const buildMetadataPatch = (currentItem = {}, snapshot = {}, { forceRefre
     patch.ratings = ratings;
   }
 
-  const flatFieldPresence = [
-    currentItem.imdbRating,
-    currentItem.imdbVotes,
-    currentItem.imdb_rating,
-    currentItem.imdb_vote_count,
-    currentItem.vote_average,
-    currentItem.vote_count,
-    currentItem.tmdb_rating,
-    currentItem.tmdb_vote_count,
-    currentItem?.sort?.imdbRating,
-    currentItem?.sort?.imdbVotes,
-    currentItem?.sort?.tmdbRating,
-    currentItem?.sort?.tmdbVotes,
-  ].some((value) => value !== undefined && value !== null);
-
-  const hasRatingUpdates = Object.keys(ratings).length > 0 || snapshot.imdbId !== undefined || snapshot.imdbPoster || snapshot.overview || snapshot.backdropPath;
-
-  if (hasRatingUpdates && flatFieldPresence) {
-    patch.imdbRating = deleteField();
-    patch.imdbVotes = deleteField();
-    patch.imdb_rating = deleteField();
-    patch.imdb_vote_count = deleteField();
-    patch.vote_average = deleteField();
-    patch.vote_count = deleteField();
-    patch.tmdb_rating = deleteField();
-    patch.tmdb_vote_count = deleteField();
-    patch.sort = {
-      imdbRating: deleteField(),
-      imdbVotes: deleteField(),
-      tmdbRating: deleteField(),
-      tmdbVotes: deleteField(),
-    };
-  }
-
   if (trackStatus) {
     patch.enrichmentStatus = 'enriched';
     patch.lastEnriched = new Date().toISOString();
@@ -280,12 +238,9 @@ const notifyMetadataUpdates = (payload) => {
 
 export const requestMetadataEnrichment = async ({
   item = {},
-  docRef = null,
-  userId = null,
   titleKey = null,
   existingData = null,
   forceRefresh = false,
-  persist = true,
   trackStatus = false,
   prefetchedImdbId = null,
 } = {}) => {
@@ -313,25 +268,15 @@ export const requestMetadataEnrichment = async ({
         forceRefresh,
       });
 
-      const resolvedDocRef = docRef || getDocRef(userId, context.titleKey);
       const currentData = existingData || item || {};
       const patch = buildMetadataPatch(currentData, snapshot, { forceRefresh, trackStatus });
-
-      if (persist && resolvedDocRef && patch) {
-        await setDoc(resolvedDocRef, patch, { merge: true });
-
-        if (userId) {
-          invalidateLibraryPipelineCache(userId);
-          invalidateContinueWatching(userId);
-        }
-      }
 
       const result = {
         ...context,
         ...snapshot,
         changed: Boolean(patch),
         hasData: snapshot.hasData,
-        persisted: Boolean(persist && resolvedDocRef && patch),
+        persisted: false,
         patch,
       };
 

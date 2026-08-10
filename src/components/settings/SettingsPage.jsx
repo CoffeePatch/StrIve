@@ -1,16 +1,19 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { unparse } from "papaparse";
 import {
   refreshLibraryMetadata,
   getMetadataStatistics,
 } from "../../services/metadataService";
-import { getLibraryByStatus } from "../../services/libraryService";
 import { downloadTemplateCsv } from "../../util/export/csvTemplate";
 import Header from "../layout/Header";
 import LibraryHealthPanel from "../library/LibraryHealthPanel";
 import { useTheme } from "../../contexts/ThemeContext";
+import simklAuthService from "../../services/simkl/simklAuthService";
+import { getAllLibraryItems } from "../../services/libraryService";
+import { buildSimklPayloads, createSimklBatches, executeSimklSync } from "../../domain/simkl/simklSyncController";
+import { executeSimklImportAnalysis } from "../../domain/simkl/simklImportAnalyzer";
+import { executeSimklImportConfirmation } from "../../domain/simkl/simklImportConfirmController";
 
 const SettingsPage = () => {
   const { theme, setTheme } = useTheme();
@@ -23,6 +26,8 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [exportingFormat, setExportingFormat] = useState(null);
+  const [simklStatus, setSimklStatus] = useState({ connected: false, simklUserId: null, connectedAt: null });
+  const [simklLoading, setSimklLoading] = useState(false);
 
   const messageUi = useMemo(() => {
     if (!message) return null;
@@ -60,8 +65,191 @@ const SettingsPage = () => {
   useEffect(() => {
     if (user?.uid) {
       loadMetadataStats();
+      loadSimklStatus();
     }
   }, [user?.uid]);
+
+  const loadSimklStatus = async () => {
+    try {
+      const status = await simklAuthService.getStatus();
+      setSimklStatus(status);
+    } catch (err) {
+      console.warn("Failed to load Simkl status:", err);
+    }
+  };
+
+  const handleConnectSimkl = async () => {
+    try {
+      setSimklLoading(true);
+      await simklAuthService.initiateAuth();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: `Simkl connection failed: ${err.message}`,
+      });
+      setSimklLoading(false);
+    }
+  };
+
+  const handleDisconnectSimkl = async () => {
+    try {
+      setSimklLoading(true);
+      const res = await simklAuthService.disconnect();
+      if (res.success) {
+        setSimklStatus({ connected: false, simklUserId: null, connectedAt: null });
+        setMessage({
+          type: "success",
+          text: "✅ Simkl account disconnected successfully.",
+        });
+      } else {
+        throw new Error(res.error || "Disconnect failed");
+      }
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: `Failed to disconnect Simkl: ${err.message}`,
+      });
+    } finally {
+      setSimklLoading(false);
+    }
+  };
+
+  const [syncingSimkl, setSyncingSimkl] = useState(false);
+  const [simklSyncProgress, setSimklSyncProgress] = useState(null);
+
+  const handleSyncSimkl = async () => {
+    if (!user?.uid) return;
+    try {
+      setSyncingSimkl(true);
+      setSimklSyncProgress({ percent: 0, currentBatch: 0, totalBatches: 0, processed: 0 });
+      setMessage(null);
+
+      const items = await getAllLibraryItems(user.uid, { hydrate: false });
+
+      if (items.length === 0) {
+        setMessage({
+          type: "info",
+          text: "No library items found in PostgreSQL to push to Simkl.",
+        });
+        return;
+      }
+
+      const payloads = buildSimklPayloads(items, []);
+      const historyBatches = createSimklBatches(payloads.history, "history");
+      const ratingBatches = createSimklBatches(payloads.ratings, "ratings");
+      const allBatches = [...historyBatches, ...ratingBatches];
+
+      if (allBatches.length === 0) {
+        setMessage({
+          type: "info",
+          text: "No eligible watched or rated items found to push to Simkl.",
+        });
+        return;
+      }
+
+      const syncResult = await executeSimklSync(allBatches, {
+        onProgress: (progress) => setSimklSyncProgress(progress),
+      });
+
+      if (syncResult.success) {
+        setMessage({
+          type: "success",
+          text: `✅ Successfully pushed ${syncResult.processed} items to Simkl across ${syncResult.totalBatches} batches!`,
+        });
+      }
+    } catch (err) {
+      console.error("Simkl sync failed:", err);
+      setMessage({
+        type: "error",
+        text: `Simkl synchronization error: ${err.message}`,
+      });
+    } finally {
+      setSyncingSimkl(false);
+      setSimklSyncProgress(null);
+    }
+  };
+
+  const [analyzingSimkl, setAnalyzingSimkl] = useState(false);
+  const [simklAnalysisResult, setSimklAnalysisResult] = useState(null);
+
+  const handleAnalyzeSimklImport = async () => {
+    if (!user?.uid) return;
+    try {
+      setAnalyzingSimkl(true);
+      setSimklAnalysisResult(null);
+      setMessage(null);
+
+      const result = await executeSimklImportAnalysis();
+      if (result.success) {
+        setSimklAnalysisResult(result);
+        setMessage({
+          type: "info",
+          text: `ℹ️ Analysis complete: Previewing changes for ${result.summary.simklItems} Simkl items. (Read-Only)`,
+        });
+      }
+    } catch (err) {
+      console.error("Simkl import analysis failed:", err);
+      setMessage({
+        type: "error",
+        text: `Simkl import analysis error: ${err.message}`,
+      });
+    } finally {
+      setAnalyzingSimkl(false);
+    }
+  };
+
+  const [confirmingSimkl, setConfirmingSimkl] = useState(false);
+
+  const handleConfirmSimklImport = async () => {
+    if (!user?.uid || !simklAnalysisResult?.diffs) return;
+    try {
+      setConfirmingSimkl(true);
+      setMessage(null);
+
+      const actionableChanges = simklAnalysisResult.diffs.filter(d => 
+        d.changeType === "SIMKL_ONLY" || 
+        d.changeType === "WATCH_STATUS_DIFFERENCE" || 
+        d.changeType === "RATING_DIFFERENCE" || 
+        d.changeType === "WATCH_AND_RATING_DIFFERENCE"
+      ).map(d => ({
+        titleKey: d.titleKey,
+        mediaType: d.type || "movie",
+        tmdbId: d.tmdbId,
+        imdbId: d.imdbId,
+        title: d.title,
+        importStatus: d.simklStatus || d.proposedStatus || "completed",
+        importRating: d.simklRating || d.proposedRating || null,
+        selectedFields: ["status", "rating"],
+        striveStatus: d.striveStatus,
+        striveRating: d.striveRating,
+      }));
+
+      if (actionableChanges.length === 0) {
+        setMessage({
+          type: "info",
+          text: "No actionable differences selected for confirmation.",
+        });
+        return;
+      }
+
+      const confirmResult = await executeSimklImportConfirmation(actionableChanges);
+      if (confirmResult.success) {
+        setMessage({
+          type: "success",
+          text: `✅ Simkl Import Confirmed! Successfully imported ${confirmResult.summary.imported} items to Strive PostgreSQL (${confirmResult.summary.stale} stale skipped).`,
+        });
+        setSimklAnalysisResult(null);
+      }
+    } catch (err) {
+      console.error("Simkl import confirmation failed:", err);
+      setMessage({
+        type: "error",
+        text: `Simkl import confirmation error: ${err.message}`,
+      });
+    } finally {
+      setConfirmingSimkl(false);
+    }
+  };
 
   const loadMetadataStats = async () => {
     try {
@@ -154,62 +342,23 @@ const SettingsPage = () => {
       setExportingFormat("json");
       setMessage(null);
 
-      const [watchlist, watched] = await Promise.all([
-        getLibraryByStatus(user.uid, "plan_to_watch", {
-          hydrate: false,
-        }),
-        getLibraryByStatus(user.uid, "completed", {
-          hydrate: false,
-        }),
-      ]);
-
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        userId: user.uid,
-        userEmail: user.email,
-        summary: {
-          totalItems: watchlist.length + watched.length,
-          watchlistCount: watchlist.length,
-          watchedCount: watched.length,
+      const token = await user.getIdToken();
+      const response = await fetch("/api/user/export?format=json", {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        data: {
-          watchlist: watchlist.map((item) => ({
-            id: item.id,
-            title: item.title || item.name,
-            mediaType: item.media_type,
-            year: (item.release_date || item.first_air_date)?.split("-")[0],
-            tmdbRating: item.vote_average,
-            imdbRating: item.imdbRating,
-            imdbVotes: item.imdbVotes,
-            dateAdded: item.dateAdded,
-            url: `https://www.themoviedb.org/${
-              item.media_type === "tv" ? "tv" : "movie"
-            }/${item.id}`,
-          })),
-          watched: watched.map((item) => ({
-            id: item.id,
-            title: item.title || item.name,
-            mediaType: item.media_type,
-            year: (item.release_date || item.first_air_date)?.split("-")[0],
-            tmdbRating: item.vote_average,
-            imdbRating: item.imdbRating,
-            imdbVotes: item.imdbVotes,
-            dateAdded: item.dateAdded,
-            dateWatched: item.dateWatched,
-            url: `https://www.themoviedb.org/${
-              item.media_type === "tv" ? "tv" : "movie"
-            }/${item.id}`,
-          })),
-        },
-      };
+      });
 
-      const jsonString = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `HTTP ${response.status} Export Failed`);
+      }
+
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-
       const link = document.createElement("a");
       link.href = url;
-      link.download = `movie-tracker-export-${new Date().toISOString().split("T")[0]}.json`;
+      link.download = `strive-backup-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -217,7 +366,7 @@ const SettingsPage = () => {
 
       setMessage({
         type: "success",
-        text: `✅ Library exported successfully! Downloaded file with ${exportData.summary.totalItems} items.`,
+        text: `✅ Library backup JSON exported successfully!`,
       });
     } catch (error) {
       console.error("Error exporting library:", error);
@@ -233,117 +382,27 @@ const SettingsPage = () => {
   const handleExportLibraryCsv = async () => {
     if (!user?.uid) return;
 
-    const formatDate = (value) => {
-      if (!value) return "";
-      if (typeof value === "string") return value;
-      if (value?.toDate && typeof value.toDate === "function") {
-        try {
-          return value.toDate().toISOString();
-        } catch {
-          return "";
-        }
-      }
-      if (value instanceof Date) return value.toISOString();
-      return "";
-    };
-
-    const extractYear = (value) => {
-      if (!value) return "";
-      const str = typeof value === "string" ? value : formatDate(value);
-      return str?.split("-")[0] || "";
-    };
-
-    const formatNumber = (value, decimals = 1) => {
-      if (value === null || value === undefined || value === "") return "";
-      const num = Number(value);
-      if (!Number.isFinite(num)) return "";
-      return decimals === null ? String(num) : num.toFixed(decimals);
-    };
-
-    const formatInt = (value) => {
-      if (value === null || value === undefined || value === "") return "";
-      const num = Number(value);
-      if (!Number.isFinite(num)) return "";
-      return String(Math.trunc(num));
-    };
-
     try {
       setExportingFormat("csv");
       setMessage(null);
 
-      const [watchlist, watched] = await Promise.all([
-        getLibraryByStatus(user.uid, "plan_to_watch", {
-          hydrate: false,
-        }),
-        getLibraryByStatus(user.uid, "completed", {
-          hydrate: false,
-        }),
-      ]);
-
-      const rows = [
-        ...watchlist.map((item) => ({
-          status: "Plan to Watch",
-          title: item.title || item.name || "",
-          mediaType: item.media_type || item.mediaType || "movie",
-          year: extractYear(item.release_date || item.first_air_date || item.releaseDate),
-          tmdbId: item.id || item.tmdbId || "",
-          imdbId: item.imdbId || "",
-          tmdbRating: formatNumber(item.vote_average, 1),
-          tmdbVotes: formatInt(item.vote_count),
-          imdbRating: formatNumber(item.imdbRating, 1),
-          imdbVotes: formatInt(item.imdbVotes),
-          dateAdded: formatDate(item.dateAdded),
-          dateWatched: "",
-          url: `https://www.themoviedb.org/${
-            (item.media_type || item.mediaType) === "tv" ? "tv" : "movie"
-          }/${item.id}`,
-        })),
-        ...watched.map((item) => ({
-          status: "Completed",
-          title: item.title || item.name || "",
-          mediaType: item.media_type || item.mediaType || "movie",
-          year: extractYear(item.release_date || item.first_air_date || item.releaseDate),
-          tmdbId: item.id || item.tmdbId || "",
-          imdbId: item.imdbId || "",
-          tmdbRating: formatNumber(item.vote_average, 1),
-          tmdbVotes: formatInt(item.vote_count),
-          imdbRating: formatNumber(item.imdbRating, 1),
-          imdbVotes: formatInt(item.imdbVotes),
-          dateAdded: formatDate(item.dateAdded),
-          dateWatched: formatDate(item.dateWatched || item.lastWatchedAt),
-          url: `https://www.themoviedb.org/${
-            (item.media_type || item.mediaType) === "tv" ? "tv" : "movie"
-          }/${item.id}`,
-        })),
-      ];
-
-      const columns = [
-        "status",
-        "title",
-        "mediaType",
-        "year",
-        "tmdbId",
-        "imdbId",
-        "tmdbRating",
-        "tmdbVotes",
-        "imdbRating",
-        "imdbVotes",
-        "dateAdded",
-        "dateWatched",
-        "url",
-      ];
-
-      const csvString = unparse(rows, {
-        columns,
-        skipEmptyLines: true,
+      const token = await user.getIdToken();
+      const response = await fetch("/api/user/export?format=csv", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `HTTP ${response.status} CSV Export Failed`);
+      }
 
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `movie-tracker-export-${new Date().toISOString().split("T")[0]}.csv`;
+      link.download = `strive-library-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -351,7 +410,7 @@ const SettingsPage = () => {
 
       setMessage({
         type: "success",
-        text: `✅ Library exported to CSV! Downloaded file with ${rows.length} items.`,
+        text: `✅ Library exported to CSV successfully!`,
       });
     } catch (error) {
       console.error("Error exporting library CSV:", error);
@@ -626,7 +685,7 @@ const SettingsPage = () => {
                     Import Library
                   </h3>
                   <p className="text-secondary text-sm mt-2">
-                    Import items into your library using the supported CSV format.
+                    Import items into your library using Strive Backup JSON (v1) or CSV format.
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
@@ -635,7 +694,7 @@ const SettingsPage = () => {
                       onClick={() => navigate("/import")}
                     >
                       <span className="material-symbols-outlined">upload</span>
-                      <span>Import CSV</span>
+                      <span>Import Backup / CSV</span>
                     </button>
                     <button
                       className="btn-secondary flex items-center gap-2"
@@ -643,7 +702,7 @@ const SettingsPage = () => {
                       title="Download a CSV template with correct headers"
                     >
                       <span className="material-symbols-outlined">file_download</span>
-                      <span>Download Template</span>
+                      <span>Download CSV Template</span>
                     </button>
                   </div>
 
@@ -652,6 +711,206 @@ const SettingsPage = () => {
                   </p>
                 </div>
               </div>
+            </section>
+
+            <section className="bg-surface border border-border rounded-2xl p-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold font-display text-primary flex items-center gap-3">
+                    <span className="material-symbols-outlined text-3xl text-secondary">
+                      sync
+                    </span>
+                    Simkl Integration
+                  </h2>
+                  <p className="text-secondary text-sm font-secondary mt-1">
+                    Connect your Simkl account for optional media tracking backups.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {simklStatus.connected ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      Connected
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-surface-hover text-secondary border border-border">
+                      Not Connected
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {simklStatus.connected ? (
+                <div className="mt-5 space-y-4">
+                  <div className="p-4 rounded-xl border bg-surface-hover border-border text-sm space-y-1">
+                    <div className="text-primary font-medium flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-400">account_circle</span>
+                      <span>Connected Account: {simklStatus.simklUserId || "Simkl User"}</span>
+                    </div>
+                    {simklStatus.connectedAt && (
+                      <div className="text-muted text-xs">
+                        Connected on {new Date(simklStatus.connectedAt).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+
+                  {simklSyncProgress && syncingSimkl && (
+                    <div className="p-4 rounded-xl border border-border bg-surface">
+                      <div className="flex items-center justify-between text-xs text-secondary mb-1">
+                        <span>Syncing Batch {simklSyncProgress.currentBatch} of {simklSyncProgress.totalBatches}...</span>
+                        <span>{simklSyncProgress.processed} items</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-surface-hover overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
+                          style={{ width: `${simklSyncProgress.percent || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {simklAnalysisResult && (
+                    <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-cyan-300 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-base">visibility</span>
+                          Simkl Import Preview (Read-Only)
+                        </span>
+                        <span className="text-xs text-muted">No Strive data modified</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+                        <div className="p-2 rounded-lg bg-surface/50 border border-border">
+                          <div className="text-muted">Total Simkl</div>
+                          <div className="text-base font-bold text-primary">{simklAnalysisResult.summary.simklItems}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                          <div>Matched</div>
+                          <div className="text-base font-bold">{simklAnalysisResult.summary.matched}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                          <div>Simkl Only</div>
+                          <div className="text-base font-bold">{simklAnalysisResult.summary.simklOnly}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                          <div>Differences</div>
+                          <div className="text-base font-bold">
+                            {simklAnalysisResult.summary.watchDifferences + simklAnalysisResult.summary.ratingDifferences}
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400">
+                          <div>Unmatched</div>
+                          <div className="text-base font-bold">{simklAnalysisResult.summary.unmatched}</div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          className="btn-primary bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 text-xs py-2 px-4"
+                          onClick={handleConfirmSimklImport}
+                          disabled={confirmingSimkl || syncingSimkl || simklLoading || analyzingSimkl}
+                        >
+                          {confirmingSimkl ? (
+                            <>
+                              <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white/20 border-t-white" />
+                              <span>Importing to Strive PostgreSQL...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="material-symbols-outlined text-sm">check_circle</span>
+                              <span>Confirm Import to Strive</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      className="btn-primary flex items-center gap-2"
+                      onClick={handleSyncSimkl}
+                      disabled={syncingSimkl || simklLoading || analyzingSimkl}
+                    >
+                      {syncingSimkl ? (
+                        <>
+                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                          <span>Pushing to Simkl...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined">cloud_upload</span>
+                          <span>Push Watch History & Ratings</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      className="btn-secondary flex items-center gap-2"
+                      onClick={handleAnalyzeSimklImport}
+                      disabled={syncingSimkl || simklLoading || analyzingSimkl}
+                    >
+                      {analyzingSimkl ? (
+                        <>
+                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                          <span>Analyzing Simkl...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined">analytics</span>
+                          <span>Analyze Simkl Import (Preview)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      className="btn-secondary text-red-400 hover:text-red-300 border-red-500/30 hover:bg-red-500/10 flex items-center gap-2"
+                      onClick={handleDisconnectSimkl}
+                      disabled={syncingSimkl || simklLoading || analyzingSimkl}
+                    >
+                      {simklLoading ? (
+                        <>
+                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-red-400/20 border-t-red-400" />
+                          <span>Disconnecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined">link_off</span>
+                          <span>Disconnect Simkl</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <p className="text-secondary text-sm leading-relaxed">
+                    Connecting Simkl allows Strive to push your watch history and ratings as an optional backup.
+                    Strive PostgreSQL remains your primary system of record.
+                  </p>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      className="btn-primary flex items-center gap-2"
+                      onClick={handleConnectSimkl}
+                      disabled={simklLoading}
+                    >
+                      {simklLoading ? (
+                        <>
+                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white" />
+                          <span>Connecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined">link</span>
+                          <span>Connect Simkl Account</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
 
             {isDev && <LibraryHealthPanel userId={user?.uid} />}

@@ -1,4 +1,3 @@
-import { db } from "./firebaseAdmin.js";
 import { fetchWithTimeout } from "./utils.js";
 
 export class HttpRequestError extends Error {
@@ -7,86 +6,6 @@ export class HttpRequestError extends Error {
     this.status = status;
     this.name = "HttpRequestError";
   }
-}
-
-function normalizeListId(listId) {
-  return listId === "watchlist" ? "watchlist" : String(listId || "").trim();
-}
-
-function getUserListRef(uid, listId) {
-  return db.collection("users").doc(uid).collection("lists").doc(listId);
-}
-
-function getLibraryItemsRef(uid) {
-  return db.collection("users").doc(uid).collection("library_items");
-}
-
-function createListItemsAccessor(uid, listId) {
-  const normalizedListId = normalizeListId(listId);
-  const collectionRef = getLibraryItemsRef(uid);
-  const queryRef = collectionRef.where(
-    "tracking.listIds",
-    "array-contains",
-    normalizedListId,
-  );
-
-  return {
-    collectionRef,
-    queryRef,
-    listId: normalizedListId,
-    get: () => queryRef.get(),
-    doc: (docId) => collectionRef.doc(String(docId)),
-  };
-}
-
-export async function resolveAuthorizedCustomList(uid, listId) {
-  const listRef = getUserListRef(uid, listId);
-
-  const listDoc = await listRef.get();
-  if (!listDoc.exists) {
-    throw new HttpRequestError(404, "List not found");
-  }
-
-  const listData = listDoc.data() || {};
-  if (!listData.ownerId || listData.ownerId !== uid) {
-    throw new HttpRequestError(
-      403,
-      "Forbidden: You do not have permission to access this list",
-    );
-  }
-
-  return { listRef, listData };
-}
-
-export async function resolveListExportContext(uid, listId) {
-  const normalizedListId = normalizeListId(listId);
-  if (normalizedListId === "watchlist") {
-    return {
-      itemsCollectionRef: createListItemsAccessor(uid, normalizedListId),
-      listName: "Watchlist",
-    };
-  }
-
-  const { listData } = await resolveAuthorizedCustomList(uid, normalizedListId);
-  const itemsCollectionRef = createListItemsAccessor(uid, normalizedListId);
-
-  const listName =
-    typeof listData.name === "string" && listData.name.trim()
-      ? listData.name.trim()
-      : normalizedListId;
-  return {
-    itemsCollectionRef,
-    listName,
-  };
-}
-
-export async function resolveListItemsCollection(uid, listId) {
-  const normalizedListId = normalizeListId(listId);
-  if (normalizedListId !== "watchlist") {
-    await resolveAuthorizedCustomList(uid, normalizedListId);
-  }
-
-  return createListItemsAccessor(uid, normalizedListId);
 }
 
 export async function fetchTmdbExternalIds(mediaType, tmdbId, tmdbToken) {

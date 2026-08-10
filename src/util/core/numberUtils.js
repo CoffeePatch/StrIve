@@ -1,4 +1,8 @@
-const toNumber = (value) => {
+/**
+ * Core numeric conversion and parsing utilities
+ */
+
+export const toNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const parsed =
     typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
@@ -12,16 +16,3 @@ export const firstNumber = (...values) => {
   }
   return null;
 };
-
-export { fetchImdbData } from '../../services/imdbService';
-
-export {
-  getAllLibraryItems,
-  getLibraryByStatus
-} from '../../services/libraryService';
-
-export {
-  refreshLibraryMetadata,
-  getItemsWithMissingMetadata,
-  getMetadataStatistics
-} from '../../services/metadataService';

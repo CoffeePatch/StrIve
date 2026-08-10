@@ -1,23 +1,19 @@
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../util/firebase/firebase';
-import { firstNumber } from '../util/firebase/firestoreService';
+import { firstNumber } from '../util/core/numberUtils';
 import { deriveMetadataContext, needsMetadataRefresh, requestMetadataEnrichment } from './metadataEnrichmentCoordinator';
+import { getAllLibraryItems } from './libraryService';
 
 const collectMetadataTargets = async (userId) => {
-  const targets = [];
-
-  const libraryItemsRef = collection(db, 'users', userId, 'library_items');
-  const libraryItemsSnap = await getDocs(libraryItemsRef);
-  libraryItemsSnap.docs.forEach((snap) => {
-    targets.push({
-      docRef: snap.ref,
-      docId: snap.id,
+  try {
+    const items = await getAllLibraryItems(userId, { hydrate: false });
+    return (items || []).map((item) => ({
+      docId: item.titleKey || String(item.id),
       source: 'library_items',
-      ...snap.data(),
-    });
-  });
-
-  return targets;
+      ...item,
+    }));
+  } catch (err) {
+    console.warn('Failed to collect metadata targets:', err);
+    return [];
+  }
 };
 
 export const processMetadataItem = async (item, summary = null) => {
@@ -28,10 +24,8 @@ export const processMetadataItem = async (item, summary = null) => {
 
   const result = await requestMetadataEnrichment({
     item,
-    docRef: item.docRef,
     titleKey,
     forceRefresh: true,
-    persist: true,
     trackStatus: false,
   });
 
@@ -48,17 +42,6 @@ export const processMetadataItem = async (item, summary = null) => {
   }
 };
 
-/**
- * Refreshes IMDb metadata for items with missing or null ratings
- * Safe to call repeatedly - only updates items that need it
- *
- * @param {string} userId - The UID of the user
- * @param {object} options - Configuration options
- * @param {number} options.batchSize - Number of items to process (default: 50)
- * @param {boolean} options.forceRefresh - If true, refetch ALL items (default: false)
- * @param {function} options.onProgress - Callback for progress updates
- * @returns {Promise<object>} Summary of refresh operation
- */
 export const refreshLibraryMetadata = async (
   userId,
   options = {}
@@ -130,13 +113,6 @@ export const refreshLibraryMetadata = async (
   }
 };
 
-/**
- * Gets items with missing IMDb metadata
- * Useful for diagnostic and UI purposes
- *
- * @param {string} userId - The UID of the user
- * @returns {Promise<Array>} Array of items with missing metadata
- */
 export const getItemsWithMissingMetadata = async (userId) => {
   try {
     const allTargets = await collectMetadataTargets(userId);
@@ -159,13 +135,6 @@ export const getItemsWithMissingMetadata = async (userId) => {
   }
 };
 
-/**
- * Gets statistics about library metadata completeness
- * Useful for dashboards and monitoring
- *
- * @param {string} userId - The UID of the user
- * @returns {Promise<Object>} Statistics object
- */
 export const getMetadataStatistics = async (userId) => {
   try {
     const items = await collectMetadataTargets(userId);

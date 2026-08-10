@@ -14,10 +14,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "PATCH") {
-      const { status, userRating, notes } = req.body || {};
+      const { status, userRating, notes, metadata } = req.body || {};
       const options = {};
       if (userRating !== undefined) options.userRating = userRating;
       if (notes !== undefined) options.notes = notes;
+      if (metadata !== undefined) options.metadata = metadata;
       await updateLibraryStatus(userId, titleKey, status, options);
       return res.status(200).json({ success: true });
     } 

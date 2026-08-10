@@ -13,6 +13,9 @@ datasource db {
 model User {
   id                   String            @id
   dashboardPreferences Json?             @map("dashboard_preferences")
+  simklToken           String?           @map("simkl_token") @db.Text
+  simklUserId          String?           @map("simkl_user_id")
+  simklConnectedAt     DateTime?         @map("simkl_connected_at")
   createdAt            DateTime          @default(now()) @map("created_at")
   updatedAt            DateTime          @updatedAt @map("updated_at")
 
