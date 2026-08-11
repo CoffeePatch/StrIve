@@ -48,8 +48,8 @@ const EpisodeCard = ({
   const renderOverlay = () => (
     <>
       {/* Hover Play Button */}
-      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
-        <Play className="w-10 h-10 text-white fill-white" />
+      <div className="absolute inset-0 bg-overlay flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
+        <Play className="w-10 h-10 text-inverse fill-current" />
       </div>
 
       {/* Watch Checkmark (Top Left) */}
@@ -59,8 +59,8 @@ const EpisodeCard = ({
           disabled={watchLoading}
           className={`absolute top-2 left-2 z-30 shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 
             ${isWatched 
-              ? 'bg-[var(--color-accent-primary)] text-white shadow-lg' 
-              : 'bg-black/60 text-white/70 hover:bg-black/80 hover:text-white'
+              ? 'bg-accent text-inverse shadow-lg shadow-accent/20' 
+              : 'bg-backdrop text-white/70 hover:bg-backdrop/80 hover:text-white'
             }
             ${watchLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
           `}
@@ -73,7 +73,7 @@ const EpisodeCard = ({
 
       {/* Duration Badge (Top Right) */}
       {(episode.runtime > 0) && (
-        <div className="absolute top-2 right-2 z-10 bg-black/65 text-white font-medium px-2 py-1 rounded-[4px] flex items-center gap-1 text-[11px] leading-none">
+        <div className="absolute top-2 right-2 z-10 bg-backdrop text-white font-medium px-2 py-1 rounded-[4px] flex items-center gap-1 text-[11px] leading-none">
           <Clock className="w-3 h-3" />
           <span>{episode.runtime}m</span>
         </div>
@@ -106,11 +106,11 @@ const EpisodeCard = ({
         onClick={() => onClick && onClick(episode)}
         overlay={renderOverlay()}
         fallbackText={`Episode ${episodeNumber}`}
-        className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] rounded-[12px] [&_.aspect-video]:group-hover/episodecard:brightness-110 ${isWatched ? 'opacity-70 hover:opacity-100 transition-opacity' : ''}`}
+        className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-[12px] [&_.aspect-video]:group-hover/episodecard:brightness-110 ${isWatched ? 'opacity-70 hover:opacity-100 transition-opacity' : ''}`}
       >
         {/* Synopsis */}
         {episode.overview && (
-          <p className="text-[12px] md:text-[13px] text-[var(--color-text-secondary)] line-clamp-2 leading-[1.4] mt-1">
+          <p className="text-[12px] md:text-[13px] text-secondary line-clamp-2 leading-[1.4] mt-1">
             {episode.overview}
           </p>
         )}

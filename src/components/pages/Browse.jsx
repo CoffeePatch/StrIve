@@ -13,8 +13,6 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useBrowseLibraryData } from "../../hooks/library/useBrowseLibraryData";
 import { useLists } from "../../domain/lists/useLists";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
 import { Settings, X } from "lucide-react";
 import QuickActionsModal from "../ui/QuickActionsModal";
 import BecauseYouWatched from "./BecauseYouWatched";
@@ -88,22 +86,7 @@ const HeroSkeleton = () => {
   );
 };
 
-// Content loader for lazy shelves (calls hooks internally)
-const MediaShelfContent = React.memo(({ title, type, mediaType, genreId, icon, onQuickActions, variant = "carousel" }) => {
-  let items = null;
-  
-  if (type === "upcoming") {
-    items = useUpcomingMedia(mediaType);
-  } else if (type === "popular") {
-    items = usePopularMedia(mediaType);
-  } else if (type === "top_rated") {
-    items = useTopRatedMedia(mediaType);
-  } else if (type === "genre") {
-    items = useMediaByGenre(mediaType, genreId);
-  } else if (type === "now_playing") {
-    items = useNowPlayingMedia(mediaType);
-  }
-
+const ShelfDisplay = ({ title, icon, items, variant, onQuickActions }) => {
   const navigate = useNavigate();
 
   if (!items) {
@@ -139,6 +122,42 @@ const MediaShelfContent = React.memo(({ title, type, mediaType, genreId, icon, o
       </Carousel>
     </div>
   );
+};
+
+const UpcomingShelfContent = (props) => {
+  const items = useUpcomingMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const PopularShelfContent = (props) => {
+  const items = usePopularMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const TopRatedShelfContent = (props) => {
+  const items = useTopRatedMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const GenreShelfContent = (props) => {
+  const items = useMediaByGenre(props.mediaType, props.genreId);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+const NowPlayingShelfContent = (props) => {
+  const items = useNowPlayingMedia(props.mediaType);
+  return <ShelfDisplay {...props} items={items} />;
+};
+
+// Content loader for lazy shelves
+const MediaShelfContent = React.memo((props) => {
+  const { type } = props;
+  if (type === "upcoming") return <UpcomingShelfContent {...props} />;
+  if (type === "popular") return <PopularShelfContent {...props} />;
+  if (type === "top_rated") return <TopRatedShelfContent {...props} />;
+  if (type === "genre") return <GenreShelfContent {...props} />;
+  if (type === "now_playing") return <NowPlayingShelfContent {...props} />;
+  return null;
 });
 
 MediaShelfContent.displayName = "MediaShelfContent";
@@ -241,24 +260,24 @@ const Browse = () => {
     }
   }, [user?.uid, loadLists]);
 
-  // Load dashboard preferences from Firestore
+  // Load dashboard preferences from API
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user) return;
     
     const fetchPrefs = async () => {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data.dashboardPreferences) {
-            setPreferences({
-              continueWatching: data.dashboardPreferences.continueWatching ?? true,
-              recentlyAdded: data.dashboardPreferences.recentlyAdded ?? true,
-              recentlyWatched: data.dashboardPreferences.recentlyWatched ?? true,
-              watchlistPicks: data.dashboardPreferences.watchlistPicks ?? true
-            });
-          }
+        const token = await user.getIdToken();
+        const res = await fetch("/api/user/preferences", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPreferences({
+            continueWatching: data.continueWatching ?? true,
+            recentlyAdded: data.recentlyAdded ?? true,
+            recentlyWatched: data.recentlyWatched ?? true,
+            watchlistPicks: data.watchlistPicks ?? true
+          });
         }
       } catch (err) {
         console.error("Failed to load dashboard preferences:", err);
@@ -266,21 +285,27 @@ const Browse = () => {
     };
     
     fetchPrefs();
-  }, [user?.uid]);
+  }, [user]);
 
   const handleTogglePreference = async (key) => {
+    const nextVal = !(preferences[key] ?? true);
     const nextPrefs = {
       ...preferences,
-      [key]: !(preferences[key] ?? true)
+      [key]: nextVal
     };
     setPreferences(nextPrefs);
     
-    if (user?.uid) {
+    if (user) {
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          dashboardPreferences: nextPrefs
-        }, { merge: true });
+        const token = await user.getIdToken();
+        await fetch("/api/user/preferences", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ [key]: nextVal })
+        });
       } catch (err) {
         console.error("Failed to save dashboard preferences:", err);
       }

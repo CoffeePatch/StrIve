@@ -51,7 +51,7 @@ const SimilarShowsPanel = ({ tvId }) => {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#E50914]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
       </div>
     );
   }
@@ -63,11 +63,11 @@ const SimilarShowsPanel = ({ tvId }) => {
   return (
     <div className="w-full mb-12 lg:mb-16">
       {/* Tabs */}
-      <div className="flex items-center gap-6 mb-8 border-b border-white/10 pb-2">
+      <div className="flex items-center gap-6 mb-8 border-b border-border pb-2">
         {shows.recommended.length > 0 && (
           <button 
             onClick={() => setActiveTab('recommended')}
-            className={`text-lg md:text-xl font-bold pb-2 border-b-2 transition-colors ${activeTab === 'recommended' ? 'border-[#E50914] text-white' : 'border-transparent text-[#9CA3AF] hover:text-white'}`}
+            className={`text-lg md:text-xl font-bold pb-2 border-b-2 transition-colors ${activeTab === 'recommended' ? 'border-accent text-primary' : 'border-transparent text-secondary hover:text-primary'}`}
           >
             Recommended
           </button>
@@ -75,7 +75,7 @@ const SimilarShowsPanel = ({ tvId }) => {
         {shows.similar.length > 0 && (
           <button 
             onClick={() => setActiveTab('similar')}
-            className={`text-lg md:text-xl font-bold pb-2 border-b-2 transition-colors ${activeTab === 'similar' ? 'border-[#E50914] text-white' : 'border-transparent text-[#9CA3AF] hover:text-white'}`}
+            className={`text-lg md:text-xl font-bold pb-2 border-b-2 transition-colors ${activeTab === 'similar' ? 'border-accent text-primary' : 'border-transparent text-secondary hover:text-primary'}`}
           >
             Similar Shows
           </button>

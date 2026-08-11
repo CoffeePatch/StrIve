@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMotionPreferences } from '../../hooks/useMotionPreferences';
 import { useLibraryFiltersContext } from '../../hooks/library/LibraryFiltersContext';
 import { standardGenres } from '../../hooks/library/useLibraryFilters';
-import { toDisplayWatchStatus, normalizeWatchStatus } from '../../util/library/watchStatus';
+import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 import { AnimatedChip } from '../ui/AnimatedPrimitives';
 
 const SORT_OPTIONS = [
@@ -50,14 +50,14 @@ const RATING_OPTIONS = [
 
 const AccordionSection = ({ title, children, isExpanded, onToggle }) => {
   return (
-    <div className="border-b border-white/5">
+    <div className="border-b border-border-subtle">
       <button
         onClick={onToggle}
         className="w-full py-4 flex items-center justify-between text-left focus:outline-none"
         style={{ minHeight: '52px' }}
       >
-        <span className="text-[15px] font-semibold text-white/90 font-secondary">{title}</span>
-        <span className="material-symbols-outlined text-white/40 transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+        <span className="text-[15px] font-semibold text-primary font-secondary">{title}</span>
+        <span className="material-symbols-outlined text-muted transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
           expand_more
         </span>
       </button>
@@ -126,6 +126,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
         imdbVotesMin: filters.imdbVotesMin,
         tmdbRatingMin: filters.tmdbRatingMin,
         tmdbVotesMin: filters.tmdbVotesMin,
+        userRatingMin: filters.userRatingMin,
+        hasNotesOnly: filters.hasNotesOnly,
         genres: [...filters.genres],
         yearFrom: filters.yearFrom,
         yearTo: filters.yearTo,
@@ -208,21 +210,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
   // Instant count calculation inside sheet using draft filter state (Memoized)
   const draftFilteredCount = useMemo(() => {
     return filters.getFilteredItemsInternal(items, draftFilters).length;
-  }, [items, draftFilters, filters.getFilteredItemsInternal]);
-
-  // Check if Japanese anime is present in current loaded items
-  const hasAnime = useMemo(() => {
-    return items.some(item => {
-      const itemGenres = (item.genres || []).map(g => (typeof g === 'string' ? g : g?.name || '').toLowerCase());
-      const isAnime = item.mediaType === 'anime' ||
-                      item.media_type === 'anime' ||
-                      item.origin_country === 'JP' ||
-                      item.originCountry === 'JP' ||
-                      (Array.isArray(item.origin_country) && item.origin_country.includes('JP')) ||
-                      (Array.isArray(item.originCountry) && item.originCountry.includes('JP'));
-      return isAnime;
-    });
-  }, [items]);
+  }, [items, draftFilters, filters]);
 
   // Active filters in draft state (for the Current Filters top section)
   const activeDraftChips = useMemo(() => {
@@ -278,6 +266,22 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       });
     }
 
+    if (draftFilters.userRatingMin !== null) {
+      chips.push({
+        id: 'userRatingMin',
+        label: `My Rating: ★ ${draftFilters.userRatingMin}+`,
+        onClear: () => updateDraft('userRatingMin', null)
+      });
+    }
+
+    if (draftFilters.hasNotesOnly) {
+      chips.push({
+        id: 'hasNotesOnly',
+        label: 'Has Personal Notes',
+        onClear: () => updateDraft('hasNotesOnly', false)
+      });
+    }
+
     // Year range
     if (draftFilters.yearFrom !== null || draftFilters.yearTo !== null) {
       chips.push({
@@ -320,7 +324,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
     });
 
     return chips;
-  }, [draftFilters, customLists]);
+  }, [draftFilters, customLists, toggleGenre, toggleList, toggleRuntime, toggleStatus]);
 
   const hasActiveFilters = activeDraftChips.length > 0;
 
@@ -333,6 +337,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       imdbVotesMin: draftFilters.imdbVotesMin,
       tmdbMin: draftFilters.tmdbRatingMin,
       tmdbVotesMin: draftFilters.tmdbVotesMin,
+      userRatingMin: draftFilters.userRatingMin,
+      hasNotesOnly: draftFilters.hasNotesOnly,
       genres: draftFilters.genres,
       yearFrom: draftFilters.yearFrom,
       yearTo: draftFilters.yearTo,
@@ -351,6 +357,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
       imdbVotesMin: null,
       tmdbRatingMin: null,
       tmdbVotesMin: null,
+      userRatingMin: null,
+      hasNotesOnly: false,
       genres: [],
       yearFrom: null,
       yearTo: null,
@@ -373,7 +381,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-backdrop backdrop-blur-sm"
           />
 
           {/* Bottom Sheet Panel */}
@@ -382,30 +390,30 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={spring}
-            className="w-full bg-[#121212] rounded-t-3xl border border-white/5 flex flex-col z-10"
+            className="w-full bg-surface rounded-t-3xl border border-border-subtle flex flex-col z-10"
             style={{ height: '90vh', maxHeight: '90vh' }}
           >
             {/* Gesture handle bar */}
             <div className="w-full flex justify-center pt-3 pb-1">
-              <div className="w-12 h-1.2 bg-white/20 rounded-full" />
+              <div className="w-12 h-1.2 bg-divider rounded-full" />
             </div>
 
             {/* Header */}
-            <div className="px-5 py-3.5 flex justify-between items-center border-b border-white/5">
+            <div className="px-5 py-3.5 flex justify-between items-center border-b border-border-subtle">
               <button
                 onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/5 text-white/70"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-hover text-secondary"
               >
                 <span className="material-symbols-outlined text-[22px]">close</span>
               </button>
               
-              <h2 className="text-base font-bold text-white tracking-wide">Filter & Sort</h2>
+              <h2 className="text-base font-bold text-primary tracking-wide">Filter & Sort</h2>
 
               <div className="w-9">
                 {hasActiveFilters && (
                   <button
                     onClick={handleReset}
-                    className="text-[13px] font-semibold text-red-500 hover:text-red-400 whitespace-nowrap -ml-2"
+                    className="text-[13px] font-semibold text-accent hover:text-accent-hover whitespace-nowrap -ml-2"
                   >
                     Reset
                   </button>
@@ -418,8 +426,8 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
               
               {/* Active Removable Chips Section */}
               {hasActiveFilters && (
-                <div className="py-4 border-b border-white/5">
-                  <h3 className="text-[12px] font-semibold text-white/40 uppercase tracking-wider mb-2 font-secondary">
+                <div className="py-4 border-b border-border-subtle">
+                  <h3 className="text-[12px] font-semibold text-muted uppercase tracking-wider mb-2 font-secondary">
                     Current Filters
                   </h3>
                   <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
@@ -427,7 +435,7 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
                       <div
                         key={chip.id}
                         onClick={chip.onClear}
-                        className="flex items-center gap-1 px-3 py-1 bg-red-600/10 border border-red-500/20 text-red-400 rounded-full text-[12px] font-medium cursor-pointer hover:bg-red-600/20 transition-colors"
+                        className="flex items-center gap-1 px-3 py-1 bg-accent/10 border border-accent/20 text-accent rounded-full text-[12px] font-medium cursor-pointer hover:bg-accent/20 transition-colors"
                       >
                         <span>{chip.label}</span>
                         <span className="material-symbols-outlined text-[14px]">close</span>
@@ -451,18 +459,18 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
                       <button
                         key={opt.id}
                         onClick={() => handleSortOptionClick(opt.id)}
-                        className="w-full h-13 flex items-center justify-between px-3 rounded-xl hover:bg-white/5 transition-colors text-left"
+                        className="w-full h-13 flex items-center justify-between px-3 rounded-xl hover:bg-surface-hover transition-colors text-left"
                       >
-                        <span className={`text-[14px] font-medium ${isActive ? 'text-red-500' : 'text-white/80'}`}>
+                        <span className={`text-[14px] font-medium ${isActive ? 'text-accent' : 'text-primary'}`}>
                           {opt.label}
                         </span>
                         
                         {isActive ? (
-                          <span className="material-symbols-outlined text-red-500 text-[20px]">
+                          <span className="material-symbols-outlined text-accent text-[20px]">
                             {draftFilters.sortState.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
                           </span>
                         ) : (
-                          <span className="material-symbols-outlined text-white/20 text-[20px]">
+                          <span className="material-symbols-outlined text-muted text-[20px]">
                             arrow_downward
                           </span>
                         )}
@@ -542,24 +550,24 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
 
                   <div className="flex items-center gap-4">
                     <div className="flex-1 flex flex-col gap-1.5">
-                      <span className="text-[12px] text-white/50 pl-1 font-secondary">Min Year</span>
+                      <span className="text-[12px] text-secondary pl-1 font-secondary">Min Year</span>
                       <input
                         type="number"
                         placeholder="e.g. 1990"
                         value={draftFilters.yearFrom || ''}
                         onChange={(e) => updateDraft('yearFrom', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[14px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                        className="w-full bg-surface border border-border-subtle rounded-xl px-4 py-2.5 text-[14px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
                       />
                     </div>
-                    <span className="text-white/40 mt-6">-</span>
+                    <span className="text-muted mt-6">-</span>
                     <div className="flex-1 flex flex-col gap-1.5">
-                      <span className="text-[12px] text-white/50 pl-1 font-secondary">Max Year</span>
+                      <span className="text-[12px] text-secondary pl-1 font-secondary">Max Year</span>
                       <input
                         type="number"
                         placeholder="e.g. 2025"
                         value={draftFilters.yearTo || ''}
                         onChange={(e) => updateDraft('yearTo', e.target.value ? Number(e.target.value) : null)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[14px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                        className="w-full bg-surface border border-border-subtle rounded-xl px-4 py-2.5 text-[14px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
                       />
                     </div>
                   </div>
@@ -712,17 +720,17 @@ const LibraryFilterSheet = ({ isOpen, onClose, items = [], customLists = [] }) =
             </div>
 
             {/* Sticky Sticky Sticky Sticky Footer container */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 bg-[#121212]/95 backdrop-blur-xl border-t border-white/5 flex gap-4 items-center z-20 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <div className="absolute bottom-0 left-0 right-0 p-5 bg-surface/95 backdrop-blur-xl border-t border-border-subtle flex gap-4 items-center z-20 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <button
                 onClick={handleReset}
-                className="flex-1 h-12 flex items-center justify-center rounded-xl bg-white/5 text-white/80 font-semibold text-[14px] hover:bg-white/10 transition-colors"
+                className="flex-1 h-12 flex items-center justify-center rounded-xl bg-surface border border-border-subtle text-secondary font-semibold text-[14px] hover:bg-surface-hover transition-colors"
               >
                 Clear All
               </button>
               
               <button
                 onClick={handleApply}
-                className="flex-[2] h-12 flex items-center justify-center rounded-xl bg-[#E50914] text-white font-semibold text-[14px] hover:bg-[#b80710] transition-colors shadow-lg shadow-red-600/10"
+                className="flex-[2] h-12 flex items-center justify-center rounded-xl bg-accent text-inverse font-semibold text-[14px] hover:bg-accent-hover transition-colors shadow-lg shadow-accent/10"
               >
                 Show {draftFilteredCount} Result{draftFilteredCount !== 1 ? 's' : ''}
               </button>

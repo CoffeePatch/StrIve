@@ -13,7 +13,7 @@ export const useListMembership = (userId) => {
 
   const removeMediaFromList = useCallback((listId, mediaId) => {
     if (userId && listId && mediaId) {
-      return dispatch(removeItem({ userId, listId, mediaId })).unwrap();
+      return dispatch(removeItem({ userId, listId, mediaItem: mediaId })).unwrap();
     }
   }, [dispatch, userId]);
 

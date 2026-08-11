@@ -1,19 +1,17 @@
 import { useEffect, useState, useCallback } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
+import { auth } from "../../util/firebase/firebase";
+import { getOrFetch, CACHE_KEYS, TTL } from "../../util/cache/sessionCache";
 
 /**
- * Realtime listener for all episode_states of a TV series.
+ * Fetches watched episode state for a TV series from PostgreSQL API.
  * Returns a Set<string> of watched episodes keyed as "seasonNumber:episodeNumber".
- *
- * Path: users/{uid}/episode_states where titleKey == {titleKey}
  */
 export const useEpisodeStates = ({ userId, titleKey }) => {
   const [watchedSet, setWatchedSet] = useState(new Set());
   const [loading, setLoading] = useState(Boolean(userId && titleKey));
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const fetchStates = useCallback(async () => {
     if (!userId || !titleKey) {
       setWatchedSet(new Set());
       setLoading(false);
@@ -21,40 +19,56 @@ export const useEpisodeStates = ({ userId, titleKey }) => {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const tvId = titleKey.replace("tmdb_tv_", "");
+    if (!tvId) return;
 
-    const colRef = collection(db, "users", userId, "episode_states");
-    const q = query(colRef, where("titleKey", "==", titleKey));
+    try {
+      setLoading(true);
+      setError(null);
 
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const newSet = new Set();
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.state === "watched") {
-            const s = Number(data.seasonNumber);
-            const e = Number(data.episodeNumber);
-            if (Number.isInteger(s) && Number.isInteger(e)) {
-              newSet.add(`${s}:${e}`);
-            }
+      const data = await getOrFetch({
+        key: CACHE_KEYS.TV_DETAILS(tvId),
+        ttl: TTL.TV_DETAILS,
+        fetcher: async () => {
+          const user = auth.currentUser;
+          const token = user ? await user.getIdToken() : null;
+          const res = await fetch(`/api/catalog/${titleKey}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        }
+      });
+
+      const catalog = data?.catalog || data;
+      const newSet = new Set();
+
+      if (catalog?.seasons) {
+        catalog.seasons.forEach((season) => {
+          if (season.episodes) {
+            season.episodes.forEach((ep) => {
+              if (ep.watched) {
+                newSet.add(`${ep.seasonNumber}:${ep.episodeNumber}`);
+              }
+            });
           }
         });
-        setWatchedSet(newSet);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("useEpisodeStates snapshot error:", err);
-        setError(err);
-        setLoading(false);
       }
-    );
 
-    return () => unsub();
+      setWatchedSet(newSet);
+    } catch (err) {
+      console.error("useEpisodeStates fetch error:", err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, [userId, titleKey]);
 
-  /** Optimistically add an episode to the watched set (before Firestore confirms). */
+  useEffect(() => {
+    fetchStates();
+  }, [fetchStates]);
+
+  /** Optimistically add an episode to the watched set. */
   const markLocallyWatched = useCallback((seasonNumber, episodeNumber) => {
     setWatchedSet((prev) => {
       const next = new Set(prev);
@@ -79,7 +93,7 @@ export const useEpisodeStates = ({ userId, titleKey }) => {
     });
   }, []);
 
-  /** Optimistically clear all watched episodes (for unwatch-series flow). */
+  /** Optimistically clear all watched episodes. */
   const clearAllLocal = useCallback(() => {
     setWatchedSet(new Set());
   }, []);
@@ -89,7 +103,7 @@ export const useEpisodeStates = ({ userId, titleKey }) => {
     setWatchedSet(new Set(backupSet));
   }, []);
 
-  return { watchedSet, loading, error, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal };
+  return { watchedSet, loading, error, fetchStates, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal };
 };
 
 export default useEpisodeStates;

@@ -16,6 +16,7 @@ const BottomNav = () => {
     { icon: "movie", label: "Movies", path: "/movies" },
     { icon: "tv", label: "Shows", path: "/shows" },
     { icon: "playlist_play", label: "Library", path: "/library" },
+    { icon: "format_list_bulleted", label: "Lists", path: "/lists" },
     { icon: "search", label: "Search", path: "/search" },
   ];
 

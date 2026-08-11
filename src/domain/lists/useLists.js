@@ -1,5 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   fetchLists,
   createList,
@@ -7,7 +7,8 @@ import {
   updateListMetadata,
   pinListThunk,
   unpinListThunk,
-  fetchActiveList
+  fetchActiveList,
+  reorderListItemThunk
 } from '../../util/store/listsSlice';
 
 export const useLists = (userId) => {
@@ -63,7 +64,13 @@ export const useLists = (userId) => {
     }
   }, [dispatch, userId]);
 
-  return {
+  const reorderItem = useCallback((listId, { titleKey, beforeTitleKey, afterTitleKey, previousItems }) => {
+    if (userId && listId && titleKey) {
+      return dispatch(reorderListItemThunk({ userId, listId, titleKey, beforeTitleKey, afterTitleKey, previousItems })).unwrap();
+    }
+  }, [dispatch, userId]);
+
+  return useMemo(() => ({
     lists,
     listsStatus,
     listsError,
@@ -77,6 +84,24 @@ export const useLists = (userId) => {
     updateList,
     pinList,
     unpinList,
-    loadActiveList
-  };
+    loadActiveList,
+    reorderItem
+  }), [
+    lists,
+    listsStatus,
+    listsError,
+    activeListDetails,
+    activeListItems,
+    activeListStatus,
+    activeListError,
+    loadLists,
+    createNewList,
+    removeList,
+    updateList,
+    pinList,
+    unpinList,
+    loadActiveList,
+    reorderItem
+  ]);
 };
+

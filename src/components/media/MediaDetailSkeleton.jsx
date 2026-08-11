@@ -10,9 +10,9 @@ const MediaDetailSkeleton = () => {
         {/* Hero Section Skeleton */}
         <div className="relative w-full overflow-hidden min-h-[90vh] lg:min-h-[100svh] flex flex-col justify-center animate-pulse">
           {/* Backdrop Layer */}
-          <div className="absolute inset-0 bg-black/40 z-0">
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,1) 100%)' }}></div>
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_left,_var(--tw-gradient-stops))] from-black/60 via-transparent to-transparent hidden md:block"></div>
+          <div className="absolute inset-0 bg-backdrop z-0">
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, var(--color-hero-top) 0%, var(--color-hero-mid) 50%, var(--color-hero-bottom) 100%)' }}></div>
+            <div className="absolute inset-0 hidden md:block" style={{ background: 'radial-gradient(ellipse at left, var(--color-hero-radial), transparent)' }}></div>
           </div>
           
           {/* Hero Content Layout */}

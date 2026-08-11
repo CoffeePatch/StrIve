@@ -1,10 +1,12 @@
 /**
  * IMDb API Service
- * Interact with api.imdbapi.dev to fetch movie/show details
- * Based on IMDB.md Swagger definition
+ * Interact with api. to fetch movie/show details
  */
 
-const API_BASE_URL = "https://api.imdbapi.dev";
+const getBaseUrl = () => {
+  const url = import.meta.env.VITE_IMDB_BASE_URL?.trim();
+  return url ? url.replace(/\/$/, "") : "";
+};
 
 class ImdbApiService {
   /**
@@ -13,8 +15,11 @@ class ImdbApiService {
    * @returns {Promise<Object>} Title details
    */
   async getTitle(titleId) {
+    const baseUrl = getBaseUrl();
+    if (!baseUrl) return null;
+
     try {
-      const response = await fetch(`${API_BASE_URL}/titles/${titleId}`);
+      const response = await fetch(`${baseUrl}/titles/${titleId}`);
       if (!response.ok) {
         throw new Error(`IMDb API Error: ${response.status}`);
       }
@@ -39,12 +44,15 @@ class ImdbApiService {
       titleIds = titleIds.slice(0, 5);
     }
 
+    const baseUrl = getBaseUrl();
+    if (!baseUrl) return { titles: [] };
+
     try {
       const params = new URLSearchParams();
       titleIds.forEach((id) => params.append("titleIds", id));
 
       const response = await fetch(
-        `${API_BASE_URL}/titles:batchGet?${params.toString()}`
+        `${baseUrl}/titles:batchGet?${params.toString()}`
       );
       if (!response.ok) {
         throw new Error(`IMDb API Batch Error: ${response.status}`);

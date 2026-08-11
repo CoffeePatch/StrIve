@@ -73,8 +73,8 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
     const fetchMembership = async () => {
       try {
         setIsLoadingMembership(true);
-        const { getLibraryItemListIds } = await import('../../util/firebase/firestoreService');
-        const listIds = await getLibraryItemListIds(userId, media);
+        const { listsAdapter } = await import('../../domain/lists/listsAdapter');
+        const listIds = await listsAdapter.getItemListMemberships(userId, media);
         if (!active) return;
         const normalized = Array.isArray(listIds) ? listIds.filter(Boolean) : [];
         setSavedListIds(normalized);
@@ -148,8 +148,8 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
         ? [...selectedListIds, listId]
         : selectedListIds.filter(id => id !== listId);
 
-      const { setLibraryItemListIds } = await import('../../util/firebase/firestoreService');
-      await setLibraryItemListIds(userId, media, nextListIds);
+        const { listsAdapter } = await import('../../domain/lists/listsAdapter');
+        await listsAdapter.setItemListMemberships(userId, media, nextListIds);
 
       if (isAdding) {
         await addMediaToList(listId, media);
@@ -228,7 +228,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none"
+            className="absolute inset-0 bg-backdrop sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none"
           />
 
           {/* Modal Container */}
@@ -238,28 +238,28 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.4, 0.0, 0.2, 1] }}
             style={modalStyle}
-            className="glass-effect rounded-t-3xl sm:rounded-xl px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:p-3 max-w-full sm:max-w-[220px] w-full border-t sm:border border-white/10 bg-[#121212]/98 sm:bg-[#141414]/98 shadow-2xl relative z-10 flex flex-col max-h-[85vh] sm:max-h-[90vh] overflow-hidden sm:overflow-visible"
+            className="glass-effect rounded-t-3xl sm:rounded-xl px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:p-3 max-w-full sm:max-w-[220px] w-full border-t sm:border border-border-subtle bg-surface/98 shadow-2xl relative z-10 flex flex-col max-h-[85vh] sm:max-h-[90vh] overflow-hidden sm:overflow-visible"
           >
             {/* Gesture handle bar for mobile */}
             <div className="w-full flex justify-center sm:hidden pb-4">
-              <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+              <div className="w-12 h-1.5 bg-border rounded-full" />
             </div>
 
             {/* Close button */}
             <button
               onClick={onClose}
               disabled={isMutating}
-              className="absolute top-3 right-3 text-white/60 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed hidden sm:block"
+              className="absolute top-3 right-3 text-secondary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed hidden sm:block"
             >
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
 
             {/* Header */}
             <div className="pr-6 mb-3">
-              <h3 className="text-sm font-bold text-white font-secondary truncate" title={title}>
+              <h3 className="text-sm font-bold text-primary font-secondary truncate" title={title}>
                 {title}
               </h3>
-              <p className="text-[10px] sm:text-xs text-white/50 font-secondary mt-0.5">
+              <p className="text-[10px] sm:text-xs text-muted font-secondary mt-0.5">
                 {year ? `${year} • ` : ''}{type === 'tv' ? 'Series' : 'Movie'}
               </p>
             </div>
@@ -268,7 +268,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
             <div className="overflow-y-auto sm:overflow-y-visible pr-1 -mr-1 flex-1 space-y-3">
               {/* Watch Status Section */}
               <div>
-                <span className="text-[10px] text-white/40 font-secondary uppercase tracking-wider font-semibold">
+                <span className="text-[10px] text-muted font-secondary uppercase tracking-wider font-semibold">
                   Watch Status
                 </span>
                 <div className="space-y-1 mt-2">
@@ -282,7 +282,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                         className={`flex items-center justify-between w-full px-3 py-2 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                           isActive
                             ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-md shadow-red-500/5'
-                            : 'bg-white/5 border-white/5 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/10'
+                            : 'bg-surface-hover border-border-subtle text-secondary hover:text-primary hover:bg-card hover:border-border'
                         } ${isMutating ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                 <div>
                   <button
                     onClick={() => setIsListsExpanded(!isListsExpanded)}
-                    className="flex items-center justify-between w-full py-2 text-xs text-white/40 font-secondary uppercase tracking-wider font-semibold border-t border-white/10 transition-colors hover:text-white"
+                    className="flex items-center justify-between w-full py-2 text-xs text-muted font-secondary uppercase tracking-wider font-semibold border-t border-border-subtle transition-colors hover:text-primary"
                   >
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-lg opacity-80">playlist_add</span>
@@ -331,7 +331,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                           {isLoadingMembership ? (
                             <div className="space-y-2 py-2">
                               {[1, 2, 3].map(i => (
-                                <div key={i} className="h-8 w-full bg-white/5 rounded animate-pulse" />
+                                <div key={i} className="h-8 w-full bg-surface-hover rounded animate-pulse" />
                               ))}
                             </div>
                           ) : sortedLists.length > 0 ? (
@@ -340,7 +340,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                               return (
                                 <label
                                   key={list.id}
-                                  className={`flex items-center justify-between w-full px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer select-none ${isMutating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  className={`flex items-center justify-between w-full px-3 py-2 text-sm text-secondary hover:text-primary hover:bg-surface-hover rounded-lg transition-colors cursor-pointer select-none ${isMutating ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                     <AnimatedCheckbox
@@ -362,7 +362,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                               );
                             })
                           ) : (
-                            <div className="text-xs text-white/40 text-center py-4 font-secondary">
+                            <div className="text-xs text-muted text-center py-4 font-secondary">
                               No custom lists. Create one in the Library!
                             </div>
                           )}
@@ -378,7 +378,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                   onMouseLeave={() => setHoveringLists(false)}
                 >
                   <button
-                    className="flex items-center justify-between w-full py-2 text-[10px] text-white/40 font-secondary uppercase tracking-wider font-semibold border-t border-white/10 transition-colors hover:text-white"
+                    className="flex items-center justify-between w-full py-2 text-[10px] text-muted font-secondary uppercase tracking-wider font-semibold border-t border-border-subtle transition-colors hover:text-primary"
                   >
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-base opacity-80">playlist_add</span>
@@ -389,13 +389,13 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
 
                   {/* Desktop Hover Submenu */}
                   {hoveringLists && (
-                    <div className={`absolute top-0 z-[110] w-[180px] max-h-[220px] overflow-y-auto glass-effect rounded-lg border border-white/10 bg-[#141414]/98 p-1.5 shadow-2xl ${
+                    <div className={`absolute top-0 z-[110] w-[180px] max-h-[220px] overflow-y-auto glass-effect rounded-lg border border-border-subtle bg-surface/98 p-1.5 shadow-2xl ${
                       anchor?.right <= 350 ? 'right-full mr-2' : 'left-full ml-2'
                     }`}>
                       {isLoadingMembership ? (
                         <div className="space-y-1.5 p-1">
                           {[1, 2, 3].map(i => (
-                            <div key={i} className="h-6 w-full bg-white/5 rounded animate-pulse" />
+                            <div key={i} className="h-6 w-full bg-surface-hover rounded animate-pulse" />
                           ))}
                         </div>
                       ) : sortedLists.length > 0 ? (
@@ -404,7 +404,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                           return (
                             <label
                               key={list.id}
-                              className={`flex items-center justify-between w-full px-2 py-1.5 text-xs text-white/80 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer select-none ${isMutating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`flex items-center justify-between w-full px-2 py-1.5 text-xs text-secondary hover:text-primary hover:bg-surface-hover rounded transition-colors cursor-pointer select-none ${isMutating ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <AnimatedCheckbox
@@ -426,7 +426,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                           );
                         })
                       ) : (
-                        <div className="text-[10px] text-white/40 text-center py-3 font-secondary">
+                        <div className="text-[10px] text-muted text-center py-3 font-secondary">
                           No custom lists.
                         </div>
                       )}
@@ -437,7 +437,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
 
               {/* Danger Zone Section */}
               {isInLibrary && (
-                <div className="border-t border-white/10 pt-3">
+                <div className="border-t border-border-subtle pt-3">
                   {!showConfirmDelete ? (
                     <button
                       onClick={() => setShowConfirmDelete(true)}
@@ -463,7 +463,7 @@ const QuickActionsModal = ({ isOpen, onClose, media, userId, onMutation, anchor 
                         <button
                           onClick={() => setShowConfirmDelete(false)}
                           disabled={isRemoving}
-                          className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-semibold font-secondary transition-colors"
+                          className="px-2.5 py-1 rounded bg-surface-hover hover:bg-surface text-primary text-[10px] font-semibold font-secondary transition-colors"
                         >
                           Cancel
                         </button>

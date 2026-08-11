@@ -5,7 +5,7 @@ import { useSelector } from "react-redux";
 
 const IMG_CDN_URL = "https://image.tmdb.org/t/p";
 
-const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWatched = false, onWatchedChange, applyWatchMode }) => {
+const EpisodeOverlay = ({ episode, onClose, isWatched = false, onWatchedChange, applyWatchMode }) => {
   const overlayRef = useRef(null);
   const user = useSelector((store) => store.user?.user);
   const [showDialog, setShowDialog] = useState(false);
@@ -29,7 +29,6 @@ const EpisodeOverlay = ({ episode, showDetails, onClose, allEpisodes = [], isWat
     }
   }, [toast]);
 
-  const titleKey = `tmdb_tv_${showDetails?.id}`;
   const currentSeasonNumber = Number(episode?.seasonNumber ?? episode?.season_number);
   const currentEpisodeNumber = Number(episode?.episodeNumber ?? episode?.episode_number);
 

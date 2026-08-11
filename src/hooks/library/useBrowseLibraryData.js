@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getAllLibraryItems } from '../../services/libraryService';
 import { getOrFetch, CACHE_KEYS, TTL, invalidateBrowseLibrary } from '../../util/cache/sessionCache';
 import { normalizeWatchStatus } from '../../util/library/watchStatus';
+import { loadLibraryItems } from './libraryDataPipeline';
 
 export function useBrowseLibraryData(userId) {
   const [continueWatching, setContinueWatching] = useState([]);
@@ -31,9 +31,7 @@ export function useBrowseLibraryData(userId) {
         key: cacheKey,
         ttl: TTL.BROWSE_LIBRARY,
         fetcher: async () => {
-          return await getAllLibraryItems(userId, {
-            hydrate: false // No TMDB hydration
-          });
+          return await loadLibraryItems(userId, { hydrate: false });
         }
       });
 

@@ -28,7 +28,7 @@ const SimklPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [debugOutput, setDebugOutput] = useState(null);
-  const [enrichmentProgress, setEnrichmentProgress] = useState(0);
+  const [enrichmentProgress] = useState(0);
 
   // Fetch lists on mount and start enrichment
   useEffect(() => {
@@ -149,7 +149,7 @@ const SimklPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Header />
 
       <main className="flex-grow pt-24 px-4 md:px-10 pb-20">
@@ -161,10 +161,10 @@ const SimklPage = () => {
               alt="SIMKL"
               className="h-16 mx-auto mb-6 opacity-90"
             />
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 font-display">
+            <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4 font-display">
               Sync Your Watch History
             </h1>
-            <p className="text-xl text-white/60 max-w-2xl mx-auto font-secondary">
+            <p className="text-xl text-secondary max-w-2xl mx-auto font-secondary">
               Connect your Simkl account to automatically import your watched
               movies, TV shows, and anime into your Strive collections.
             </p>
@@ -173,11 +173,11 @@ const SimklPage = () => {
           {/* Enrichment Progress Bar */}
           {enrichmentProgress > 0 && (
             <div className="fixed top-20 left-0 w-full z-50 px-4 md:px-10">
-              <div className="max-w-4xl mx-auto bg-black/80 backdrop-blur-md rounded-b-xl border border-white/10 p-2 flex items-center gap-4 shadow-2xl">
+              <div className="max-w-4xl mx-auto bg-surface/80 backdrop-blur-md rounded-b-xl border border-border p-2 flex items-center gap-4 shadow-2xl">
                 <span className="text-xs font-bold text-purple-400 uppercase tracking-wider animate-pulse">
                   Enriching Library...
                 </span>
-                <div className="flex-grow h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="flex-grow h-1.5 bg-surface-hover rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 ease-out"
                     style={{ width: `${enrichmentProgress}%` }}
@@ -189,20 +189,20 @@ const SimklPage = () => {
 
           {!isAuthenticated ? (
             /* Login State */
-            <div className="glass-effect rounded-3xl p-10 text-center max-w-lg mx-auto border border-white/10 shadow-2xl">
+            <div className="bg-surface rounded-3xl p-10 text-center max-w-lg mx-auto border border-border shadow-2xl">
               <span className="material-symbols-outlined text-6xl text-purple-400 mb-6">
                 sync_lock
               </span>
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-2xl font-bold text-primary mb-4">
                 Connect to Simkl
               </h2>
-              <p className="text-white/60 mb-8">
+              <p className="text-secondary mb-8">
                 Sign in to sync your watch history, ratings, and lists across
                 all your devices.
               </p>
               <button
                 onClick={login}
-                className="w-full py-4 bg-[#282a2d] hover:bg-[#35383c] text-white rounded-xl font-bold text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-3 border border-white/10"
+                className="w-full py-4 bg-surface-hover hover:bg-surface text-primary rounded-xl font-bold text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-3 border border-border"
               >
                 <img
                   src="https://simkl.com/favicon.ico"
@@ -218,57 +218,57 @@ const SimklPage = () => {
               {/* Stats Cards */}
               {userStats && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="glass-effect p-6 rounded-2xl border border-white/5">
+                  <div className="bg-surface p-6 rounded-2xl border border-border">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="material-symbols-outlined text-blue-400">
                         movie
                       </span>
-                      <h3 className="text-white/80 font-medium">Movies</h3>
+                      <h3 className="text-primary font-medium">Movies</h3>
                     </div>
-                    <p className="text-3xl font-bold text-white">
+                    <p className="text-3xl font-bold text-primary">
                       {userStats.movies?.completed?.count || 0}
                     </p>
-                    <p className="text-sm text-white/40">Watched</p>
+                    <p className="text-sm text-muted">Watched</p>
                   </div>
-                  <div className="glass-effect p-6 rounded-2xl border border-white/5">
+                  <div className="bg-surface p-6 rounded-2xl border border-border">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="material-symbols-outlined text-purple-400">
                         tv
                       </span>
-                      <h3 className="text-white/80 font-medium">TV Shows</h3>
+                      <h3 className="text-primary font-medium">TV Shows</h3>
                     </div>
-                    <p className="text-3xl font-bold text-white">
+                    <p className="text-3xl font-bold text-primary">
                       {userStats.tv?.completed?.count || 0}
                     </p>
-                    <p className="text-sm text-white/40">Watched</p>
+                    <p className="text-sm text-muted">Watched</p>
                   </div>
-                  <div className="glass-effect p-6 rounded-2xl border border-white/5">
+                  <div className="bg-surface p-6 rounded-2xl border border-border">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="material-symbols-outlined text-pink-400">
                         animation
                       </span>
-                      <h3 className="text-white/80 font-medium">Anime</h3>
+                      <h3 className="text-primary font-medium">Anime</h3>
                     </div>
-                    <p className="text-3xl font-bold text-white">
+                    <p className="text-3xl font-bold text-primary">
                       {userStats.anime?.completed?.count || 0}
                     </p>
-                    <p className="text-sm text-white/40">Watched</p>
+                    <p className="text-sm text-muted">Watched</p>
                   </div>
                 </div>
               )}
 
               {/* Sync Controls */}
-              <div className="glass-effect rounded-3xl p-8 border border-white/10">
+              <div className="bg-surface rounded-3xl p-8 border border-border">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
                       {userProfile?.user?.name?.[0]?.toUpperCase() || "U"}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white">
+                      <h2 className="text-2xl font-bold text-primary">
                         {userProfile?.user?.name || "Simkl User"}
                       </h2>
-                      <p className="text-white/60 flex items-center gap-2">
+                      <p className="text-secondary flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-green-500"></span>
                         Connected
                       </p>
@@ -277,7 +277,7 @@ const SimklPage = () => {
 
                   <button
                     onClick={logout}
-                    className="px-6 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-colors text-sm font-medium"
+                    className="px-6 py-2 rounded-lg bg-surface-hover hover:bg-surface text-secondary hover:text-primary transition-colors text-sm font-medium"
                   >
                     Disconnect
                   </button>
@@ -285,14 +285,14 @@ const SimklPage = () => {
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-white/80 text-sm font-medium mb-3">
+                    <label className="block text-primary text-sm font-medium mb-3">
                       Select Target List
                     </label>
                     <div className="flex gap-3">
                       <select
                         value={selectedListId}
                         onChange={(e) => setSelectedListId(e.target.value)}
-                        className="flex-grow bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        className="flex-grow bg-surface-hover border border-border rounded-xl px-4 py-3 text-primary focus:outline-none focus:border-accent transition-colors"
                       >
                         <option value="" disabled>
                           Choose a list...
@@ -305,13 +305,13 @@ const SimklPage = () => {
                       </select>
                       <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors"
+                        className="px-4 py-3 bg-surface-hover hover:bg-surface text-primary rounded-xl transition-colors"
                         title="Create New List"
                       >
                         <span className="material-symbols-outlined">add</span>
                       </button>
                     </div>
-                    <p className="text-white/40 text-xs mt-2">
+                    <p className="text-muted text-xs mt-2">
                       All synced items will be added to this list. Duplicates
                       will be handled automatically.
                     </p>
@@ -322,7 +322,7 @@ const SimklPage = () => {
                     disabled={isSyncing || !selectedListId}
                     className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
                       isSyncing || !selectedListId
-                        ? "bg-white/5 text-white/40 cursor-not-allowed"
+                        ? "bg-surface-hover text-muted cursor-not-allowed"
                         : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-purple-500/25"
                     }`}
                   >
@@ -343,15 +343,15 @@ const SimklPage = () => {
 
               {/* Debug Output Area */}
               {debugOutput && (
-                <div className="glass-effect rounded-3xl p-8 border border-white/10 mt-8">
-                  <h3 className="text-xl font-bold text-white mb-4">
+                <div className="bg-surface rounded-3xl p-8 border border-border mt-8">
+                  <h3 className="text-xl font-bold text-primary mb-4">
                     Debug Data (Raw API Response)
                   </h3>
-                  <p className="text-white/60 mb-4">
+                  <p className="text-secondary mb-4">
                     Please copy the "ratings" section from one of the items
                     below:
                   </p>
-                  <div className="bg-black/50 rounded-xl p-4 overflow-auto max-h-96">
+                  <div className="bg-background rounded-xl p-4 overflow-auto max-h-96">
                     <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
                       {JSON.stringify(
                         debugOutput.data?.movies?.[0] ||

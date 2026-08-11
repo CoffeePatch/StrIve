@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { db } from "../../util/firebase/firebase";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { auth } from "../../util/firebase/firebase";
+import { getOrFetch, CACHE_KEYS, TTL } from "../../util/cache/sessionCache";
 
 /**
- * Reads a single denormalized progress doc for a TV series.
- * Path: users/{uid}/series_progress/{titleKey}
+ * Reads series progress doc from PostgreSQL API.
  */
-export const useSeriesProgress = ({ userId, titleKey, realtime = false }) => {
+export const useSeriesProgress = ({ userId, titleKey }) => {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(Boolean(userId && titleKey));
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const fetchProgress = useCallback(async () => {
     if (!userId || !titleKey) {
       setProgress(null);
       setLoading(false);
@@ -19,32 +18,39 @@ export const useSeriesProgress = ({ userId, titleKey, realtime = false }) => {
       return;
     }
 
-    const ref = doc(db, "users", userId, "series_progress", titleKey);
-    setLoading(true);
-    setError(null);
+    const tvId = titleKey.replace("tmdb_tv_", "");
+    if (!tvId) return;
 
-    if (realtime) {
-      const unsub = onSnapshot(
-        ref,
-        (snap) => {
-          setProgress(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-          setLoading(false);
-        },
-        (err) => {
-          setError(err);
-          setLoading(false);
+    try {
+      setLoading(true);
+      setError(null);
+
+      const data = await getOrFetch({
+        key: CACHE_KEYS.TV_DETAILS(tvId),
+        ttl: TTL.TV_DETAILS,
+        fetcher: async () => {
+          const user = auth.currentUser;
+          const token = user ? await user.getIdToken() : null;
+          const res = await fetch(`/api/catalog/${titleKey}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
         }
-      );
-      return () => unsub();
-    }
+      });
 
-    getDoc(ref)
-      .then((snap) => {
-        setProgress(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-      })
-      .catch((err) => setError(err))
-      .finally(() => setLoading(false));
-  }, [userId, titleKey, realtime]);
+      setProgress(data?.progress || null);
+    } catch (err) {
+      console.error("useSeriesProgress fetch error:", err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, titleKey]);
+
+  useEffect(() => {
+    fetchProgress();
+  }, [fetchProgress]);
 
   const derived = useMemo(() => {
     if (!progress) {
@@ -73,6 +79,7 @@ export const useSeriesProgress = ({ userId, titleKey, realtime = false }) => {
     progress,
     loading,
     error,
+    fetchProgress,
     ...derived,
   };
 };

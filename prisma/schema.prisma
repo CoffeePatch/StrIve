@@ -1,0 +1,178 @@
+// Prisma schema file for Strive
+// Phase 3.3: Indexing & Query Performance Optimization
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String            @id
+  dashboardPreferences Json?             @map("dashboard_preferences")
+  simklToken           String?           @map("simkl_token") @db.Text
+  simklUserId          String?           @map("simkl_user_id")
+  simklConnectedAt     DateTime?         @map("simkl_connected_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  libraryItems         UserLibraryItem[]
+  lists                UserList[]
+  listItems            UserListItem[]
+  episodeStates        UserEpisodeState[]
+
+  @@map("users")
+}
+
+model CatalogTitle {
+  titleKey         String            @id @map("title_key")
+  mediaType        String            @map("media_type")
+  tmdbId           Int?              @map("tmdb_id")
+  imdbId           String?           @map("imdb_id")
+  title            String
+  originalTitle    String?           @map("original_title")
+  overview         String?           @db.Text
+  posterPath       String?           @map("poster_path")
+  backdropPath     String?           @map("backdrop_path")
+  releaseDate      DateTime?         @map("release_date") @db.Date
+  firstAirDate     DateTime?         @map("first_air_date") @db.Date
+  lastAirDate      DateTime?         @map("last_air_date") @db.Date
+  showStatus       String?           @map("show_status")
+  runtimeMinutes   Int?              @map("runtime_minutes")
+  numberOfSeasons  Int?              @map("number_of_seasons")
+  numberOfEpisodes Int?              @map("number_of_episodes")
+  tmdbScore        Decimal?          @map("tmdb_score") @db.Decimal(4, 2)
+  tmdbVotes        Int?              @map("tmdb_votes")
+  imdbScore        Decimal?          @map("imdb_score") @db.Decimal(4, 2)
+  imdbVotes        Int?              @map("imdb_votes")
+  popularity       Decimal?          @db.Decimal(10, 4)
+  genres           String[]          @default([])
+  networks         Json?
+  lastFetchedAt    DateTime?         @map("last_fetched_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  seasons          CatalogSeason[]
+  episodes         CatalogEpisode[]
+  libraryItems     UserLibraryItem[]
+  episodeStates    UserEpisodeState[]
+  listItems        UserListItem[]
+
+  @@map("catalog_titles")
+}
+
+model CatalogSeason {
+  titleKey     String           @map("title_key")
+  seasonNumber Int              @map("season_number")
+  title        String?
+  overview     String?          @db.Text
+  posterPath   String?          @map("poster_path")
+  airDate      DateTime?        @map("air_date") @db.Date
+  episodeCount Int?             @map("episode_count")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  catalogTitle CatalogTitle     @relation(fields: [titleKey], references: [titleKey], onDelete: Cascade)
+  episodes     CatalogEpisode[]
+  episodeStates UserEpisodeState[]
+
+  @@id([titleKey, seasonNumber])
+  @@map("catalog_seasons")
+}
+
+model CatalogEpisode {
+  titleKey       String           @map("title_key")
+  seasonNumber   Int              @map("season_number")
+  episodeNumber  Int              @map("episode_number")
+  absoluteOrder  Int?             @map("absolute_order")
+  title          String?
+  overview       String?          @db.Text
+  stillPath      String?          @map("still_path")
+  airDate        DateTime?        @map("air_date") @db.Date
+  runtimeMinutes Int?             @map("runtime_minutes")
+  voteAverage    Decimal?         @map("vote_average") @db.Decimal(4, 2)
+  isAired        Boolean          @default(true) @map("is_aired")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  catalogTitle   CatalogTitle     @relation(fields: [titleKey], references: [titleKey], onDelete: Cascade)
+  catalogSeason  CatalogSeason    @relation(fields: [titleKey, seasonNumber], references: [titleKey, seasonNumber], onDelete: Cascade)
+  episodeStates  UserEpisodeState[]
+
+  @@id([titleKey, seasonNumber, episodeNumber])
+  @@map("catalog_episodes")
+}
+
+model UserLibraryItem {
+  userId                String       @map("user_id")
+  titleKey              String       @map("title_key")
+  status                String
+  userRating            Decimal?     @map("user_rating") @db.Decimal(3, 1)
+  enrichmentStatus      String       @default("completed") @map("enrichment_status")
+  enrichmentRetryCount  Int          @default(0) @map("enrichment_retry_count")
+  lastEnrichmentAttempt DateTime?    @map("last_enrichment_attempt")
+  nextEnrichmentAttempt DateTime?    @map("next_enrichment_attempt")
+  notes                 String?      @map("notes") @db.Text
+  addedAt               DateTime     @default(now()) @map("added_at")
+  lastWatchedAt         DateTime?    @map("last_watched_at")
+
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogTitle          CatalogTitle @relation(fields: [titleKey], references: [titleKey], onDelete: Cascade)
+
+  @@id([userId, titleKey])
+  @@index([userId, status, addedAt(sort: Desc)], name: "idx_user_library_status_added")
+  @@index([userId, status, lastWatchedAt(sort: Desc)], name: "idx_user_library_status_watched")
+  @@map("user_library_items")
+}
+
+model UserEpisodeState {
+  userId        String         @map("user_id")
+  titleKey      String         @map("title_key")
+  seasonNumber  Int            @map("season_number")
+  episodeNumber Int            @map("episode_number")
+  absoluteOrder Int?           @map("absolute_order")
+  state         String         @default("watched")
+  watchedAt     DateTime       @default(now()) @map("watched_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogTitle  CatalogTitle   @relation(fields: [titleKey], references: [titleKey], onDelete: Cascade)
+  catalogSeason CatalogSeason  @relation(fields: [titleKey, seasonNumber], references: [titleKey, seasonNumber], onDelete: Cascade)
+  catalogEpisode CatalogEpisode @relation(fields: [titleKey, seasonNumber, episodeNumber], references: [titleKey, seasonNumber, episodeNumber], onDelete: Cascade)
+
+  @@id([userId, titleKey, seasonNumber, episodeNumber])
+  @@map("user_episode_states")
+}
+
+model UserList {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  name        String
+  description String?        @db.Text
+  kind        String         @default("custom")
+  visibility  String         @default("private")
+  isPinned    Boolean        @default(false) @map("is_pinned")
+  itemCount   Int            @default(0) @map("item_count")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       UserListItem[]
+
+  @@map("user_lists")
+}
+
+model UserListItem {
+  listId   String       @map("list_id")
+  titleKey String       @map("title_key")
+  userId   String       @map("user_id")
+  position Decimal      @db.Decimal(10, 4)
+  addedAt  DateTime     @default(now()) @map("added_at")
+
+  list     UserList     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalog  CatalogTitle @relation(fields: [titleKey], references: [titleKey], onDelete: Cascade)
+
+  @@id([listId, titleKey])
+  @@index([listId, position(sort: Asc)], name: "idx_user_list_items_position")
+  @@map("user_list_items")
+}

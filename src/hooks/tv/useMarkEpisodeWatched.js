@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { auth } from "../../util/firebase/firebase";
 
-const MARK_EPISODE_WATCHED_ENDPOINT = "/api/markEpisodeWatched";
+const MARK_EPISODE_WATCHED_ENDPOINT = "/api/tracking/watch";
 
 const toErrorMessage = (error) => {
   if (!error) return "Unknown error";

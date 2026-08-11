@@ -2,19 +2,20 @@ import React from 'react';
 import { standardGenres } from '../../hooks/library/useLibraryFilters';
 import { AnimatedChip, AnimatedCheckbox } from '../ui/AnimatedPrimitives';
 
-const LibraryAdvancedFilters = ({ filters, customLists }) => {
+const LibraryAdvancedFilters = ({ filters = {}, customLists = [] }) => {
   const {
-    imdbRatingMin,
-    imdbVotesMin,
-    tmdbRatingMin,
-    tmdbVotesMin,
-    genres,
-    yearFrom,
-    yearTo,
-    customListIds,
-    updateFilters,
-    clearAdvancedFilters
-  } = filters;
+    imdbRatingMin = null,
+    imdbVotesMin = null,
+    tmdbRatingMin = null,
+    userRatingMin = null,
+    hasNotesOnly = false,
+    genres = [],
+    yearFrom = null,
+    yearTo = null,
+    customListIds = [],
+    runtimes = [],
+    updateFilters = () => {}
+  } = filters || {};
 
   const toggleList = (id) => {
     if (customListIds.includes(id)) {
@@ -32,34 +33,55 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
     }
   };
 
+  const toggleRuntime = (r) => {
+    if (runtimes.includes(r)) {
+      updateFilters({ runtimes: runtimes.filter(x => x !== r) });
+    } else {
+      updateFilters({ runtimes: [...runtimes, r] });
+    }
+  };
+
   return (
-    <div className="glass-effect rounded-xl p-6 border border-white/10 bg-white/5 space-y-6">
+    <div className="glass-effect rounded-xl p-6 border border-border-subtle bg-surface space-y-6">
        
-       {/* Custom Lists */}
-       {customLists && customLists.length > 0 && (
-         <div className="space-y-3">
-           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Custom Lists</h3>
-           <div className="flex flex-wrap gap-2">
-             {customLists.map(list => {
-               const isActive = customListIds.includes(list.id);
-               return (
-                 <AnimatedChip
-                   key={list.id}
-                   onClick={() => toggleList(list.id)}
-                   isActive={isActive}
-                 >
-                   {list.name}
-                 </AnimatedChip>
-               );
-             })}
+       {/* Custom Lists & Personal Notes */}
+       <div className="flex flex-col lg:flex-row gap-6">
+         {customLists && customLists.length > 0 && (
+           <div className="flex-1 space-y-3">
+             <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Custom Lists</h3>
+             <div className="flex flex-wrap gap-2">
+               {customLists.map(list => {
+                 const isActive = customListIds.includes(list.id);
+                 return (
+                   <AnimatedChip
+                     key={list.id}
+                     onClick={() => toggleList(list.id)}
+                     isActive={isActive}
+                   >
+                     {list.name}
+                   </AnimatedChip>
+                 );
+               })}
+             </div>
+           </div>
+         )}
+
+         <div className="flex-1 space-y-3">
+           <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Personal Annotation</h3>
+           <div className="flex items-center gap-3">
+             <AnimatedCheckbox
+               checked={hasNotesOnly}
+               onChange={() => updateFilters({ hasNotesOnly: !hasNotesOnly })}
+               label="Has Personal Notes"
+             />
            </div>
          </div>
-       )}
+       </div>
 
-       {/* Ratings */}
+       {/* Ratings (IMDb, TMDB, My Rating) */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Rating</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">IMDb Rating</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -80,7 +102,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
           
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Rating</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">TMDB Rating</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -99,12 +121,33 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
                ))}
             </div>
           </div>
+
+          <div className="flex-1 space-y-3">
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">My Personal Rating</h3>
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { label: 'Any', value: null },
+                 { label: '★ 9+', value: 9 },
+                 { label: '★ 8+', value: 8 },
+                 { label: '★ 7+', value: 7 },
+                 { label: '★ 6+', value: 6 },
+               ].map(opt => (
+                 <AnimatedChip
+                   key={opt.label}
+                   onClick={() => updateFilters({ userRatingMin: opt.value })}
+                   isActive={userRatingMin === opt.value}
+                 >
+                   {opt.label}
+                 </AnimatedChip>
+               ))}
+            </div>
+          </div>
        </div>
 
-       {/* Votes */}
+       {/* Votes & Runtimes */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">IMDb Votes</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">IMDb Votes</h3>
             <div className="flex flex-wrap gap-2">
                {[
                  { label: 'Any', value: null },
@@ -125,24 +168,26 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
 
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">TMDB Votes</h3>
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Runtime Length</h3>
             <div className="flex flex-wrap gap-2">
                {[
-                 { label: 'Any', value: null },
-                 { label: '100+', value: 100 },
-                 { label: '1K+', value: 1000 },
-                 { label: '5K+', value: 5000 },
-                 { label: '10K+', value: 10000 },
-                 { label: '50K+', value: 50000 },
-               ].map(opt => (
-                 <AnimatedChip
-                   key={opt.label}
-                   onClick={() => updateFilters({ tmdbVotesMin: opt.value })}
-                   isActive={tmdbVotesMin === opt.value}
-                 >
-                   {opt.label}
-                 </AnimatedChip>
-               ))}
+                 { label: '< 60 min', key: '<60' },
+                 { label: '60–90 min', key: '60-90' },
+                 { label: '90–120 min', key: '90-120' },
+                 { label: '120–180 min', key: '120-180' },
+                 { label: '> 180 min', key: '180+' },
+               ].map(opt => {
+                 const isActive = runtimes.includes(opt.key);
+                 return (
+                   <AnimatedChip
+                     key={opt.key}
+                     onClick={() => toggleRuntime(opt.key)}
+                     isActive={isActive}
+                   >
+                     {opt.label}
+                   </AnimatedChip>
+                 );
+               })}
             </div>
           </div>
        </div>
@@ -150,28 +195,30 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
        {/* Year & Genres */}
        <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-3">
-            <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Release Year</h3>
-            <div className="flex items-center gap-3">
+            <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Release Decade / Year</h3>
+            <div className="flex items-center gap-3 flex-wrap">
               <input 
                 type="number" 
                 placeholder="From" 
                 value={yearFrom || ''} 
                 onChange={(e) => updateFilters({ yearFrom: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                className="w-24 bg-backdrop border border-border-subtle rounded-lg px-3 py-1.5 text-[13px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
               />
-              <span className="text-white/40">-</span>
+              <span className="text-muted">-</span>
               <input 
                 type="number" 
                 placeholder="To" 
                 value={yearTo || ''} 
                 onChange={(e) => updateFilters({ yearTo: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] text-white focus:outline-none focus:border-red-500/60 font-secondary"
+                className="w-24 bg-backdrop border border-border-subtle rounded-lg px-3 py-1.5 text-[13px] text-primary focus:outline-none focus:border-accent/60 font-secondary"
               />
               <div className="flex flex-wrap gap-2 ml-2">
                  {[
                    { label: '2020s', from: 2020, to: 2029 },
                    { label: '2010s', from: 2010, to: 2019 },
                    { label: '2000s', from: 2000, to: 2009 },
+                   { label: '1990s', from: 1990, to: 1999 },
+                   { label: '1980s', from: 1980, to: 1989 },
                  ].map(decade => {
                    const isActive = yearFrom === decade.from && yearTo === decade.to;
                    return (
@@ -189,7 +236,7 @@ const LibraryAdvancedFilters = ({ filters, customLists }) => {
           </div>
 
          <div className="flex-[2] space-y-3">
-           <h3 className="text-[13px] font-semibold text-white/60 uppercase tracking-wider font-secondary">Genres</h3>
+           <h3 className="text-[13px] font-semibold text-secondary uppercase tracking-wider font-secondary">Genres</h3>
            <div className="flex flex-wrap gap-2">
              {standardGenres.map(g => {
                const isActive = genres.includes(g);

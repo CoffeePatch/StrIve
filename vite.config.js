@@ -14,9 +14,7 @@ export default defineConfig({
       brotliSize: true,
     }),
   ],
-  esbuild: {
-    loader: "jsx",
-  },
+
   server: {
     port: 5173,
     strictPort: false,

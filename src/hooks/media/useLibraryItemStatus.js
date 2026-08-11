@@ -8,17 +8,19 @@ import { libraryAdapter } from "../../domain/library/libraryAdapter";
  *
  * @param {Object} options
  * @param {string} options.userId - Firebase UID
- * @param {Object|null} options.mediaItem - { id, media_type }
+ * @param {Object|null} options.libraryIdentity - { titleKey, mediaType, tmdbId }
  * @param {boolean} options.realtime - whether to use onSnapshot
  */
-export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) => {
+export const useLibraryItemStatus = ({ userId, libraryIdentity, realtime = false }) => {
 	const [status, setStatus] = useState(null);
-	const [loading, setLoading] = useState(Boolean(userId && mediaItem?.id));
+	const [trackingData, setTrackingData] = useState(null);
+	const [loading, setLoading] = useState(Boolean(userId && libraryIdentity?.titleKey));
 	const [error, setError] = useState(null);
 
 	useEffect(() => {
-		if (!userId || !mediaItem?.id) {
+		if (!userId || !libraryIdentity?.titleKey) {
 			setStatus(null);
+			setTrackingData(null);
 			setLoading(false);
 			setError(null);
 			return;
@@ -30,9 +32,10 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 		if (realtime) {
 			const unsub = libraryAdapter.subscribeToLibraryStatus(
 				userId,
-				mediaItem,
-				(trackingStatus) => {
+				libraryIdentity,
+				(trackingStatus, trackData) => {
 					setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
+					setTrackingData(trackData);
 					setLoading(false);
 				},
 				(err) => {
@@ -44,16 +47,21 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 			return () => unsub();
 		}
 
-		libraryAdapter.getLibraryStatus(userId, mediaItem)
-			.then((trackingStatus) => {
+		libraryAdapter.getLibraryStatus(userId, libraryIdentity)
+			.then(({ status: trackingStatus, tracking: trackData }) => {
 				setStatus(trackingStatus ? toDisplayWatchStatus(trackingStatus) : null);
+				setTrackingData(trackData);
 			})
 			.catch((err) => {
 				console.warn("useLibraryItemStatus getLibraryStatus error:", err);
 				setError(err);
 			})
 			.finally(() => setLoading(false));
-	}, [userId, mediaItem?.id, mediaItem?.media_type, realtime]);
+	}, [
+		userId,
+		libraryIdentity,
+		realtime,
+	]);
 
 	const normalizedStatus = normalizeWatchStatus(status);
 	const isWatchlisted = normalizedStatus === "plan_to_watch";
@@ -63,6 +71,7 @@ export const useLibraryItemStatus = ({ userId, mediaItem, realtime = false }) =>
 
 	return {
 		status,
+		trackingData,
 		isWatchlisted,
 		isWatching,
 		isCompleted,

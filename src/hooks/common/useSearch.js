@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import tmdbApiService from '../../services/tmdb/tmdbApiService';
+import { auth } from '../../util/firebase/firebase';
 
 const useSearch = (searchTerm) => {
   const [results, setResults] = useState([]);
@@ -29,17 +29,22 @@ const useSearch = (searchTerm) => {
     // Set a new timeout for 500ms
     timeoutRef.current = setTimeout(async () => {
       try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("unauthenticated");
+        const token = await user.getIdToken();
 
-        // Search using TMDB API with images via proxy
-        const data = await tmdbApiService.get('/search/multi', {
-          query: searchTerm,
-          language: 'en-US',
-          include_image_language: 'en,null',
+        // Search using the BFF endpoint
+        const response = await fetch(`/api/catalog/search?q=${encodeURIComponent(searchTerm)}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
 
-        if (!data || !data.results) {
+        if (!response.ok) {
           throw new Error('Failed to fetch search results');
         }
+        
+        const data = await response.json();
 
         // Filter results to separate movies and TV shows
         const searchResults = data.results.filter(item => 

@@ -1,18 +1,33 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import useRequireAuth from "../common/useRequireAuth";
 import useImdbTitle from "./useImdbTitle";
 import useLibraryItemStatus from "./useLibraryItemStatus";
 import { libraryAdapter } from "../../domain/library/libraryAdapter";
-import { getOrFetch, CACHE_KEYS, TTL, invalidateContinueWatching } from "../../util/cache/sessionCache";
+import { getOrFetch, CACHE_KEYS, TTL, invalidateContinueWatching, invalidateCatalogCache } from "../../util/cache/sessionCache";
+import { createLibraryIdentity } from "../../domain/library/libraryIdentity";
 
 const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   const user = useRequireAuth();
   
   const [mediaDetails, setMediaDetails] = useState(null);
+  const [seriesProgress, setSeriesProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const { data: imdbData, loading: imdbLoading } = useImdbTitle(mediaId, mediaType);
+  const libraryIdentity = useMemo(() => {
+    if (!mediaId) return null;
+    return createLibraryIdentity({
+      titleKey: mediaType === "tv" ? `tmdb_tv_${mediaId}` : `tmdb_movie_${mediaId}`,
+      mediaType,
+      tmdbId: mediaId,
+    });
+  }, [mediaId, mediaType]);
+
+  const { data: imdbData, loading: imdbLoading } = useImdbTitle(mediaId, mediaType, {
+    userId: user?.uid,
+    titleKey: libraryIdentity?.titleKey,
+    persist: true,
+  });
 
   const fetchDetails = useCallback(async () => {
     if (!mediaId) {
@@ -36,46 +51,57 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
         ttl,
         fetcher: async () => {
           let data = null;
-          if (mediaType === "tv") {
-            const response = await fetch(`/api/tv/details?tvId=${mediaId}`);
-            if (!response.ok) throw new Error("Failed to fetch TV details");
-            data = await response.json();
-          } else {
-            const response = await fetch(`/api/movie/details?movieId=${mediaId}`);
-            if (!response.ok) throw new Error("Failed to fetch Movie details");
-            data = await response.json();
+          const titleKey = mediaType === "tv" ? `tmdb_tv_${mediaId}` : `tmdb_movie_${mediaId}`;
+          const token = await user?.getIdToken();
+          const response = await fetch(`/api/catalog/${titleKey}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${mediaType} details`);
           }
+          
+          const rawData = await response.json();
+          // Unified endpoint wraps details in `{ catalog, progress }`
+          data = rawData.catalog;
+          const progress = rawData.progress || null;
 
           // Domain normalization logic
           return {
-            ...data,
-            id: data.id,
-            title: data.title || data.name,
-            posterPath: data.poster_path || data.posterPath,
-            backdropPath: data.backdrop_path || data.backdropPath,
-            releaseYear: (data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate || "").split("-")[0],
-            releaseDate: data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate,
-            overview: data.overview,
-            voteAverage: data.vote_average ?? data.voteAverage,
-            voteCount: data.vote_count ?? data.voteCount,
-            genres: data.genres || [],
-            status: data.status,
-            runtime: data.runtime,
-            numberOfSeasons: data.numberOfSeasons || data.number_of_seasons,
-            numberOfEpisodes: data.numberOfEpisodes || data.number_of_episodes,
-            mediaType,
+            catalog: {
+              ...data,
+              id: data.id,
+              title: data.title || data.name,
+              posterPath: data.poster_path || data.posterPath,
+              backdropPath: data.backdrop_path || data.backdropPath,
+              releaseYear: (data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate || "").split("-")[0],
+              releaseDate: data.releaseDate || data.release_date || data.first_air_date || data.firstAirDate,
+              overview: data.overview,
+              voteAverage: data.vote_average ?? data.voteAverage,
+              voteCount: data.vote_count ?? data.voteCount,
+              genres: data.genres || [],
+              status: data.status,
+              runtime: data.runtime,
+              numberOfSeasons: data.numberOfSeasons || data.number_of_seasons,
+              numberOfEpisodes: data.numberOfEpisodes || data.number_of_episodes,
+              mediaType,
+            },
+            progress
           };
         }
       });
 
-      setMediaDetails(details);
+      if (details) {
+        setMediaDetails(details.catalog || details);
+        setSeriesProgress(details.progress || null);
+      }
     } catch (err) {
       console.error(`Error in useMediaDetailsCore for ${mediaType}:`, err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [mediaId, mediaType]);
+  }, [mediaId, mediaType, user]);
 
   useEffect(() => {
     fetchDetails();
@@ -83,6 +109,9 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
 
   // Construct standard payload for Firestore lists
   const mediaItemForLists = mediaDetails ? {
+    titleKey: mediaType === "tv" ? `tmdb_tv_${mediaDetails.id}` : `tmdb_movie_${mediaDetails.id}`,
+    mediaType,
+    tmdbId: mediaDetails.id,
     id: mediaDetails.id,
     title: mediaDetails.title,
     name: mediaDetails.title,
@@ -107,9 +136,9 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
   } : null;
 
   // Hydrate Library Status
-  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted } = useLibraryItemStatus({
+  const { isWatchlisted: firestoreIsWatchlisted, isCompleted: firestoreIsCompleted, trackingData } = useLibraryItemStatus({
     userId: user?.uid,
-    mediaItem: mediaDetails ? { id: mediaDetails.id, media_type: mediaType } : null,
+    libraryIdentity,
     realtime: true,
   });
 
@@ -142,17 +171,17 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     }
   };
 
-  const handleToggleWatched = async () => {
+  const handleToggleWatched = async (options = {}) => {
     if (!user) {
       alert("Please log in first.");
       return;
     }
     try {
-      if (isWatched) {
+      if (isWatched && !options.watchedAt) {
         await libraryAdapter.unmarkCompleted(user.uid, mediaItemForLists);
         setIsWatched(false);
       } else {
-        await libraryAdapter.markCompleted(user.uid, mediaItemForLists);
+        await libraryAdapter.markCompleted(user.uid, mediaItemForLists, options);
         setIsWatched(true);
         setIsWatchlisted(false);
       }
@@ -162,15 +191,67 @@ const useMediaDetailsCore = ({ mediaId, mediaType }) => {
     }
   };
 
+  // Handle Rating Change
+  const [userRating, setUserRating] = useState(null);
+
+  useEffect(() => {
+    if (mediaDetails?.userRating !== undefined) {
+      setUserRating(mediaDetails.userRating);
+    }
+  }, [mediaDetails?.userRating]);
+
+  const handleRatingChange = async (newRating) => {
+    if (!user || !mediaItemForLists) return;
+    const backupRating = userRating;
+    setUserRating(newRating);
+    try {
+      await libraryAdapter.updateUserRating(user.uid, mediaItemForLists, newRating);
+    } catch (err) {
+      console.error("Failed to update user rating:", err);
+      setUserRating(backupRating);
+    }
+  };
+
+  // Handle Notes Change
+  const [userNotes, setUserNotes] = useState(null);
+
+  useEffect(() => {
+    if (mediaDetails?.userNotes !== undefined) {
+      setUserNotes(mediaDetails.userNotes);
+    }
+  }, [mediaDetails?.userNotes]);
+
+  const handleNotesChange = async (newNotes) => {
+    if (!user || !mediaItemForLists) return;
+    const backupNotes = userNotes;
+    const normalizedNotes = newNotes ? newNotes.trim() : null;
+    setUserNotes(normalizedNotes);
+    try {
+      await libraryAdapter.updateUserNotes(user.uid, mediaItemForLists, normalizedNotes);
+      invalidateCatalogCache(mediaId, mediaType);
+    } catch (err) {
+      console.error("Failed to update user notes:", err);
+      setUserNotes(backupNotes);
+      throw err;
+    }
+  };
+
   return {
     user,
     mediaDetails,
+    seriesProgress,
+    refetchDetails: fetchDetails,
     loading,
     error,
     imdbData,
     imdbLoading,
     isWatchlisted,
     isWatched,
+    userRating,
+    handleRatingChange,
+    userNotes,
+    handleNotesChange,
+    trackingData,
     handleToggleWatchlist,
     handleToggleWatched,
     mediaItemForLists

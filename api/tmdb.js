@@ -1,5 +1,46 @@
 import { sendError, getCached, setCache } from "./_lib/utils.js";
 
+const API_BASE_URL = "https://api.themoviedb.org/3";
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function isTransientNetworkError(error) {
+  const code = error?.cause?.code || error?.code;
+  return (
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "ENOTFOUND" ||
+    code === "EAI_AGAIN" ||
+    code === "ECONNRESET" ||
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT"
+  );
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, options, attempts = 3) {
+  let lastError = null;
+
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!RETRYABLE_STATUS.has(response.status) || i === attempts) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (!isTransientNetworkError(error) || i === attempts) {
+        throw error;
+      }
+    }
+
+    await delay(250 * i);
+  }
+
+  throw lastError || new Error("TMDB request failed");
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") {
     return sendError(res, 405, "method-not-allowed", "Method not allowed");
@@ -17,7 +58,6 @@ export default async function handler(req, res) {
     );
   }
 
-  const API_BASE_URL = "https://api.themoviedb.org/3";
   const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_KEY;
 
   if (!TMDB_API_KEY) {
@@ -46,7 +86,7 @@ export default async function handler(req, res) {
       url.searchParams.append(key, params[key]);
     });
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithRetry(url.toString(), {
       method: "GET",
       headers: {
         accept: "application/json",
@@ -69,6 +109,14 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (error) {
     console.error(`Error proxying TMDB request to ${endpoint}:`, error);
+    if (isTransientNetworkError(error)) {
+      return sendError(
+        res,
+        503,
+        "tmdb-unreachable",
+        "TMDB is temporarily unreachable. Please try again.",
+      );
+    }
     return sendError(
       res,
       500,

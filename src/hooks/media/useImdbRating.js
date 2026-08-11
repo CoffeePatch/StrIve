@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getImdbId } from '../../util/imdb/imdbResolver';
-import IMDbService from '../../util/imdb/imdbService';
-import { sessionCache, CACHE_KEYS, TTL } from '../../util/cache/sessionCache';
+import { sessionCache, CACHE_KEYS } from '../../util/cache/sessionCache';
+import { resolveMetadataSnapshot } from '../../services/metadataEnrichmentCoordinator';
 
 // Simple memory cache to prevent re-fetching
 const cache = new Map();
@@ -53,7 +52,7 @@ const setNegativeCache = (cacheKey, ttlMs = null) => {
 };
 
 // Global refetch trigger counter
-let globalRefetchTrigger = 0;
+let _globalRefetchTrigger = 0;
 const refetchListeners = new Set();
 
 // Request queue to prevent overwhelming the API
@@ -94,27 +93,6 @@ const extractRatingData = (data) => {
   };
 };
 
-const extractPrefetchedRating = (prefetched) => {
-  if (!prefetched) return null;
-
-  const score =
-    toNumber(prefetched?.imdbRating) ??
-    toNumber(prefetched?.imdb_rating) ??
-    toNumber(prefetched?.rating?.aggregateRating) ??
-    toNumber(prefetched?.rating?.ratingValue);
-
-  if (!score) return null;
-
-  const votes =
-    toNumber(prefetched?.imdbVotes) ??
-    toNumber(prefetched?.imdb_vote_count) ??
-    toNumber(prefetched?.rating?.voteCount) ??
-    toNumber(prefetched?.rating?.ratingCount) ??
-    0;
-
-  return { score, votes };
-};
-
 // Process the request queue
 const processQueue = async () => {
   if (activeRequests >= MAX_CONCURRENT_REQUESTS || requestQueue.length === 0) {
@@ -153,7 +131,7 @@ const queueRequest = (requestFn) => {
 
 // Global function to trigger refetch for all instances
 export const triggerGlobalRefetch = () => {
-  globalRefetchTrigger++;
+  _globalRefetchTrigger++;
   refetchListeners.forEach(listener => listener());
 };
 
@@ -244,24 +222,13 @@ export const useImdbRating = (tmdbId, mediaType = 'movie', prefetched = null, op
         return;
       }
 
-      // Check full IMDb title session cache
-      let imdbId = prefetchedImdbId;
-      if (!imdbId) {
-        try {
-          imdbId = await getImdbId(String(tmdbId), normalizedMediaType);
-        } catch {
-          // Ignore resolution errors for local check
-        }
-      }
-      if (imdbId) {
-        const cachedTitle = sessionCache.get(CACHE_KEYS.IMDB_TITLE(imdbId));
-        if (cachedTitle) {
-          const ratingData = extractRatingData(cachedTitle);
-          if (ratingData.score) {
-            cache.set(cacheKey, ratingData);
-            safeSetRating(ratingData);
-            return;
-          }
+      const cachedTitle = prefetchedImdbId ? sessionCache.get(CACHE_KEYS.IMDB_TITLE(prefetchedImdbId)) : null;
+      if (cachedTitle) {
+        const ratingData = extractRatingData(cachedTitle);
+        if (ratingData.score) {
+          cache.set(cacheKey, ratingData);
+          safeSetRating(ratingData);
+          return;
         }
       }
     }
@@ -296,49 +263,21 @@ export const useImdbRating = (tmdbId, mediaType = 'movie', prefetched = null, op
           return;
         }
 
-        // 2. Check if IMDb service is configured
-        let imdbService;
-        try {
-          imdbService = new IMDbService();
-        } catch (serviceError) {
-          // IMDb service not configured, silently skip
-          console.debug('IMDb rating not available:', serviceError.message);
-          safeSetRating(null);
-          return;
-        }
+        const metadataSnapshot = await resolveMetadataSnapshot({
+          tmdbId: String(tmdbId),
+          mediaType: normalizedMediaType,
+          prefetchedImdbId,
+          forceRefresh,
+        });
 
-        // 3. Get IMDb ID (using existing resolver which has its own cache)
-        let imdbId = prefetchedImdbId;
-        if (!imdbId) {
-          try {
-            imdbId = await getImdbId(String(tmdbId), normalizedMediaType);
-          } catch (resolverError) {
-            console.debug('Failed to resolve IMDb ID for', tmdbId, ':', resolverError.message);
-            setNegativeCache(cacheKey, 5 * 60 * 1000);
-            safeSetRating(null);
-            return;
-          }
-        }
-        
-        if (imdbId) {
-          // 4. Fetch Rating with retry logic
+        if (metadataSnapshot?.imdbTitle) {
+          // 4. Build Rating from the shared snapshot
           let retries = 3;
           let lastError = null;
           
           while (retries > 0) {
             try {
-              const data = await imdbService.getTitleById(imdbId);
-              
-              // Bidirectional Cache: save full title details in session cache
-              if (data) {
-                try {
-                  sessionCache.set(CACHE_KEYS.IMDB_TITLE(imdbId), data, TTL.IMDB_TITLE);
-                } catch {
-                  // ignore
-                }
-              }
-              
-              const ratingData = extractRatingData(data);
+              const ratingData = extractRatingData(metadataSnapshot.imdbTitle);
 
               // Only cache valid ratings
               if (ratingData.score) {

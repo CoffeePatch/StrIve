@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Check, Info } from 'lucide-react';
-import { IMG_CDN_URL, HERO_BACKDROP_CDN_URL } from '../../util/core/constants';
+import { HERO_BACKDROP_CDN_URL } from '../../util/core/constants';
 import { useNavigate } from 'react-router-dom';
 import tmdbApiService from '../../services/tmdb/tmdbApiService';
 import { sessionCache } from '../../util/cache/sessionCache';
@@ -8,40 +8,24 @@ import { sessionCache } from '../../util/cache/sessionCache';
 const Hero = ({ movies }) => {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [logos, setLogos] = useState(() => {
-    return sessionCache.get("hero_logos") || {};
-  });
+  const [logos, setLogos] = useState(() => sessionCache.get("hero_logos") || {});
+  const [failedLogos, setFailedLogos] = useState({});
   const [bgUrls, setBgUrls] = useState({ current: null, prev: null });
-  const [fadeState, setFadeState] = useState('idle'); // 'fading' | 'idle'
+  const [fadeState, setFadeState] = useState('idle');
 
-  useEffect(() => {
-    if (!movies || movies.length === 0) return;
-    
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % movies.length);
-    }, 8000); // Auto-slide every 8 seconds
-
-    return () => clearInterval(interval);
-  }, [movies]);
-
-  const media = movies && movies.length > 0 ? movies[currentIndex] : null;
-  const type = media ? (media.mediaType || media.media_type || (media.firstAirDate || media.first_air_date || media.name ? 'tv' : 'movie')) : null;
-
+  // Eagerly preload logos for all movies
   useEffect(() => {
     if (!movies || movies.length === 0) return;
 
-    const isMounted = { current: true };
+    let isMounted = true;
 
     const fetchLogo = async (movie) => {
-      if (!movie) return;
-      
+      if (!movie || !movie.id) return;
+
       const currentCached = sessionCache.get("hero_logos") || {};
       if (currentCached[movie.id]) {
-        if (isMounted.current) {
-          setLogos((prev) => {
-            if (prev[movie.id]) return prev;
-            return { ...prev, [movie.id]: currentCached[movie.id] };
-          });
+        if (isMounted) {
+          setLogos((prev) => ({ ...prev, [movie.id]: currentCached[movie.id] }));
         }
         return;
       }
@@ -49,13 +33,13 @@ const Hero = ({ movies }) => {
       const mType = movie.mediaType || movie.media_type || (movie.firstAirDate || movie.first_air_date || movie.name ? 'tv' : 'movie');
       try {
         const details = await tmdbApiService.getDetails(mType, movie.id);
-        if (!isMounted.current) return;
-        
+        if (!isMounted) return;
+
         if (details?.images?.logos?.length > 0) {
           const enLogo = details.images.logos.find((l) => l.iso_639_1 === 'en');
           const neutralLogo = details.images.logos.find((l) => !l.iso_639_1);
           const logoPath = enLogo ? enLogo.file_path : (neutralLogo ? neutralLogo.file_path : details.images.logos[0].file_path);
-          
+
           if (logoPath) {
             const logoUrlVal = `https://image.tmdb.org/t/p/w500${logoPath}`;
             setLogos((prev) => {
@@ -66,59 +50,63 @@ const Hero = ({ movies }) => {
           }
         }
       } catch (err) {
-        console.error(`Failed to fetch logo for movie ${movie.id}:`, err);
+        console.error(`Failed to fetch logo for media ${movie.id}:`, err);
       }
     };
 
-    // 1. Immediately fetch active movie logo
-    const activeMovie = movies[currentIndex];
-    if (activeMovie) {
-      fetchLogo(activeMovie);
-    }
-
-    // 2. Fetch remaining logos concurrently in background
-    movies.forEach((movie) => {
-      if (movie.id !== activeMovie?.id) {
-        fetchLogo(movie);
-      }
-    });
+    movies.forEach(fetchLogo);
 
     return () => {
-      isMounted.current = false;
+      isMounted = false;
     };
-  }, [movies, currentIndex]);
+  }, [movies]);
 
-  const logoUrl = media ? logos[media.id] : null;
+  // Auto-slide timer
+  useEffect(() => {
+    if (!movies || movies.length === 0) return;
 
-  if (!media) return null;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % movies.length);
+    }, 8000);
 
-  const title = media.title || media.name || media.original_title || media.original_name;
-  const rawDate = media.releaseDate || media.firstAirDate || media.release_date || media.first_air_date;
-  const year = media.releaseYear && media.releaseYear !== "N/A" ? media.releaseYear : (rawDate ? new Date(rawDate).getFullYear() : null);
-  const rating = media.rating?.score || media.voteAverage || media.vote_average;
-  const overview = media.overview || media.description;
+    return () => clearInterval(interval);
+  }, [movies]);
 
-  const rawBackdropPath = media.backdropPath || media.backdrop_path;
+  const media = movies && movies.length > 0 ? movies[currentIndex] : null;
+  const type = media ? (media.mediaType || media.media_type || (media.firstAirDate || media.first_air_date || media.name ? 'tv' : 'movie')) : null;
+
+  const title = media?.title || media?.name || media?.original_title || media?.original_name;
+  const rawDate = media?.releaseDate || media?.firstAirDate || media?.release_date || media?.first_air_date;
+  const year = media?.releaseYear && media.releaseYear !== "N/A" ? media.releaseYear : (rawDate ? new Date(rawDate).getFullYear() : null);
+  const rating = media?.rating?.score || media?.voteAverage || media?.vote_average;
+  const overview = media?.overview || media?.description;
+
+  const rawBackdropPath = media?.backdropPath || media?.backdrop_path;
   const backdropUrl = rawBackdropPath
     ? (rawBackdropPath.startsWith('http') ? rawBackdropPath : `${HERO_BACKDROP_CDN_URL}${rawBackdropPath}`)
     : null;
 
   useEffect(() => {
     if (!backdropUrl) return;
-    
+
     if (bgUrls.current && bgUrls.current !== backdropUrl) {
       setBgUrls({ current: backdropUrl, prev: bgUrls.current });
       setFadeState('fading');
-      
+
       const timer = setTimeout(() => {
         setFadeState('idle');
-      }, 700); // match transition duration
-      
+      }, 700);
+
       return () => clearTimeout(timer);
     } else if (!bgUrls.current) {
       setBgUrls({ current: backdropUrl, prev: null });
     }
   }, [backdropUrl]);
+
+  if (!media) return null;
+
+  const logoUrl = media?.id ? logos[media.id] : null;
+  const hasFailedLogo = media?.id ? failedLogos[media.id] : false;
 
   return (
     <>
@@ -169,13 +157,17 @@ const Hero = ({ movies }) => {
 
         {/* Content */}
         <div key={`hero-content-${currentIndex}`} className="relative z-10 px-4 sm:px-8 lg:px-12 max-w-full mt-20">
-          {logoUrl ? (
+          {logoUrl && !hasFailedLogo ? (
             <div className="h-[120px] sm:h-[140px] md:h-[160px] flex items-end mb-6">
               <img 
                 src={logoUrl} 
                 alt={title} 
-                className="max-w-[30vw] max-h-full object-contain z-[2] drop-shadow-2xl filter brightness-0 invert hero-slide-title transition-opacity duration-300" 
-                style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.5))" }}
+                className="max-w-[30vw] max-h-full object-contain z-[2] drop-shadow-[0_8px_16px_rgba(0,0,0,0.7)] hero-slide-title transition-opacity duration-300"
+                onError={() => {
+                  if (media?.id) {
+                    setFailedLogos((prev) => ({ ...prev, [media.id]: true }));
+                  }
+                }}
               />
             </div>
           ) : (
@@ -199,7 +191,6 @@ const Hero = ({ movies }) => {
                 <span>{year}</span>
               </div>
             )}
-            {/* Assuming generic label if genres not available */}
             <div className="flex items-center gap-1">
               <span className="material-symbols-outlined text-[16px]">category</span>
               <span className="capitalize">{type === 'tv' ? 'Series' : 'Movie'}</span>

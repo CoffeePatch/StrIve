@@ -25,6 +25,14 @@ const getItemYear = (item) => {
 const getDateMs = (val) => {
   if (!val) return 0;
   if (typeof val.toMillis === 'function') return val.toMillis();
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object') {
+    const sec = val.seconds ?? val._seconds;
+    if (typeof sec === 'number') {
+      const nsec = val.nanoseconds ?? val._nanoseconds ?? 0;
+      return sec * 1000 + Math.floor(nsec / 1000000);
+    }
+  }
   const time = new Date(val).getTime();
   return isNaN(time) ? 0 : time;
 };
@@ -33,6 +41,8 @@ const getTmdbRating = (item) => toNumber(item?.ratings?.tmdbScore ?? item?.vote_
 const getTmdbVotes = (item) => toNumber(item?.ratings?.tmdbVotes ?? item?.vote_count);
 const getImdbRating = (item) => toNumber(item?.ratings?.imdbScore ?? item?.imdbRating ?? item?.imdb_rating);
 const getImdbVotes = (item) => toNumber(item?.ratings?.imdbVotes ?? item?.imdbVotes ?? item?.imdb_vote_count);
+const getUserRating = (item) => toNumber(item?.userRating ?? item?.tracking?.userRating);
+const hasNotes = (item) => Boolean((item?.notes && String(item.notes).trim()) || (item?.tracking?.userNotes && String(item.tracking.userNotes).trim()));
 
 const getItemGenres = (item) => {
   if (!Array.isArray(item.genres)) return [];
@@ -75,8 +85,10 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       setStatus(urlStatus || 'all');
     }
     const urlType = searchParams.get('type');
-    if (urlType !== null) {
-      setType(urlType || 'all');
+    setType(urlType || 'all');
+    const urlList = searchParams.get('list');
+    if (urlList) {
+      setCustomListIds([urlList]);
     }
     const urlSort = searchParams.get('sort');
     if (urlSort !== null) {
@@ -97,6 +109,8 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const [imdbVotesMin, setImdbVotesMin] = useState(null);
   const [tmdbRatingMin, setTmdbRatingMin] = useState(null);
   const [tmdbVotesMin, setTmdbVotesMin] = useState(null);
+  const [userRatingMin, setUserRatingMin] = useState(null);
+  const [hasNotesOnly, setHasNotesOnly] = useState(false);
   const [genres, setGenres] = useState([]);
   const [yearFrom, setYearFrom] = useState(null);
   const [yearTo, setYearTo] = useState(null);
@@ -184,11 +198,16 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     Object.keys(updates).forEach(key => {
       const val = updates[key];
       if (key === 'status') setStatus(val ?? 'all');
-      else if (key === 'type') setType(val ?? 'all');
+      else if (key === 'type') {
+        setType(val ?? 'all');
+        try { sessionStorage.setItem('libraryTypePreference', val ?? 'all'); } catch { /* ignore storage error */ }
+      }
       else if (key === 'imdbMin') setImdbRatingMin(val);
       else if (key === 'imdbVotesMin') setImdbVotesMin(val);
       else if (key === 'tmdbMin') setTmdbRatingMin(val);
       else if (key === 'tmdbVotesMin') setTmdbVotesMin(val);
+      else if (key === 'userRatingMin') setUserRatingMin(val);
+      else if (key === 'hasNotesOnly') setHasNotesOnly(Boolean(val));
       else if (key === 'genres') setGenres(val ?? []);
       else if (key === 'yearFrom') setYearFrom(val);
       else if (key === 'yearTo') setYearTo(val);
@@ -201,10 +220,13 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
   const clearAdvancedFilters = useCallback(() => {
     setStatus('all');
     setType('all');
+    try { sessionStorage.setItem('libraryTypePreference', 'all'); } catch { /* ignore storage error */ }
     setImdbRatingMin(null);
     setImdbVotesMin(null);
     setTmdbRatingMin(null);
     setTmdbVotesMin(null);
+    setUserRatingMin(null);
+    setHasNotesOnly(false);
     setGenres([]);
     setYearFrom(null);
     setYearTo(null);
@@ -314,6 +336,17 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
         if (tmdbVotes == null || tmdbVotes < filterState.tmdbVotesMin) return false;
       }
 
+      // User Rating (My Rating)
+      if (filterState.userRatingMin !== null) {
+        const uRating = getUserRating(item);
+        if (uRating == null || uRating < filterState.userRatingMin) return false;
+      }
+
+      // Personal Notes
+      if (filterState.hasNotesOnly) {
+        if (!hasNotes(item)) return false;
+      }
+
       // Year Range
       const itemYear = getItemYear(item);
       if (filterState.yearFrom !== null) {
@@ -352,35 +385,34 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
 
     const comparators = {
       imdb: (a, b) => {
-        const aScore = a.ratings?.imdbScore ?? -1;
-        const bScore = b.ratings?.imdbScore ?? -1;
+        const aScore = getImdbRating(a) ?? -1;
+        const bScore = getImdbRating(b) ?? -1;
         return bScore - aScore;
       },
       tmdb: (a, b) => {
-        const aScore = a.ratings?.tmdbScore ?? -1;
-        const bScore = b.ratings?.tmdbScore ?? -1;
+        const aScore = getTmdbRating(a) ?? -1;
+        const bScore = getTmdbRating(b) ?? -1;
         return bScore - aScore;
       },
       dateAdded: (a, b) => {
-        const aMs = getDateMs(a.tracking?.addedAt);
-        const bMs = getDateMs(b.tracking?.addedAt);
+        const aMs = getDateMs(a.tracking?.addedAt) || getDateMs(a.addedAt) || getDateMs(a.tracking?.updatedAt);
+        const bMs = getDateMs(b.tracking?.addedAt) || getDateMs(b.addedAt) || getDateMs(b.tracking?.updatedAt);
         return bMs - aMs;
       },
       dateUpdated: (a, b) => {
-        const aMs = getDateMs(a.tracking?.lastUserInteractionAt) || getDateMs(a.tracking?.updatedAt);
-        const bMs = getDateMs(b.tracking?.lastUserInteractionAt) || getDateMs(b.tracking?.updatedAt);
+        const aMs = getDateMs(a.tracking?.lastUserInteractionAt) || getDateMs(a.tracking?.updatedAt) || getDateMs(a.tracking?.addedAt);
+        const bMs = getDateMs(b.tracking?.lastUserInteractionAt) || getDateMs(b.tracking?.updatedAt) || getDateMs(b.tracking?.addedAt);
         return bMs - aMs;
       },
       lastWatched: (a, b) => {
         const aMs = getDateMs(a.tracking?.lastWatchedAt);
         const bMs = getDateMs(b.tracking?.lastWatchedAt);
         if (bMs !== aMs) return bMs - aMs;
-        // Tie-breaker: if neither was watched, sort by recently added
-        return getDateMs(b.tracking?.addedAt) - getDateMs(a.tracking?.addedAt);
+        return (getDateMs(b.tracking?.addedAt) || getDateMs(b.addedAt)) - (getDateMs(a.tracking?.addedAt) || getDateMs(a.addedAt));
       },
       releaseYear: (a, b) => {
-        const aYear = a.releaseDate ? new Date(a.releaseDate).getFullYear() : 0;
-        const bYear = b.releaseDate ? new Date(b.releaseDate).getFullYear() : 0;
+        const aYear = getItemYear(a) ?? 0;
+        const bYear = getItemYear(b) ?? 0;
         return bYear - aYear;
       },
       runtime: (a, b) => {
@@ -389,7 +421,7 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
         return bRuntime - aRuntime;
       },
       title: (a, b) =>
-        (a.title ?? '').localeCompare(b.title ?? '', undefined, {
+        (a.title ?? a.name ?? '').localeCompare(b.title ?? b.name ?? '', undefined, {
           sensitivity: 'base'
         })
     };
@@ -409,13 +441,15 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
       imdbVotesMin,
       tmdbRatingMin,
       tmdbVotesMin,
+      userRatingMin,
+      hasNotesOnly,
       genres,
       yearFrom,
       yearTo,
       customListIds,
       runtimes
     });
-  }, [items, getFilteredItemsInternal, status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds, runtimes]);
+  }, [items, getFilteredItemsInternal, status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, userRatingMin, hasNotesOnly, genres, yearFrom, yearTo, customListIds, runtimes]);
 
   // Active filters count for badge (excluding default 'all' or empty states)
   const activeSecondaryFilterCount = useMemo(() => {
@@ -426,12 +460,14 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     if (imdbVotesMin !== null) count++;
     if (tmdbRatingMin !== null) count++;
     if (tmdbVotesMin !== null) count++;
+    if (userRatingMin !== null) count++;
+    if (hasNotesOnly) count++;
     if (genres.length > 0) count++;
     if (yearFrom !== null || yearTo !== null) count++;
     if (customListIds.length > 0) count++;
     if (runtimes.length > 0) count++;
     return count;
-  }, [status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, genres, yearFrom, yearTo, customListIds, runtimes]);
+  }, [status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin, userRatingMin, hasNotesOnly, genres, yearFrom, yearTo, customListIds, runtimes]);
 
   // Wrap values in a stable useMemo object context container
   const contextValue = useMemo(() => ({
@@ -443,6 +479,8 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     imdbVotesMin,
     tmdbRatingMin,
     tmdbVotesMin,
+    userRatingMin,
+    hasNotesOnly,
     genres,
     yearFrom,
     yearTo,
@@ -458,10 +496,12 @@ export function useLibraryFilters(items, customListsItemsMap = {}) {
     getImdbRating,
     getImdbVotes,
     getTmdbRating,
-    getTmdbVotes
+    getTmdbVotes,
+    getUserRating,
+    hasNotes
   }), [
     searchQuery, filtersOpen, status, type, imdbRatingMin, imdbVotesMin, tmdbRatingMin, tmdbVotesMin,
-    genres, yearFrom, yearTo, customListIds, runtimes, activeSortState, setSortState,
+    userRatingMin, hasNotesOnly, genres, yearFrom, yearTo, customListIds, runtimes, activeSortState, setSortState,
     updateFilters, clearAdvancedFilters, filteredItems, activeSecondaryFilterCount,
     getFilteredItemsInternal
   ]);

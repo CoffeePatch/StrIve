@@ -1,6 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../util/firebase/firebase';
-import { firstNumber } from '../util/firebase/firestoreService';
+import { firstNumber } from '../util/core/numberUtils';
 import tmdbApiService from './tmdb/tmdbApiService';
 
 export const normalizeLibraryItem = (docId, data = {}) => {
@@ -62,57 +60,8 @@ export const normalizeLibraryItem = (docId, data = {}) => {
   };
 };
 
-const timestampToDateString = (value) => {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  if (value?.toDate && typeof value.toDate === "function") {
-    return value.toDate().toISOString().split("T")[0];
-  }
-  if (value instanceof Date) return value.toISOString().split("T")[0];
-  return "";
-};
-
 export const hydrateItemsFromCatalog = async (items) => {
-  const needsHydration = items.filter(
-    (item) => item?.titleKey && (item.isFallbackTitle || !item.title || !item.poster_path)
-  );
-
-  if (needsHydration.length === 0) return items;
-
-  const uniqueTitleKeys = [...new Set(needsHydration.map((i) => i.titleKey))];
-  const catalogMap = new Map();
-
-  await Promise.all(
-    uniqueTitleKeys.map(async (titleKey) => {
-      try {
-        const snap = await getDoc(doc(db, "catalog_titles", titleKey));
-        if (snap.exists()) catalogMap.set(titleKey, snap.data());
-      } catch (err) {
-        console.warn("Catalog hydration failed for", titleKey, err?.message || err);
-      }
-    })
-  );
-
-  return items.map((item) => {
-    const catalog = catalogMap.get(item.titleKey);
-    if (!catalog) return item;
-
-    const releaseDate = timestampToDateString(catalog.releaseDate);
-    const catalogTitle = catalog.canonical_title || catalog.title || "Untitled";
-    return {
-      ...item,
-      title: item.isFallbackTitle ? catalogTitle : (item.title || catalogTitle),
-      name: item.isFallbackTitle ? catalogTitle : (item.name || catalogTitle),
-      poster_path: item.poster_path || catalog.posterPath || catalog.poster_url || "",
-      release_date: item.release_date || releaseDate,
-      first_air_date: item.first_air_date || releaseDate,
-      vote_average:
-        typeof item.vote_average === "number" && item.vote_average > 0
-          ? item.vote_average
-          : (typeof catalog?.ratings?.tmdb === "number" ? catalog.ratings.tmdb : 0),
-      isFallbackTitle: false,
-    };
-  });
+  return items;
 };
 
 export const hydrateItemsFromTmdb = async (items) => {

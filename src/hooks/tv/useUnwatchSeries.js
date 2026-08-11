@@ -26,13 +26,17 @@ export const useUnwatchSeries = () => {
       if (!user) throw new Error("unauthenticated");
       const token = await user.getIdToken();
 
-      const res = await fetch(UNWATCH_SERIES_ENDPOINT, {
+      const res = await fetch("/api/tracking/watch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ titleKey })
+        body: JSON.stringify({
+          titleKey,
+          mode: "unwatch_all",
+          requestId: crypto.randomUUID(),
+        })
       });
 
       if (!res.ok) {

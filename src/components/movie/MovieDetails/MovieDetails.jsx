@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { fetchLists } from "../../../util/store/listsSlice";
@@ -13,6 +13,7 @@ import MediaCast from "../../media/MediaDetails/MediaCast";
 import MediaTrailers from "../../media/MediaDetails/MediaTrailers";
 import SimilarMoviesPanel from "./SimilarMoviesPanel";
 import MediaDetailSkeleton from "../../media/MediaDetailSkeleton";
+import UserNotesWidget from "../../media/MediaDetails/UserNotesWidget";
 
 const MovieDetails = () => {
   const { movieId, imdbId } = useParams();
@@ -29,6 +30,11 @@ const MovieDetails = () => {
     imdbLoading,
     isWatchlisted,
     isWatched: isCompleted,
+    userRating,
+    handleRatingChange,
+    userNotes,
+    handleNotesChange,
+    trackingData,
     handleToggleWatchlist,
     handleToggleWatched: handleToggleCompleted,
     mediaItemForLists
@@ -76,11 +82,10 @@ const MovieDetails = () => {
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
             <div className="text-red-500 text-xl mb-4">Error loading Movie</div>
-            <p style={{ color: "var(--color-text-secondary)" }}>{detailsError}</p>
+            <p className="text-secondary">{detailsError}</p>
             <button
               onClick={() => navigate("/movies")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Movies
             </button>
@@ -96,13 +101,12 @@ const MovieDetails = () => {
         <Header />
         <div className="pt-20 min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
-            <div className="text-xl mb-4" style={{ color: "var(--color-text-primary)" }}>
+            <div className="text-xl mb-4 text-primary">
               Movie not found
             </div>
             <button
               onClick={() => navigate("/movies")}
-              className="mt-6 px-6 py-3 rounded"
-              style={{ backgroundColor: "var(--color-accent-primary)", color: "#000" }}
+              className="mt-6 px-6 py-3 rounded bg-accent text-inverse hover:bg-accent-hover transition-colors"
             >
               Back to Movies
             </button>
@@ -115,17 +119,17 @@ const MovieDetails = () => {
   return (
     <div className="min-h-screen premium-page pt-20">
       <Header />
-      <div className="amoled-page">
+      <div className="w-full">
         <MediaHero
-          backdropPath={movieDetails.backdrop_path}
+          backdropPath={movieDetails.backdropPath}
           layoutType="movie"
-          posterPath={movieDetails.poster_path}
-          logos={movieDetails.images?.logos}
+          posterPath={movieDetails.posterPath}
+          logos={movieDetails.images?.logos || movieDetails.logos}
           title={movieDetails.title}
-          releaseYear={movieDetails.release_date?.split("-")[0]}
-          durationOrSeasons={`${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m`}
+          releaseYear={movieDetails.releaseYear || (movieDetails.releaseDate || "").split("-")[0]}
+          durationOrSeasons={movieDetails.runtime ? `${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m` : null}
           status={(() => {
-            const releaseDate = movieDetails.release_date;
+            const releaseDate = movieDetails.releaseDate;
             const parsed = releaseDate ? Date.parse(releaseDate) : NaN;
             if (!Number.isFinite(parsed)) return null;
             return parsed > Date.now() ? 'Upcoming' : 'Released';
@@ -135,11 +139,13 @@ const MovieDetails = () => {
           ratingsComponent={
             <MediaRatings
               layoutType="movie"
-              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating}
-              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes}
+              imdbRating={imdbData?.rating?.aggregateRating || imdbData?.rating?.aggregate_rating || imdbData?.rating?.ratingValue || imdbData?.aggregateRating || imdbData?.aggregate_rating || imdbData?.imdbRating || movieDetails?.imdbRating}
+              imdbVotes={imdbData?.rating?.voteCount || imdbData?.rating?.vote_count || imdbData?.rating?.votes_count || imdbData?.rating?.ratingCount || imdbData?.voteCount || imdbData?.vote_count || imdbData?.votes_count || imdbData?.imdbVotes || movieDetails?.imdbVotes}
               imdbLoading={imdbLoading}
-              tmdbScore={movieDetails.vote_average}
-              tmdbVotes={movieDetails.vote_count}
+              tmdbScore={movieDetails.voteAverage}
+              tmdbVotes={movieDetails.voteCount}
+              userRating={userRating}
+              onRatingChange={handleRatingChange}
             />
           }
           actionsComponent={
@@ -150,6 +156,7 @@ const MovieDetails = () => {
               isWatchlisted={isWatchlisted}
               onToggleWatchlist={handleToggleWatchlist}
               isWatched={isCompleted}
+              trackingData={trackingData}
               onToggleWatched={handleToggleCompleted}
               userId={user?.uid}
               mediaItem={mediaItemForLists}
@@ -165,6 +172,8 @@ const MovieDetails = () => {
             <MediaCast cast={movieDetails.credits?.cast} />
             
             <MediaTrailers videos={movieDetails.videos?.results} />
+
+            <UserNotesWidget notes={userNotes} onSaveNotes={handleNotesChange} />
 
             <div className="mt-10">
               <SimilarMoviesPanel movieId={currentId} />

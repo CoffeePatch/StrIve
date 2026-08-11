@@ -72,6 +72,12 @@ export const selectEpisodesForMode = (catalog, mode, sn, en) => {
     throw new Error(`Episode S${sn}E${en} not found in catalog.`);
   }
 
+  if (mode === "season") {
+    return catalog
+      .filter((ep) => ep.seasonNumber === sn && ep.isAired)
+      .sort((a, b) => a.absoluteOrder - b.absoluteOrder);
+  }
+
   if (mode === "single") {
     if (!target.isAired) {
       throw new Error("Target episode has not aired yet.");

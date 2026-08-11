@@ -9,6 +9,7 @@ export const TTL = {
   IMDB_TITLE: 6 * 60 * 60 * 1000,
   CONTINUE_WATCHING: 2 * 60 * 1000, // 2 minutes
   BROWSE_LIBRARY: 2 * 60 * 1000, // 2 minutes
+  USER_ANALYTICS: 5 * 60 * 1000, // 5 minutes
 };
 
 export const CACHE_KEYS = {
@@ -18,18 +19,26 @@ export const CACHE_KEYS = {
   IMDB_TITLE: (imdbId) => `imdb_title_${imdbId}`,
   CONTINUE_WATCHING: (userId) => `continue_watching_${userId}`,
   BROWSE_LIBRARY: (userId) => `browse_library_${userId}`,
+  USER_ANALYTICS: (userId) => `user_analytics_${userId}`,
 };
 
 export const invalidateContinueWatching = (userId) => {
   if (!userId) return;
   sessionCache.remove(CACHE_KEYS.CONTINUE_WATCHING(userId));
   sessionCache.remove(CACHE_KEYS.BROWSE_LIBRARY(userId));
+  sessionCache.remove(CACHE_KEYS.USER_ANALYTICS(userId));
 };
 
 export const invalidateBrowseLibrary = (userId) => {
   if (!userId) return;
   sessionCache.remove(CACHE_KEYS.CONTINUE_WATCHING(userId));
   sessionCache.remove(CACHE_KEYS.BROWSE_LIBRARY(userId));
+};
+
+export const invalidateCatalogCache = (mediaId, mediaType) => {
+  if (!mediaId || !mediaType) return;
+  const key = mediaType === "tv" ? CACHE_KEYS.TV_DETAILS(mediaId) : CACHE_KEYS.MOVIE_DETAILS(mediaId);
+  sessionCache.remove(key);
 };
 
 export const sessionCache = {

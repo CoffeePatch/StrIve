@@ -49,12 +49,7 @@ const SeasonTabs = ({ totalSeasons, selectedSeason, onSeasonChange }) => {
           <select
             value={selectedSeason}
             onChange={(e) => onSeasonChange(Number(e.target.value))}
-            className="w-full p-3 rounded-lg border focus-accent cursor-pointer appearance-none"
-            style={{
-              backgroundColor: 'var(--color-bg-elevated)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text-primary)'
-            }}
+            className="w-full p-3 rounded-lg border border-border bg-surface text-primary focus-accent cursor-pointer appearance-none"
             aria-label="Select Season"
           >
             {seasons.map((seasonNum) => (
@@ -82,15 +77,11 @@ const SeasonTabs = ({ totalSeasons, selectedSeason, onSeasonChange }) => {
             id={`season-${seasonNum}-tab`}
             tabIndex={selectedSeason === seasonNum ? 0 : -1}
             onClick={() => onSeasonChange(seasonNum)}
-            className="flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all focus-accent cursor-pointer"
-            style={{
-              backgroundColor: selectedSeason === seasonNum 
-                ? 'var(--color-accent-primary)' 
-                : 'var(--color-bg-elevated)',
-              color: selectedSeason === seasonNum 
-                ? '#000' 
-                : 'var(--color-text-secondary)',
-            }}
+            className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all focus-accent cursor-pointer ${
+              selectedSeason === seasonNum
+                ? 'bg-accent text-inverse'
+                : 'bg-surface text-secondary hover:text-primary hover:bg-surface-hover'
+            }`}
           >
             Season {seasonNum}
           </button>

@@ -8,14 +8,14 @@ import { useEffect, useRef, useCallback } from "react";
 export const useAutoSeasonSelection = ({
   showDetails,
   watchedSet,
-  selectedSeason,
+  watchedSetLoading,
   setSelectedSeason,
-  seasonData,
 }) => {
   const autoSelectedRef = useRef(false);
 
   useEffect(() => {
     if (!showDetails || !showDetails.numberOfSeasons) return;
+    if (watchedSetLoading) return; // Wait until loaded!
 
     if (!autoSelectedRef.current) {
       if (!watchedSet || watchedSet.size === 0) {
@@ -26,34 +26,41 @@ export const useAutoSeasonSelection = ({
 
       // Find maxSeason from watchedSet
       let maxSeason = 1;
+      let maxSeasonWatchedCount = 0;
+      
       for (const key of watchedSet) {
         const sn = parseInt(key.split(':')[0], 10);
         if (!isNaN(sn) && sn > maxSeason) {
           maxSeason = sn;
+          maxSeasonWatchedCount = 1; // Reset count for new max
+        } else if (sn === maxSeason) {
+          maxSeasonWatchedCount++;
         }
       }
 
-      // If selectedSeason is not maxSeason yet, switch to it to load its episodes
-      if (selectedSeason !== maxSeason) {
-        setSelectedSeason(Math.min(maxSeason, showDetails.numberOfSeasons));
-        return;
-      }
-
-      // Once selectedSeason matches maxSeason, check if the season episodes are loaded
-      if (seasonData && Number(seasonData.seasonNumber) === maxSeason) {
-        if (seasonData.episodes && seasonData.episodes.length > 0) {
-          const allWatched = seasonData.episodes.every(ep => 
-            watchedSet.has(`${maxSeason}:${ep.episodeNumber || ep.episode_number}`)
-          );
-          
-          if (allWatched && maxSeason < showDetails.numberOfSeasons) {
-            setSelectedSeason(maxSeason + 1);
+      // Check if maxSeason is fully watched using showDetails.seasons
+      let targetSeason = maxSeason;
+      if (showDetails.seasons && Array.isArray(showDetails.seasons)) {
+        const maxSeasonData = showDetails.seasons.find(
+          s => (s.season_number ?? s.seasonNumber) === maxSeason
+        );
+        
+        if (maxSeasonData && maxSeasonData.episode_count) {
+          if (maxSeasonWatchedCount >= maxSeasonData.episode_count && maxSeason < showDetails.numberOfSeasons) {
+            targetSeason = maxSeason + 1;
           }
-          autoSelectedRef.current = true; // Lock auto-selection
         }
+      } else {
+        // Fallback: if we can't determine episode count synchronously, don't auto-increment here
       }
+
+      targetSeason = Math.min(targetSeason, showDetails.numberOfSeasons);
+      
+      // Set the target season and immediately lock to prevent race conditions
+      setSelectedSeason(targetSeason);
+      autoSelectedRef.current = true;
     }
-  }, [showDetails, watchedSet, selectedSeason, seasonData, setSelectedSeason]);
+  }, [showDetails, watchedSet, watchedSetLoading, setSelectedSeason]);
 
   const resetAutoSelection = useCallback(() => {
     autoSelectedRef.current = false;

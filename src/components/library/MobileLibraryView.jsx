@@ -6,22 +6,36 @@ import LibraryFilterSheet from './LibraryFilterSheet';
 import { toDisplayWatchStatus } from '../../util/library/watchStatus';
 
 const MobileLibraryView = ({
+
+  filterProps = {},
+  gridProps = {},
   activePrimaryTab,
   setActivePrimaryTab,
-  items,
-  filteredItems,
-  loading,
-  customLists,
-  handleItemClick,
-  handleRemove,
-  onQuickActions,
-  getImdbRating,
-  getImdbVotes,
-  message
+  items: directItems,
+  filteredItems: directFilteredItems,
+  loading: directLoading,
+  customLists: directCustomLists,
+  handleItemClick: directHandleItemClick,
+  handleRemove: directHandleRemove,
+  onQuickActions: directOnQuickActions,
+  getImdbRating: directGetImdbRating,
+  getImdbVotes: directGetImdbVotes,
+  message: directMessage
 }) => {
   const navigate = useNavigate();
   const filters = useLibraryFiltersContext();
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const items = directItems ?? gridProps.items ?? [];
+  const filteredItems = directFilteredItems ?? gridProps.items ?? [];
+  const loading = directLoading ?? false;
+  const customLists = directCustomLists ?? filterProps.customLists ?? [];
+  const handleItemClick = directHandleItemClick ?? gridProps.handleItemClick;
+  const handleRemove = directHandleRemove ?? gridProps.handleRemove;
+  const onQuickActions = directOnQuickActions ?? gridProps.onQuickActions;
+  const getImdbRating = directGetImdbRating ?? gridProps.getImdbRating;
+  const getImdbVotes = directGetImdbVotes ?? gridProps.getImdbVotes;
+  const message = directMessage;
 
   const {
     searchQuery,
@@ -93,29 +107,29 @@ const MobileLibraryView = ({
   }, [status, type, genres, runtimes, imdbRatingMin, yearFrom, yearTo, customListIds, customLists]);
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-background text-primary flex flex-col">
       {/* Top App Bar */}
-      <header className="sticky top-0 z-40 h-14 bg-black/90 backdrop-blur-xl flex items-center justify-between px-4 border-b border-white/5">
-        <h1 className="text-xl font-semibold text-white">Library</h1>
+      <header className="sticky top-0 z-40 h-14 bg-surface/90 backdrop-blur-xl flex items-center justify-between px-4 border-b border-border-subtle">
+        <h1 className="text-xl font-semibold text-primary">Library</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/search')}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-hover transition-colors"
             aria-label="Search"
           >
-            <span className="material-symbols-outlined text-white">search</span>
+            <span className="material-symbols-outlined text-primary">search</span>
           </button>
         </div>
       </header>
 
       {/* Primary Tabs */}
-      <div className="flex h-12 border-b border-white/10 relative">
+      <div className="flex h-12 border-b border-border-subtle relative">
         {['all', 'movies', 'shows'].map((tab) => (
           <button
             key={tab}
             onClick={() => handleTabClick(tab)}
             className={`flex-1 flex items-center justify-center text-[15px] font-semibold transition-colors z-10 ${
-              activePrimaryTab === tab ? 'text-white' : 'text-[#9CA3AF]'
+              activePrimaryTab === tab ? 'text-primary' : 'text-secondary'
             }`}
           >
             {tab === 'all' ? 'All' : tab === 'movies' ? 'Movies' : 'Shows'}
@@ -123,7 +137,7 @@ const MobileLibraryView = ({
         ))}
         {/* Animated Indicator */}
         <div 
-          className="absolute bottom-0 h-[3px] bg-[#E50914] transition-all duration-200 ease-out z-20"
+          className="absolute bottom-0 h-[3px] bg-accent transition-all duration-200 ease-out z-20"
           style={{
             width: '33.333%',
             transform: `translateX(${
@@ -134,13 +148,13 @@ const MobileLibraryView = ({
       </div>
 
       {/* Search and Filter Row */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-black">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle bg-background">
         {/* Search Input */}
-        <div className="flex-1 relative flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-10">
-          <span className="material-symbols-outlined text-white/50 text-[18px] absolute left-3 pointer-events-none">search</span>
+        <div className="flex-1 relative flex items-center bg-surface border border-border-subtle rounded-xl overflow-hidden h-10">
+          <span className="material-symbols-outlined text-muted text-[18px] absolute left-3 pointer-events-none">search</span>
           <input
             type="text"
-            className="w-full h-full bg-transparent pl-10 pr-8 text-[14px] text-white placeholder-white/40 focus:outline-none font-secondary"
+            className="w-full h-full bg-transparent pl-10 pr-8 text-[14px] text-primary placeholder:text-muted focus:outline-none font-secondary"
             placeholder="Search library..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -148,7 +162,7 @@ const MobileLibraryView = ({
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
+              className="absolute right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-surface-hover text-secondary hover:text-primary"
             >
               <span className="material-symbols-outlined text-[14px]">close</span>
             </button>
@@ -160,14 +174,14 @@ const MobileLibraryView = ({
           onClick={() => setFilterSheetOpen(true)}
           className={`h-10 px-4 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 border transition-all ${
             activeSecondaryFilterCount > 0
-              ? 'bg-red-600/10 border-red-500/30 text-red-500 shadow-md shadow-red-500/5'
-              : 'bg-white/5 border-white/10 text-white/80'
+              ? 'bg-accent/10 border-accent/30 text-accent shadow-md shadow-accent/5'
+              : 'bg-surface border-border-subtle text-secondary'
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">tune</span>
           <span>Filter</span>
           {activeSecondaryFilterCount > 0 && (
-            <span className="bg-[#E50914] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            <span className="bg-accent text-inverse text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {activeSecondaryFilterCount}
             </span>
           )}
@@ -178,19 +192,19 @@ const MobileLibraryView = ({
       {activeSecondaryFilterCount > 0 && (
         <div 
           onClick={() => setFilterSheetOpen(true)}
-          className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2 overflow-x-auto hide-scrollbar cursor-pointer select-none active:bg-white/10 transition-colors"
+          className="px-4 py-2 bg-surface border-b border-border-subtle flex items-center gap-2 overflow-x-auto hide-scrollbar cursor-pointer select-none active:bg-surface-hover transition-colors"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0 animate-pulse" />
-          <span className="text-[12px] font-medium text-white/60 whitespace-nowrap truncate flex-1 pr-4">
+          <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0 animate-pulse" />
+          <span className="text-[12px] font-medium text-secondary whitespace-nowrap truncate flex-1 pr-4">
             {activeFilterSummaryText}
           </span>
-          <span className="material-symbols-outlined text-white/40 text-[14px] ml-auto">chevron_right</span>
+          <span className="material-symbols-outlined text-muted text-[14px] ml-auto">chevron_right</span>
         </div>
       )}
 
       {/* Count Info Area */}
       <div className="flex justify-between items-center px-4 h-10">
-        <span className="text-[13px] text-[#9CA3AF]">
+        <span className="text-[13px] text-secondary">
           {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -199,7 +213,7 @@ const MobileLibraryView = ({
       <main className="flex-1 pb-24 px-4 relative">
         {message && (
           <div className={`px-4 py-3 rounded-lg mb-4 text-sm ${
-            message.type === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'
+            message.type === 'error' ? 'bg-error/20 text-error' : 'bg-success/20 text-success'
           }`}>
             {message.text}
           </div>
@@ -207,8 +221,8 @@ const MobileLibraryView = ({
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/20 border-t-[#E50914] mb-4" />
-            <p className="text-white/60 text-sm">Loading...</p>
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-border-subtle border-t-accent mb-4" />
+            <p className="text-secondary text-sm">Loading...</p>
           </div>
         ) : filteredItems.length > 0 ? (
           // Media Grid
@@ -227,10 +241,10 @@ const MobileLibraryView = ({
         ) : (
           // Empty State
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <span className="material-symbols-outlined text-5xl text-white/20 mb-4">
+            <span className="material-symbols-outlined text-5xl text-muted mb-4">
               inbox
             </span>
-            <p className="text-white/60 text-sm max-w-[200px]">
+            <p className="text-secondary text-sm max-w-[200px]">
               {activePrimaryTab === 'movies' ? "No movies found." : activePrimaryTab === 'shows' ? "No shows found." : "No items found."}
             </p>
           </div>

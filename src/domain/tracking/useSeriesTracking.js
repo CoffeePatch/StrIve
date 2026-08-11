@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import useEpisodeStates from "../../hooks/tv/useEpisodeStates";
 import useMarkEpisodeWatched from "../../hooks/tv/useMarkEpisodeWatched";
 import useUnwatchSeries from "../../hooks/tv/useUnwatchSeries";
 import useSeriesProgress from "../../hooks/tv/useSeriesProgress";
-import useRecomputeSeriesProgress from "../../hooks/tv/useRecomputeSeriesProgress";
 import { libraryAdapter } from "../library/libraryAdapter";
 import { buildEpisodeCatalog, selectEpisodesForMode, createEpisodeKey } from "./trackingHelpers";
-import { invalidateContinueWatching } from "../../util/cache/sessionCache";
+import { invalidateContinueWatching, invalidateCatalogCache } from "../../util/cache/sessionCache";
+import { createLibraryIdentity } from "../library/libraryIdentity";
 
 const SYNCING_TIMEOUT_MS = 12000;
 
@@ -26,53 +26,19 @@ export const useSeriesTracking = ({
   onError
 }) => {
   const titleKey = `tmdb_tv_${tvId}`;
+  const libraryIdentity = useMemo(() => createLibraryIdentity({
+    titleKey,
+    mediaType: "tv",
+    tmdbId: tvId,
+  }), [titleKey, tvId]);
 
   // Local State
   const [pendingProgress, setPendingProgress] = useState(null);
-  const recomputeKeyRef = useRef(null);
-
   // Existing Tracking Hooks
-  const { watchedSet, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
+  const { watchedSet, loading: watchedSetLoading, fetchStates, markLocallyWatched, markLocallyWatchedBulk, clearAllLocal, rollbackLocal } = useEpisodeStates({ userId: user?.uid, titleKey });
   const { markEpisodeWatched, loading: markWatchedLoading } = useMarkEpisodeWatched();
   const { unwatchSeries, loading: unwatchLoading } = useUnwatchSeries();
-  const { progress: seriesProgress } = useSeriesProgress({ userId: user?.uid, titleKey, realtime: false });
-  const { recomputeSeriesProgress, loading: recomputeLoading } = useRecomputeSeriesProgress();
-
-  // 1. Automatic Recompute Logic
-  useEffect(() => {
-    if (!user?.uid || !titleKey) return;
-
-    const totalFromShow = Number(
-      showDetails?.numberOfEpisodes ?? showDetails?.number_of_episodes ?? 0
-    );
-    const progressTotal = Number(seriesProgress?.totalEpisodesCount ?? 0);
-    const needsRecompute = Boolean(seriesProgress?.progressNeedsRecompute)
-      || (Number.isFinite(totalFromShow)
-        && totalFromShow > 0
-        && progressTotal > 0
-        && totalFromShow !== progressTotal)
-      || (watchedSet.size > 0 && !seriesProgress);
-
-    if (!needsRecompute || recomputeLoading) return;
-
-    const key = `${titleKey}:${progressTotal}:${totalFromShow}:${seriesProgress?.progressNeedsRecompute ? "stale" : "mismatch"}`;
-    if (recomputeKeyRef.current === key) return;
-    recomputeKeyRef.current = key;
-
-    recomputeSeriesProgress({ titleKey }).catch((err) => {
-      console.warn("recomputeSeriesProgress failed:", err?.message || err);
-    });
-  }, [
-    user?.uid,
-    titleKey,
-    showDetails?.numberOfEpisodes,
-    showDetails?.number_of_episodes,
-    seriesProgress?.totalEpisodesCount,
-    seriesProgress?.progressNeedsRecompute,
-    watchedSet.size,
-    recomputeLoading,
-    recomputeSeriesProgress,
-  ]);
+  const { progress: seriesProgress, fetchProgress } = useSeriesProgress({ userId: user?.uid, titleKey });
 
   // 2. Synchronization Timeouts & Cleanup
   useEffect(() => {
@@ -150,7 +116,10 @@ export const useSeriesTracking = ({
 
     if (!isWatched && !isWatchlisted && mediaItemForLists) {
       try {
-        await libraryAdapter.saveLibraryItem(user.uid, mediaItemForLists, "watching");
+        await libraryAdapter.saveLibraryItem(user.uid, {
+          ...mediaItemForLists,
+          ...libraryIdentity,
+        }, "watching");
       } catch (err) {
         console.warn("Failed to upsert library item:", err);
       }
@@ -167,6 +136,9 @@ export const useSeriesTracking = ({
       expectedSeasonsCount: Number(showDetails?.numberOfSeasons ?? showDetails?.number_of_seasons ?? 0),
     }).then(() => {
       invalidateContinueWatching(user.uid);
+      invalidateCatalogCache(tvId, "tv");
+      if (fetchStates) fetchStates();
+      if (fetchProgress) fetchProgress();
     }).catch((err) => {
       console.error("Background sync failed for markEpisodeWatched:", err);
       rollbackLocal(backupSet);
@@ -185,13 +157,15 @@ export const useSeriesTracking = ({
     markLocallyWatched,
     markLocallyWatchedBulk,
     seriesProgress?.airedEpisodesCount,
-    showDetails?.numberOfEpisodes,
-    showDetails?.number_of_episodes,
     isWatched,
     isWatchlisted,
     mediaItemForLists,
     markEpisodeWatched,
     titleKey,
+    libraryIdentity,
+    onError,
+    rollbackLocal,
+    showDetails,
   ]);
 
   const handleUnwatchSeries = useCallback(async () => {
@@ -200,10 +174,14 @@ export const useSeriesTracking = ({
     setPendingProgress(null);
     await unwatchSeries({ titleKey });
     invalidateContinueWatching(user.uid);
-  }, [user, titleKey, clearAllLocal, unwatchSeries]);
+    invalidateCatalogCache(tvId, "tv");
+    if (fetchStates) fetchStates();
+    if (fetchProgress) fetchProgress();
+  }, [user, titleKey, tvId, clearAllLocal, unwatchSeries, fetchStates, fetchProgress]);
 
   return {
     watchedSet,
+    watchedSetLoading,
     seriesProgress,
     pendingProgress,
     applyWatchMode,

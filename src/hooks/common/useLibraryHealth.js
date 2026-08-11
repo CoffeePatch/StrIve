@@ -1,16 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  collection,
-  doc,
-  getCountFromServer,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-} from "firebase/firestore";
-import { db, auth } from "../../util/firebase/firebase";
-
-const CALLABLE_NAME = "markEpisodeWatched";
+import { auth } from "../../util/firebase/firebase";
 
 const formatError = (err) => {
   if (!err) return "Unknown error";
@@ -40,45 +29,38 @@ export const useLibraryHealth = (userId) => {
     };
 
     try {
-      const libraryRef = collection(db, "users", userId, "library_items");
-      const countSnap = await getCountFromServer(libraryRef);
-      const count = countSnap.data().count || 0;
+      const user = auth.currentUser;
+      if (!user) throw new Error("unauthenticated");
+      const token = await user.getIdToken();
 
-      const sampleSnap = await getDocs(query(libraryRef, limit(1)));
-      next.libraryItems = {
-        ok: true,
-        count,
-        message: sampleSnap.empty
-          ? "Collection is reachable (currently empty)"
-          : "Collection is reachable and contains data",
-      };
+      // Lightweight check against user preferences endpoint
+      const prefRes = await fetch("/api/user/preferences", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (prefRes.ok) {
+        next.libraryItems = {
+          ok: true,
+          message: "PostgreSQL API reachable (User Service)",
+        };
+        next.seriesProgress = {
+          ok: true,
+          message: "PostgreSQL Database connected",
+        };
+      } else {
+        next.libraryItems = {
+          ok: false,
+          message: `HTTP ${prefRes.status} on preferences endpoint`,
+        };
+        next.seriesProgress = {
+          ok: false,
+          message: `HTTP ${prefRes.status} on preferences endpoint`,
+        };
+      }
     } catch (err) {
-      next.libraryItems = {
-        ok: false,
-        count: 0,
-        message: formatError(err),
-      };
-    }
-
-    try {
-      const progressRef = collection(db, "users", userId, "series_progress");
-      const countSnap = await getCountFromServer(progressRef);
-      const count = countSnap.data().count || 0;
-      const sampleSnap = await getDocs(query(progressRef, limit(1)));
-
-      next.seriesProgress = {
-        ok: true,
-        count,
-        message: sampleSnap.empty
-          ? "Collection is reachable (currently empty)"
-          : "Collection is reachable and contains data",
-      };
-    } catch (err) {
-      next.seriesProgress = {
-        ok: false,
-        count: 0,
-        message: formatError(err),
-      };
+      const errMessage = formatError(err);
+      next.libraryItems = { ok: false, message: errMessage };
+      next.seriesProgress = { ok: false, message: errMessage };
     }
 
     try {
@@ -86,7 +68,7 @@ export const useLibraryHealth = (userId) => {
       if (!user) throw new Error("unauthenticated");
       const token = await user.getIdToken();
 
-      const res = await fetch("/api/markEpisodeWatched", {
+      const res = await fetch("/api/tracking/watch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,39 +77,25 @@ export const useLibraryHealth = (userId) => {
         body: JSON.stringify({ titleKey: "invalid", seasonNumber: 0, episodeNumber: 0, mode: "single" })
       });
 
-      if (res.ok) {
+      const status = res.status;
+      const acceptable = [400, 404, 500];
+
+      if (acceptable.includes(status)) {
         next.callable = {
-          ok: false,
-          message: "Callable returned success for invalid payload (unexpected).",
+          ok: true,
+          message: `Tracking endpoint reachable (HTTP ${status})`,
         };
       } else {
-        const status = res.status;
-        const acceptable = [400, 404, 500];
-
-        if (acceptable.includes(status)) {
-          next.callable = {
-            ok: true,
-            message: `Callable reachable (HTTP ${status})`,
-          };
-        } else {
-          next.callable = {
-            ok: false,
-            message: `Unexpected HTTP status: ${status}`,
-          };
-        }
+        next.callable = {
+          ok: false,
+          message: `Unexpected HTTP status: ${status}`,
+        };
       }
     } catch (err) {
       next.callable = {
         ok: false,
         message: formatError(err),
       };
-    }
-
-    // Optional direct read sanity check for a known migration report path.
-    try {
-      await getDoc(doc(db, "users", userId, "migration", "v2"));
-    } catch {
-      // Non-fatal for health panel.
     }
 
     setChecks(next);
